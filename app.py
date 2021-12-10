@@ -8,11 +8,6 @@ def json():
     return render_template('index.html')
 
 
-def increment(temp):
-    temp = 1
-    return temp
-
-
 @app.route('/background_process_test')
 def background_process_test():
     return ("nothing")

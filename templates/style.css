@@ -1,3 +1,29 @@
+body {
+    font-family: Tahoma, Verdana, Arial, Arial, serif
+}
+
+#inputTitle {
+    margin: auto;
+    text-align: center;
+    padding: 85px;
+
+}
+
+input {
+    width: 30%;
+    height: 29px;
+}
+
+button {
+    height: 35px;
+    color: white;
+    padding: 0 22px;
+    cursor: pointer;
+    background-color: lightgreen;
+    border-color: lightgreen;
+    border-radius: 1px;
+}
+
 #imageContainer img {
     width: 20%;
     height: auto;
@@ -7,5 +33,5 @@
 
 #imageContainer p {
     text-align: center;
-    font: normal normal 400 11pt normal Tahoma,Verdana,Arial,Arial;
+    font: normal normal 400 11pt normal Tahoma, Verdana, Arial, Arial;
 }
