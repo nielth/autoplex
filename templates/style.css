@@ -1,0 +1,11 @@
+#imageContainer img {
+    width: 20%;
+    height: auto;
+    margin: auto;
+    display: block;
+}
+
+#imageContainer p {
+    text-align: center;
+    font: normal normal 400 11pt normal Tahoma,Verdana,Arial,Arial;
+}
