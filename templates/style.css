@@ -29,6 +29,7 @@ button {
     height: auto;
     margin: auto;
     display: block;
+    cursor: pointer;
 }
 
 #imageContainer p {
