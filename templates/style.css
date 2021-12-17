@@ -1,4 +1,5 @@
 body {
+    margin: auto;
     font-family: Tahoma, Verdana, Arial, Arial, serif
 }
 
@@ -19,8 +20,8 @@ button {
     color: white;
     padding: 0 22px;
     cursor: pointer;
-    background-color: lightgreen;
-    border-color: lightgreen;
+    background-color: gray;
+    border-color: gray;
     border-radius: 1px;
 }
 
@@ -52,4 +53,49 @@ tr:nth-child(even) {
 
 tr:hover {
     background-color: #ddd;
+}
+
+#loader-div {
+    height: 100%;
+    width: 100%;
+    position: absolute;
+    background-color: lightgray;
+    background-color: gray;
+    opacity: 0.5;
+    display: none;
+}
+
+.loader {
+    border: 9px solid #f3f3f3;
+    border-radius: 50%;
+    border-top: 9px solid #3498db;
+    width: 50px;
+    height: 50px;
+    -webkit-animation: spin 2s linear infinite; /* Safari */
+    animation: spin 2s linear infinite;
+    position: absolute;
+    margin: auto;
+    top: 50%;
+    left: 50%;
+    #display: none;
+
+}
+
+/* Safari */
+@-webkit-keyframes spin {
+    0% {
+        -webkit-transform: rotate(0deg);
+    }
+    100% {
+        -webkit-transform: rotate(360deg);
+    }
+}
+
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
 }

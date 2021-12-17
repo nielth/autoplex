@@ -6,18 +6,22 @@ $("#title").keyup(function (event) {
 });
 
 const settings = {
-    "async": true,
+    "async": false,
     "crossDomain": true,
     "url": "",
     "method": "GET",
 };
 
-function getTitleValue(name, value) {
+
+function getTitleValue() {
     const container = document.getElementById('imageContainer');
     // Remove previous search
     container.textContent = '';
     // Selecting the input element and get its value
     const inputVal = document.getElementById("title").value;
+
+    const loader = document.getElementById('loader-div');
+    loader.style.display = "inline";
 
     // Removes unnecessary spaces
     var newStr = inputVal.replaceAll(" ", "%");
@@ -49,6 +53,7 @@ function getTitleValue(name, value) {
             container.appendChild(element).appendChild(para);
         }
     });
+    loader.style.display = "none";
 }
 
 function titleValue(event) {
@@ -58,23 +63,33 @@ function titleValue(event) {
     const alt = event.target.alt;
 
     settings.url = `http://127.0.0.1:5000/torrent/${alt}/`
-    const element = document.createElement("div");
-    const table = document.createElement("table");
-    const tr = document.createElement("tr")
-    addHeaderTable(container, "Name of file")
-    addHeaderTable(container, "Seeders")
-    addHeaderTable(container, "Size")
-    addHeaderTable(container, "Download")
 
-    function addHeaderTable(container, content){
-        const th = document.createElement("th");
-        th.innerText = content;
-        container.appendChild(th)
-        container.appendChild(element).appendChild(table).appendChild(tr).appendChild(th)
-    }
-
+    const loader = document.getElementById('loader-div');
+    loader.style.display = "inline";
 
     $.getJSON(settings, function (result) {
+        const element = document.createElement("div");
+        const table = document.createElement("table");
+        const tr = document.createElement("tr")
+        addHeaderTable(container, "Name of file")
+        addHeaderTable(container, "Seeders")
+        addHeaderTable(container, "Size")
+        addHeaderTable(container, "Download")
+
+        function addHeaderTable(container, content) {
+            const th = document.createElement("th");
+            th.innerText = content;
+            container.appendChild(th)
+            container.appendChild(element).appendChild(table).appendChild(tr).appendChild(th)
+        }
+
+        function addTable(container, tr, content) {
+            const td = document.createElement("td")
+            td.innerText = content;
+            container.appendChild(td);
+            container.appendChild(element).appendChild(table).appendChild(tr).appendChild(td);
+        }
+
         for (let i = 0; i < Object.keys(result).length; i++) {
             const tr = document.createElement("tr")
             addTable(container, tr, result[i]['filename'])
@@ -89,11 +104,6 @@ function titleValue(event) {
             container.appendChild(element).appendChild(table).appendChild(tr).appendChild(img)
         }
     });
+    loader.style.display = "none";
 
-    function addTable(container, tr, content){
-    const td = document.createElement("td")
-    td.innerText = content;
-    container.appendChild(td);
-    container.appendChild(element).appendChild(table).appendChild(tr).appendChild(td);
-}
 }
