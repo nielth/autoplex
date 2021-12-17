@@ -1,12 +1,14 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify
 import rarbgapi
+from imdb import IMDb
 
 app = Flask(__name__)
+client = rarbgapi.RarbgAPI()
+ia = IMDb()
 
 
-@app.route('/<string:name>/', methods=['GET'])
+@app.route('/torrent/<string:name>/', methods=['GET'])
 def hello_word(name):
-    client = rarbgapi.RarbgAPI()
     titles = client.search(search_imdb=name, extended_response=True, sort="seeders",
                            categories=[rarbgapi.RarbgAPI.CATEGORY_MOVIE_H264_1080P,
                                        rarbgapi.RarbgAPI.CATEGORY_MOVIE_BD_REMUX])
@@ -21,7 +23,31 @@ def hello_word(name):
                        "magnet": titles[i].download
                        })
 
-    return torrent
+    response = jsonify(torrent)
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    return response
+
+
+@app.route('/imdb/<string:name>/', methods=['GET'])
+def imdb_mov(name):
+    name.replace("%20", " ")
+    movie = ia.search_movie(name)
+    movies = dict()
+    mov_list = 0
+
+    for i in range(len(movie)):
+        if movie[i].data['kind'] == 'movie':
+            result = movie[i].data['cover url'].find("._V1_")
+            movies[mov_list] = ({"title": movie[i].data['title'],
+                                 "cover-url": movie[i].data['cover url'].replace(
+                                     movie[i].data['cover url'][result + 3:result + 23], ""),
+                                 "movie-id": "tt" + movie[i].movieID,
+                                 })
+            mov_list += 1
+
+    response = jsonify(movies)
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    return response
 
 
 if __name__ == '__main__':

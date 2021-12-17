@@ -36,3 +36,20 @@ button {
     text-align: center;
     font: normal normal 400 11pt normal Tahoma, Verdana, Arial, Arial;
 }
+
+table {
+    width: 70%;
+    margin: auto;
+}
+
+tr {
+    vertical-align: baseline;
+}
+
+tr:nth-child(even) {
+    background-color: #f2f2f2;
+}
+
+tr:hover {
+    background-color: #ddd;
+}
