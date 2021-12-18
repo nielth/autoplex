@@ -92,18 +92,35 @@ function titleValue(event) {
 
         for (let i = 0; i < Object.keys(result).length; i++) {
             const tr = document.createElement("tr")
+            const td = document.createElement("td")
             addTable(container, tr, result[i]['filename'])
             addTable(container, tr, result[i]['seeders'])
             addTable(container, tr, result[i]['size'] + " GB")
+            const a = document.createElement("a")
             const img = document.createElement('img');
             img.src = "https://dyncdn.me/static/20/img/magnet.gif";
-            img.style.width = "12px";
+            img.alt = result[i]['magnet']
             img.onclick = function () {
-                titleValue(event)
+                torrentDownload(this.alt)
             };
-            container.appendChild(element).appendChild(table).appendChild(tr).appendChild(img)
+            img.style.width = "12px";
+            container.appendChild(element).appendChild(table).appendChild(tr).appendChild(td).appendChild(a).appendChild(img)
         }
     });
     loader.style.display = "none";
 
+}
+
+function torrentDownload(magnet) {
+    console.log(magnet)
+    const magnet_link = {'magnet': magnet}
+    $.ajax({
+        url: `http://127.0.0.1:5000/movie/`,
+        type: 'POST',
+        dataType: 'json',
+        data: magnet_link,
+        success: function (d) {
+            alert("Saved Successfully");
+        },
+    });
 }
