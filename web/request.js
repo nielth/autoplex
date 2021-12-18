@@ -1,3 +1,5 @@
+const localip = "192.168.10.112"
+
 const settings = {
     "async": false,
     "crossDomain": true,
@@ -11,12 +13,7 @@ $("#title").keyup(function (event) {
     }
 });
 
-let touchEvent = 'ontouchstart' in window ? 'touchstart' : 'click';
-
-document.getElementById('titleButton').addEventListener(touchEvent, someFunction);
-$('#titleButton').on(touchEvent, someFunction);
-
-function someFunction() {
+document.getElementById("titleButton").addEventListener("click", function () {
     const container = document.getElementById('imageContainer');
     // Remove previous search
     container.textContent = '';
@@ -24,6 +21,7 @@ function someFunction() {
     const inputVal = document.getElementById("title").value;
 
     const loader = document.getElementById('loader-div');
+
     loader.style.display = "inline";
 
     // Removes unnecessary spaces
@@ -32,7 +30,7 @@ function someFunction() {
         newStr = newStr.slice(0, -1);
     }
 
-    settings.url = `http://127.0.0.1:5000/imdb/${newStr}/`
+    settings.url = `http://${localip}:5000/imdb/${newStr}/`
 
     $.getJSON(settings, function (result) {
         for (let i = 0; i < Object.keys(result).length; i++) {
@@ -60,7 +58,8 @@ function someFunction() {
         }
     });
     loader.style.display = "none";
-}
+})
+
 
 function titleValue(event) {
     const container = document.getElementById('imageContainer');
@@ -68,7 +67,7 @@ function titleValue(event) {
 
     const alt = event.target.alt;
 
-    settings.url = `http://127.0.0.1:5000/torrent/${alt}/`
+    settings.url = `http://${localip}:5000/torrent/${alt}/`
 
     const loader = document.getElementById('loader-div');
     loader.style.display = "inline";
@@ -122,7 +121,7 @@ function torrentDownload(magnet) {
     console.log(magnet)
     const magnet_link = {'magnet': magnet}
     $.ajax({
-        url: `http://127.0.0.1:5000/movie/`,
+        url: `http://${localip}:5000/movie/`,
         "async": false,
         type: 'POST',
         dataType: 'json',
