@@ -5,8 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
     <title>Auto Docker</title>
-    <script src="{{ url_for('static',filename='request.js') }}"></script>
-    <link href= "{{ url_for('static',filename='style.css') }}" rel="stylesheet"/>
+    <link href="{{ url_for('static',filename='style.css') }}" rel="stylesheet"/>
 </head>
 
 <body>
@@ -15,9 +14,10 @@
 </div>
 <div id="inputTitle">
     <input type="text" autocomplete="off" id="title" placeholder="Search For Title">
-    <button id="titleButton" onclick="getTitleValue();">Search</button>
+    <button id="titleButton">Search</button>
 </div>
 
 <div id="imageContainer"></div>
 </body>
+<script src="{{ url_for('static',filename='request.js') }}"></script>
 </html>

@@ -1,10 +1,3 @@
-// Need fix
-$("#title").keyup(function (event) {
-    if (event.keyCode === 13) {
-        $("#titleButton").click();
-    }
-});
-
 const settings = {
     "async": false,
     "crossDomain": true,
@@ -12,8 +5,18 @@ const settings = {
     "method": "GET",
 };
 
+$("#title").keyup(function (event) {
+    if (event.keyCode === 13) {
+        $("#titleButton").click();
+    }
+});
 
-function getTitleValue() {
+let touchEvent = 'ontouchstart' in window ? 'touchstart' : 'click';
+
+document.getElementById('titleButton').addEventListener(touchEvent, someFunction);
+$('#titleButton').on(touchEvent, someFunction);
+
+function someFunction() {
     const container = document.getElementById('imageContainer');
     // Remove previous search
     container.textContent = '';
@@ -33,24 +36,27 @@ function getTitleValue() {
 
     $.getJSON(settings, function (result) {
         for (let i = 0; i < Object.keys(result).length; i++) {
-            const element = document.createElement("div");
+            if (result[i]['cover-url'].includes("https://m.media-amazon.com")) {
+                const element = document.createElement("div");
+                element.id = "title-choose"
 
-            // Find the image
-            const img = document.createElement('img');
-            img.src = result[i]['cover-url'];
-            img.alt = result[i]['movie-id'];
-            img.onclick = function () {
-                titleValue(event)
-            };
+                // Find the image
+                const img = document.createElement('img');
+                img.src = result[i]['cover-url'];
+                img.alt = result[i]['movie-id'];
+                img.onclick = function () {
+                    titleValue(event)
+                };
 
-            // Find the title
-            const para = document.createElement("p");
-            para.innerText = result[i]['title'];
-            container.appendChild(para);
+                // Find the title
+                const para = document.createElement("p");
+                para.innerText = result[i]['title'];
+                container.appendChild(para);
 
-            // Append image and title into div
-            container.appendChild(element).appendChild(img);
-            container.appendChild(element).appendChild(para);
+                // Append image and title into div
+                container.appendChild(element).appendChild(img);
+                container.appendChild(element).appendChild(para);
+            }
         }
     });
     loader.style.display = "none";
@@ -104,6 +110,7 @@ function titleValue(event) {
                 torrentDownload(this.alt)
             };
             img.style.width = "12px";
+            img.style.cursor = "pointer";
             container.appendChild(element).appendChild(table).appendChild(tr).appendChild(td).appendChild(a).appendChild(img)
         }
     });
@@ -116,6 +123,7 @@ function torrentDownload(magnet) {
     const magnet_link = {'magnet': magnet}
     $.ajax({
         url: `http://127.0.0.1:5000/movie/`,
+        "async": false,
         type: 'POST',
         dataType: 'json',
         data: magnet_link,

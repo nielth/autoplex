@@ -25,9 +25,17 @@ button {
     border-radius: 1px;
 }
 
-#imageContainer img {
-    width: 20%;
-    height: auto;
+#imageContainer {
+    text-align: center;
+}
+
+#imageContainer #title-choose {
+    display: inline-block;
+    padding: 10px;
+}
+
+#imageContainer #title-choose img {
+    height: 400px;
     margin: auto;
     display: block;
     cursor: pointer;
