@@ -1,6 +1,7 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request, Response
 import rarbgapi
 from imdb import IMDb
+import torrent_api
 
 app = Flask(__name__)
 client = rarbgapi.RarbgAPI()
@@ -48,6 +49,13 @@ def imdb_mov(name):
     response = jsonify(movies)
     response.headers.add('Access-Control-Allow-Origin', '*')
     return response
+
+
+@app.route('/movie/', methods=['POST'])
+def mov_magnet():
+    magnet_link = request.form
+    torrent_api.add_movie_to_api(magnet_link['magnet'])
+    return "", 204
 
 
 if __name__ == '__main__':
