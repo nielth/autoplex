@@ -4,8 +4,8 @@ import qbittorrentapi
 qbt_client = qbittorrentapi.Client(
     host='localhost',
     port=8081,
-    username='thomasnie',
-    password='userpass',
+    username='admin',
+    password='adminadmin',
 )
 
 

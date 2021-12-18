@@ -1,0 +1,6 @@
+Flask
+redis
+rarbgapi 
+git+https://github.com/alberanid/imdbpy 
+imdbpy 
+qbittorrent-api
