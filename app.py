@@ -1,11 +1,17 @@
-from flask import Flask, jsonify, request, Response
+from flask import Flask, jsonify, request, render_template
 import rarbgapi
 from imdb import IMDb
+
 import torrent_api
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder="web", template_folder="web")
 client = rarbgapi.RarbgAPI()
 ia = IMDb()
+
+
+@app.route('/')
+def index():
+    return render_template("index.html")
 
 
 @app.route('/torrent/<string:name>/', methods=['GET'])
@@ -59,4 +65,4 @@ def mov_magnet():
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host="0.0.0.0", debug=True)
