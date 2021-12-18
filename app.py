@@ -1,10 +1,12 @@
 from flask import Flask, jsonify, request, render_template
 import rarbgapi
 from imdb import IMDb
+from flask_cors import CORS
 
 import torrent_api
 
 app = Flask(__name__, static_folder="web", template_folder="web")
+CORS(app)
 client = rarbgapi.RarbgAPI()
 ia = IMDb()
 
@@ -43,7 +45,8 @@ def imdb_mov(name):
     mov_list = 0
 
     for i in range(len(movie)):
-        if movie[i].data['kind'] == 'movie':
+        if movie[i].data['kind'] == 'movie' and "Podcast" not in movie[i].data['title'] and "podcast" not in \
+                movie[i].data['title']:
             result = movie[i].data['cover url'].find("._V1_")
             movies[mov_list] = ({"title": movie[i].data['title'],
                                  "cover-url": movie[i].data['cover url'].replace(
