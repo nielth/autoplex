@@ -2,6 +2,7 @@ from flask import Flask, jsonify, request, render_template
 import rarbgapi
 from imdb import IMDb
 from flask_cors import CORS
+import time
 
 import torrent_api
 
@@ -16,13 +17,23 @@ def index():
     return render_template("index.html")
 
 
+def get_magnet(name):
+    return client.search(search_imdb=name, extended_response=True, sort="seeders",
+                         categories=[rarbgapi.RarbgAPI.CATEGORY_MOVIE_H264_1080P,
+                                     rarbgapi.RarbgAPI.CATEGORY_MOVIE_BD_REMUX])
+
+
 @app.route('/torrent/<string:name>/', methods=['GET'])
 def hello_word(name):
-    titles = client.search(search_imdb=name, extended_response=True, sort="seeders",
-                           categories=[rarbgapi.RarbgAPI.CATEGORY_MOVIE_H264_1080P,
-                                       rarbgapi.RarbgAPI.CATEGORY_MOVIE_BD_REMUX])
-
     torrent = dict()
+    titles = get_magnet(name)
+
+    while True:
+        if not titles:
+            time.sleep(2)
+            titles = get_magnet(name)
+        else:
+            break
 
     for i in range(len(titles)):
         torrent[i] = ({"filename": titles[i].filename,

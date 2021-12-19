@@ -2,7 +2,7 @@ import qbittorrentapi
 
 # instantiate a Client using the appropriate WebUI configuration
 qbt_client = qbittorrentapi.Client(
-    host='localhost',
+    host='192.168.10.112',
     port=8081,
     username='admin',
     password='adminadmin',

@@ -13,6 +13,7 @@ $("#title").keyup(function (event) {
     }
 });
 
+
 document.getElementById("titleButton").addEventListener("click", function () {
     const container = document.getElementById('imageContainer');
     // Remove previous search
@@ -59,6 +60,10 @@ document.getElementById("titleButton").addEventListener("click", function () {
     });
     loader.style.display = "none";
 })
+
+$(document).ready(function(){
+           $('#title-choose').on('click', titleValue);
+      });
 
 
 function titleValue(event) {
@@ -108,8 +113,6 @@ function titleValue(event) {
             img.onclick = function () {
                 torrentDownload(this.alt)
             };
-            img.style.width = "12px";
-            img.style.cursor = "pointer";
             container.appendChild(element).appendChild(table).appendChild(tr).appendChild(td).appendChild(a).appendChild(img)
         }
     });
@@ -126,8 +129,8 @@ function torrentDownload(magnet) {
         type: 'POST',
         dataType: 'json',
         data: magnet_link,
-        success: function (d) {
-            alert("Saved Successfully");
+        success: function () {
+            alert("Success!")
         },
     });
 }

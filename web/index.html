@@ -2,13 +2,22 @@
 <html lang="en">
 <head>
     <meta charset="utf-8"/>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
     <title>Auto Docker</title>
     <link href="{{ url_for('static',filename='style.css') }}" rel="stylesheet"/>
+    <link href="{{ url_for('static',filename='responsive.css') }}" rel="stylesheet"/>
 </head>
 
 <body>
+<!--
+<div id="menu">
+    <ul>
+        <li><a class="active" href="#home">Home</a></li>
+        <li><a href="#news">News</a></li>
+    </ul>
+</div>
+-->
 <div id="loader-div">
     <div class="loader"></div>
 </div>
