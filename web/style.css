@@ -1,12 +1,42 @@
 body {
     margin: auto;
-    font-family: Tahoma, Verdana, Arial, Arial, serif
+    font-family: Tahoma, Verdana, Arial, Arial, serif;
+    touch-action: auto;
+}
+
+ul {
+    list-style-type: none;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    background-color: #333;
+    text-align: center;
+}
+
+li {
+    display: inline-block;
+}
+
+li a {
+    display: block;
+    color: white;
+    text-align: center;
+    padding: 14px 16px;
+    text-decoration: none;
+}
+
+li a:hover:not(.active) {
+    background-color: #111;
+}
+
+.active {
+    background-color: #04AA6D;
 }
 
 #inputTitle {
     margin: auto;
     text-align: center;
-    padding: 85px;
+    padding-top: 85px;
 
 }
 
@@ -31,7 +61,7 @@ button {
 
 #imageContainer #title-choose {
     display: inline-block;
-    padding: 10px;
+    padding: 20px 20px 77px;
 }
 
 #imageContainer #title-choose img {
@@ -44,6 +74,8 @@ button {
 #imageContainer p {
     text-align: center;
     font: normal normal 400 11pt normal Tahoma, Verdana, Arial, Arial;
+    width: 280px;
+    position: absolute;
 }
 
 table {
@@ -63,11 +95,19 @@ tr:hover {
     background-color: #ddd;
 }
 
+td {
+    vertical-align: middle;
+}
+
+td a img {
+    width: 12px;
+    cursor: pointer;
+}
+
 #loader-div {
     height: 100%;
     width: 100%;
     position: absolute;
-    background-color: lightgray;
     background-color: gray;
     opacity: 0.5;
     display: none;
@@ -81,12 +121,9 @@ tr:hover {
     height: 50px;
     -webkit-animation: spin 2s linear infinite; /* Safari */
     animation: spin 2s linear infinite;
-    position: absolute;
+    position: sticky;
     margin: auto;
     top: 50%;
-    left: 50%;
-    #display: none;
-
 }
 
 /* Safari */

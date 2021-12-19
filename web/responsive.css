@@ -1,0 +1,37 @@
+@media screen and (max-width: 670px) {
+    #inputTitle {
+        padding-top: 25px;
+    }
+
+    #titleButton {
+        display: none;
+    }
+
+    input {
+        width: 70%;
+    }
+
+    table {
+        font-size: 7px;
+    }
+
+    td a img {
+        width: 8px;
+    }
+
+    #imageContainer {
+        padding-top: 40px;
+    }
+
+    #imageContainer p {
+        width: 150px;
+    }
+
+    #imageContainer #title-choose {
+        padding: 0 5px 77px;
+    }
+
+    #imageContainer #title-choose img {
+        height: 225px;
+    }
+}
