@@ -1,4 +1,12 @@
-const localip = "10.0.0.33"
+/*
+#############################
+#                           #
+#   WARNING! I suck at JS   #
+#                           #
+#############################
+*/
+
+const ip_addr = "10.13.13.3"
 
 const settings = {
     "async": false,
@@ -31,7 +39,7 @@ document.getElementById("titleButton").addEventListener("click", function () {
         newStr = newStr.slice(0, -1);
     }
 
-    settings.url = `http://${localip}:5000/imdb/${newStr}/`
+    settings.url = `http://${ip_addr}:5000/imdb/movie/${newStr}/`
 
     $.getJSON(settings, function (result) {
         for (let i = 0; i < Object.keys(result).length; i++) {
@@ -44,7 +52,7 @@ document.getElementById("titleButton").addEventListener("click", function () {
                 img.src = result[i]['cover-url'];
                 img.alt = result[i]['movie-id'];
                 img.onclick = function () {
-                    titleValue(event)
+                    getMagnet(event)
                 };
 
                 // Find the title
@@ -61,18 +69,24 @@ document.getElementById("titleButton").addEventListener("click", function () {
     loader.style.display = "none";
 })
 
-$(document).ready(function(){
-           $('#title-choose').on('click', titleValue);
-      });
+$(document).ready(function () {
+    $('#title-choose').on('click', getMagnet);
+});
 
 
-function titleValue(event) {
+function getMagnet(event) {
     const container = document.getElementById('imageContainer');
     container.textContent = '';
 
     const alt = event.target.alt;
+    const img = event.target.src;
+    const image = document.createElement("img");
+    image.src = img;
+    image.style.width = "13%";
+    image.style.padding = "67px 0 36px 0";
+    container.appendChild(image);
 
-    settings.url = `http://${localip}:5000/torrent/${alt}/`
+    settings.url = `http://${ip_addr}:5000/torrent/${alt}/`
 
     const loader = document.getElementById('loader-div');
     loader.style.display = "inline";
@@ -80,38 +94,38 @@ function titleValue(event) {
     $.getJSON(settings, function (result) {
         const element = document.createElement("div");
         const table = document.createElement("table");
-        const tr = document.createElement("tr")
-        addHeaderTable(container, "Name of file")
-        addHeaderTable(container, "Seeders")
-        addHeaderTable(container, "Size")
-        addHeaderTable(container, "Download")
+        const tr = document.createElement("tr");
+        addHeaderTable(container, "Name of file");
+        addHeaderTable(container, "Seeders");
+        addHeaderTable(container, "Size");
+        addHeaderTable(container, "Download");
 
         function addHeaderTable(container, content) {
             const th = document.createElement("th");
             th.innerText = content;
-            container.appendChild(th)
-            container.appendChild(element).appendChild(table).appendChild(tr).appendChild(th)
+            container.appendChild(th);
+            container.appendChild(element).appendChild(table).appendChild(tr).appendChild(th);
         }
 
         function addTable(container, tr, content) {
-            const td = document.createElement("td")
+            const td = document.createElement("td");
             td.innerText = content;
             container.appendChild(td);
             container.appendChild(element).appendChild(table).appendChild(tr).appendChild(td);
         }
 
         for (let i = 0; i < Object.keys(result).length; i++) {
-            const tr = document.createElement("tr")
-            const td = document.createElement("td")
-            addTable(container, tr, result[i]['filename'])
-            addTable(container, tr, result[i]['seeders'])
-            addTable(container, tr, result[i]['size'] + " GB")
-            const a = document.createElement("a")
+            const tr = document.createElement("tr");
+            const td = document.createElement("td");
+            addTable(container, tr, result[i]['filename']);
+            addTable(container, tr, result[i]['seeders']);
+            addTable(container, tr, result[i]['size'] + " GB");
+            const a = document.createElement("a");
             const img = document.createElement('img');
             img.src = "https://dyncdn.me/static/20/img/magnet.gif";
             img.alt = result[i]['magnet']
             img.onclick = function () {
-                torrentDownload(this.alt)
+                torrentDownload(this.alt);
             };
             container.appendChild(element).appendChild(table).appendChild(tr).appendChild(td).appendChild(a).appendChild(img)
         }
@@ -124,7 +138,7 @@ function torrentDownload(magnet) {
     console.log(magnet)
     const magnet_link = {'magnet': magnet}
     $.ajax({
-        url: `http://${localip}:5000/movie/`,
+        url: `http://${ip_addr}:5000/movie/`,
         "async": false,
         type: 'POST',
         dataType: 'json',
