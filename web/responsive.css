@@ -7,7 +7,7 @@
         display: none;
     }
 
-    input {
+    #inputTitle #title {
         width: 70%;
     }
 

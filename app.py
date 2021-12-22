@@ -24,14 +24,16 @@ def get_magnet(name):
 
 
 @app.route('/torrent/<string:name>/', methods=['GET'])
-def hello_word(name):
+def get_torrents(name):
     torrent = dict()
     titles = get_magnet(name)
+    tries = 0
 
     while True:
-        if not titles:
+        if not titles and tries <= 5:
             time.sleep(2)
             titles = get_magnet(name)
+            tries += 1
         else:
             break
 
@@ -48,23 +50,32 @@ def hello_word(name):
     return response
 
 
-@app.route('/imdb/<string:name>/', methods=['GET'])
+@app.route('/imdb/movie/<string:name>/', methods=['GET'])
 def imdb_mov(name):
+    return get_title(name, "movie")
+
+
+@app.route('/imdb/series/<string:name>/', methods=['GET'])
+def imdb_series(name):
+    return get_title(name, "tv series")
+
+
+def get_title(name, category):
     name.replace("%20", " ")
     movie = ia.search_movie(name)
     movies = dict()
-    mov_list = 0
+    titles = 0
 
     for i in range(len(movie)):
-        if movie[i].data['kind'] == 'movie' and "Podcast" not in movie[i].data['title'] and "podcast" not in \
+        if movie[i].data['kind'] == category and "Podcast" not in movie[i].data['title'] and "podcast" not in \
                 movie[i].data['title']:
             result = movie[i].data['cover url'].find("._V1_")
-            movies[mov_list] = ({"title": movie[i].data['title'],
-                                 "cover-url": movie[i].data['cover url'].replace(
-                                     movie[i].data['cover url'][result + 3:result + 23], ""),
-                                 "movie-id": "tt" + movie[i].movieID,
-                                 })
-            mov_list += 1
+            movies[titles] = ({"title": movie[i].data['title'],
+                               "cover-url": movie[i].data['cover url'].replace(
+                                   movie[i].data['cover url'][result + 3:result + 23], ""),
+                               "movie-id": "tt" + movie[i].movieID,
+                               })
+            titles += 1
 
     response = jsonify(movies)
     response.headers.add('Access-Control-Allow-Origin', '*')

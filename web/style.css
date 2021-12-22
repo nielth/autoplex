@@ -40,7 +40,7 @@ li a:hover:not(.active) {
 
 }
 
-input {
+#inputTitle #title {
     width: 30%;
     height: 29px;
 }
@@ -53,6 +53,10 @@ button {
     background-color: gray;
     border-color: gray;
     border-radius: 1px;
+}
+
+#checkbox {
+    padding: 15px;
 }
 
 #imageContainer {
