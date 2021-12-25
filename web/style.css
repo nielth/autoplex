@@ -70,6 +70,8 @@ button {
 
 #imageContainer #title-choose img {
     height: 400px;
+    width: 270px;
+    object-fit: cover;
     margin: auto;
     display: block;
     cursor: pointer;

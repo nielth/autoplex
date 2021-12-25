@@ -6,7 +6,9 @@
 #############################
 */
 
-const ip_addr = "10.13.13.3"
+const ip_addr = "10.0.0.33";
+let movie = false;
+let series = false;
 
 const settings = {
     "async": false,
@@ -21,16 +23,26 @@ $("#title").keyup(function (event) {
     }
 });
 
+$('input[type="checkbox"]').on('change', function () {
+    $('input[type="checkbox"]').not(this).prop('checked', false);
+});
+
 
 document.getElementById("titleButton").addEventListener("click", function () {
     const container = document.getElementById('imageContainer');
+    if (document.getElementById("movie").checked){
+        movie = true;
+        series = false;
+    } else if (document.getElementById("series").checked){
+        movie = false;
+        series = true;
+    }
     // Remove previous search
     container.textContent = '';
     // Selecting the input element and get its value
     const inputVal = document.getElementById("title").value;
 
     const loader = document.getElementById('loader-div');
-
     loader.style.display = "inline";
 
     // Removes unnecessary spaces
@@ -39,13 +51,20 @@ document.getElementById("titleButton").addEventListener("click", function () {
         newStr = newStr.slice(0, -1);
     }
 
-    settings.url = `http://${ip_addr}:5000/imdb/movie/${newStr}/`
+    if (movie) {
+        settings.url = `http://${ip_addr}:5000/imdb/movie/${newStr}/`;
+    } else if (series) {
+        settings.url = `http://${ip_addr}:5000/imdb/series/${newStr}/`;
+    } else {
+        alert("Choose movie or tv series")
+    }
 
     $.getJSON(settings, function (result) {
-        for (let i = 0; i < Object.keys(result).length; i++) {
+        const lenResults = Object.keys(result).length
+        for (let i = 0; i < lenResults; i++) {
             if (result[i]['cover-url'].includes("https://m.media-amazon.com")) {
                 const element = document.createElement("div");
-                element.id = "title-choose"
+                element.id = "title-choose";
 
                 // Find the image
                 const img = document.createElement('img');
@@ -83,10 +102,14 @@ function getMagnet(event) {
     const image = document.createElement("img");
     image.src = img;
     image.style.width = "13%";
-    image.style.padding = "67px 0 36px 0";
+    image.style.padding = "25px 0 36px 0";
     container.appendChild(image);
 
-    settings.url = `http://${ip_addr}:5000/torrent/${alt}/`
+    if (movie) {
+        settings.url = `http://${ip_addr}:5000/torrent/movie/${alt}/`;
+    } else if (series) {
+        settings.url = `http://${ip_addr}:5000/torrent/series/${alt}/`;
+    }
 
     const loader = document.getElementById('loader-div');
     loader.style.display = "inline";
@@ -107,19 +130,13 @@ function getMagnet(event) {
             container.appendChild(element).appendChild(table).appendChild(tr).appendChild(th);
         }
 
-        function addTable(container, tr, content) {
-            const td = document.createElement("td");
-            td.innerText = content;
-            container.appendChild(td);
-            container.appendChild(element).appendChild(table).appendChild(tr).appendChild(td);
-        }
-
-        for (let i = 0; i < Object.keys(result).length; i++) {
+        const lenResults = Object.keys(result).length;
+        for (let i = 0; i < lenResults; i++) {
             const tr = document.createElement("tr");
             const td = document.createElement("td");
-            addTable(container, tr, result[i]['filename']);
-            addTable(container, tr, result[i]['seeders']);
-            addTable(container, tr, result[i]['size'] + " GB");
+            addTable(tr, result[i]['filename']);
+            addTable(tr, result[i]['seeders']);
+            addTable(tr, result[i]['size'] + " GB");
             const a = document.createElement("a");
             const img = document.createElement('img');
             img.src = "https://dyncdn.me/static/20/img/magnet.gif";
@@ -127,24 +144,37 @@ function getMagnet(event) {
             img.onclick = function () {
                 torrentDownload(this.alt);
             };
-            container.appendChild(element).appendChild(table).appendChild(tr).appendChild(td).appendChild(a).appendChild(img)
+            container.appendChild(element).appendChild(table).appendChild(tr).appendChild(td).appendChild(a).appendChild(img);
+        }
+
+        function addTable(tr, content) {
+            const td = document.createElement("td");
+            td.innerText = content;
+            container.appendChild(td);
+            container.appendChild(element).appendChild(table).appendChild(tr).appendChild(td);
         }
     });
     loader.style.display = "none";
-
 }
 
+
+// Add method to authenticate magnet being POST-ed. Save title, request all torrents and compare each magnet to POST magnet
 function torrentDownload(magnet) {
-    console.log(magnet)
-    const magnet_link = {'magnet': magnet}
+    const magnet_link = {'magnet': magnet};
+    let urlCategory = "";
+    if (movie) {
+        urlCategory = `http://${ip_addr}:5000/movie/`
+    } else if (series) {
+        urlCategory = `http://${ip_addr}:5000/series/`
+    }
     $.ajax({
-        url: `http://${ip_addr}:5000/movie/`,
+        url: `http://${ip_addr}:5000/${urlCategory}/`,
         "async": false,
         type: 'POST',
         dataType: 'json',
         data: magnet_link,
         success: function () {
-            alert("Success!")
+            alert("Success!");
         },
     });
 }
