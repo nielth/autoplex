@@ -168,7 +168,7 @@ function torrentDownload(magnet) {
         urlCategory = `http://${ip_addr}:5000/series/`
     }
     $.ajax({
-        url: `http://${ip_addr}:5000/${urlCategory}/`,
+        url: urlCategory,
         "async": false,
         type: 'POST',
         dataType: 'json',
