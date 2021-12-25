@@ -10,7 +10,8 @@ services:
       - WEBUI_PORT=8081
     volumes:
       - ~/qbittorrent/config:/config
-      - ~/qbittorrent/downloads:/downloads
+      - ~/qbittorrent/downloads/movies:/downloads/movies
+      - ~/qbittorrent/downloads/tvseries:/downloads/tvseries
     ports:
       - 6881:6881
       - 6881:6881/udp

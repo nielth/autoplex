@@ -10,54 +10,13 @@ app = Flask(__name__, static_folder="web", template_folder="web")
 CORS(app)
 client = rarbgapi.RarbgAPI()
 ia = IMDb()
+series = "tv series"
+movie = "movie"
 
 
 @app.route('/')
 def index():
     return render_template("index.html")
-
-
-def get_magnet(name):
-    return client.search(search_imdb=name, extended_response=True, sort="seeders",
-                         categories=[rarbgapi.RarbgAPI.CATEGORY_MOVIE_H264_1080P,
-                                     rarbgapi.RarbgAPI.CATEGORY_MOVIE_BD_REMUX])
-
-
-@app.route('/torrent/<string:name>/', methods=['GET'])
-def get_torrents(name):
-    torrent = dict()
-    titles = get_magnet(name)
-    tries = 0
-
-    while True:
-        if not titles and tries <= 5:
-            time.sleep(2)
-            titles = get_magnet(name)
-            tries += 1
-        else:
-            break
-
-    for i in range(len(titles)):
-        torrent[i] = ({"filename": titles[i].filename,
-                       "size": round((titles[i].size / 1073741824), 2),
-                       "category": titles[i].category,
-                       "seeders": titles[i].seeders,
-                       "magnet": titles[i].download
-                       })
-
-    response = jsonify(torrent)
-    response.headers.add('Access-Control-Allow-Origin', '*')
-    return response
-
-
-@app.route('/imdb/movie/<string:name>/', methods=['GET'])
-def imdb_mov(name):
-    return get_title(name, "movie")
-
-
-@app.route('/imdb/series/<string:name>/', methods=['GET'])
-def imdb_series(name):
-    return get_title(name, "tv series")
 
 
 def get_title(name, category):
@@ -82,10 +41,56 @@ def get_title(name, category):
     return response
 
 
-@app.route('/movie/', methods=['POST'])
-def mov_magnet():
+@app.route('/torrent/<string:category>/<string:name>/', methods=['GET'])
+def get_torrents(name, category):
+    torrent = dict()
+    titles = get_magnet(name, category)
+    tries = 0
+
+    while True:
+        if not titles and tries <= 5:
+            time.sleep(2)
+            titles = get_magnet(name, category)
+            tries += 1
+        else:
+            break
+
+    for i in range(len(titles)):
+        torrent[i] = ({"filename": titles[i].filename,
+                       "size": round((titles[i].size / 1073741824), 2),
+                       "category": titles[i].category,
+                       "seeders": titles[i].seeders,
+                       "magnet": titles[i].download
+                       })
+
+    response = jsonify(torrent)
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    return response
+
+
+def get_magnet(name, category):
+    if category == "movie":
+        return client.search(search_imdb=name, extended_response=True, sort="seeders",
+                             categories=[rarbgapi.RarbgAPI.CATEGORY_MOVIE_H264_1080P,
+                                         rarbgapi.RarbgAPI.CATEGORY_MOVIE_BD_REMUX])
+    elif category == "series":
+        return client.search(search_imdb="tt0944947", extended_response=True, sort="seeders")
+
+
+@app.route('/imdb/movie/<string:name>/', methods=['GET'])
+def imdb_mov(name):
+    return get_title(name, movie)
+
+
+@app.route('/imdb/series/<string:name>/', methods=['GET'])
+def imdb_series(name):
+    return get_title(name, series)
+
+
+@app.route('/<string:category>/', methods=['POST'])
+def mov_magnet(category):
     magnet_link = request.form
-    torrent_api.add_movie_to_api(magnet_link['magnet'])
+    torrent_api.add_movie_to_api(magnet_link['magnet'], category)
     return "", 204
 
 
