@@ -9,7 +9,7 @@ qbt_client = qbittorrentapi.Client(
 )
 
 
-def add_movie_to_api(magnet, category):
+def torrentAPI(magnet, category):
     if category == "movie":
         qbt_client.torrents_add(magnet, save_path='/movies')
     elif category == "series":

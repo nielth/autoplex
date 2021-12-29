@@ -89,6 +89,10 @@ table {
     margin: auto;
 }
 
+th {
+    cursor: pointer;
+}
+
 tr {
     vertical-align: baseline;
 }
