@@ -101,8 +101,7 @@ function getMagnet(event) {
     const img = event.target.src;
     const image = document.createElement("img");
     image.src = img;
-    image.style.width = "13%";
-    image.style.padding = "25px 0 36px 0";
+    image.id = "chosen";
     container.appendChild(image);
 
     if (movie) {
