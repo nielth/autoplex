@@ -12,7 +12,8 @@
     }
 
     table {
-        font-size: 7px;
+        font-size: 8px;
+        width: 95%;
     }
 
     td a img {
@@ -24,14 +25,18 @@
     }
 
     #imageContainer p {
-        width: 150px;
+        left: 0;
+        right: 0;
+        margin: auto;
+        padding: 10px;
     }
 
     #imageContainer #title-choose {
         padding: 0 5px 77px;
     }
 
-    #imageContainer #title-choose img {
-        height: 225px;
+    #chosen {
+        padding: 4px 0 15px 0;
+        width: 29%;
     }
 }

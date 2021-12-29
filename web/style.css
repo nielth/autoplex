@@ -63,18 +63,26 @@ button {
     text-align: center;
 }
 
+#title-choose {
+    cursor: pointer;
+}
+
 #imageContainer #title-choose {
     display: inline-block;
     padding: 20px 20px 77px;
 }
 
 #imageContainer #title-choose img {
-    height: 400px;
+    height: 400px;''
     width: 270px;
     object-fit: cover;
     margin: auto;
     display: block;
-    cursor: pointer;
+}
+
+#chosen {
+    padding: 25px 0 36px 0;
+    width: 13%;
 }
 
 #imageContainer p {
@@ -87,6 +95,7 @@ button {
 table {
     width: 70%;
     margin: auto;
+    padding-bottom: 40px;
 }
 
 th {
