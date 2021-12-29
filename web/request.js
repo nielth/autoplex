@@ -6,7 +6,7 @@
 #############################
 */
 
-const ip_addr = "10.0.0.33";
+const ip_addr = "localhost";
 let movie = false;
 let series = false;
 
@@ -30,10 +30,10 @@ $('input[type="checkbox"]').on('change', function () {
 
 document.getElementById("titleButton").addEventListener("click", function () {
     const container = document.getElementById('imageContainer');
-    if (document.getElementById("movie").checked){
+    if (document.getElementById("movie").checked) {
         movie = true;
         series = false;
-    } else if (document.getElementById("series").checked){
+    } else if (document.getElementById("series").checked) {
         movie = false;
         series = true;
     }
@@ -56,7 +56,7 @@ document.getElementById("titleButton").addEventListener("click", function () {
     } else if (series) {
         settings.url = `http://${ip_addr}:5000/imdb/series/${newStr}/`;
     } else {
-        alert("Choose movie or tv series")
+        alert("Choose movie or tv series");
     }
 
     $.getJSON(settings, function (result) {
@@ -70,8 +70,8 @@ document.getElementById("titleButton").addEventListener("click", function () {
                 const img = document.createElement('img');
                 img.src = result[i]['cover-url'];
                 img.alt = result[i]['movie-id'];
-                img.onclick = function () {
-                    getMagnet(event)
+                element.onclick = function () {
+                    getMagnet(event);
                 };
 
                 // Find the title
@@ -117,14 +117,20 @@ function getMagnet(event) {
     $.getJSON(settings, function (result) {
         const element = document.createElement("div");
         const table = document.createElement("table");
+        table.id = "myTable";
         const tr = document.createElement("tr");
-        addHeaderTable(container, "Name of file");
-        addHeaderTable(container, "Seeders");
-        addHeaderTable(container, "Size");
-        addHeaderTable(container, "Download");
+        addHeaderTable(container, "Name of file", 0);
+        addHeaderTable(container, "Seeders", 1);
+        addHeaderTable(container, "Size", 2);
+        addHeaderTable(container, "Download", 3);
 
-        function addHeaderTable(container, content) {
+        function addHeaderTable(container, content, position) {
             const th = document.createElement("th");
+            if (position === 0 || position === 1 || position === 2) {
+                th.onclick = function () {
+                    sortTable(position)
+                }
+            }
             th.innerText = content;
             container.appendChild(th);
             container.appendChild(element).appendChild(table).appendChild(tr).appendChild(th);
@@ -160,12 +166,15 @@ function getMagnet(event) {
 
 // Add method to authenticate magnet being POST-ed. Save title, request all torrents and compare each magnet to POST magnet
 function torrentDownload(magnet) {
-    const magnet_link = {'magnet': magnet};
+    const magnet_link = {
+        'magnet': magnet,
+        'title': save_title
+    };
     let urlCategory = "";
     if (movie) {
-        urlCategory = `http://${ip_addr}:5000/movie/`
+        urlCategory = `http://${ip_addr}:5000/movie/`;
     } else if (series) {
-        urlCategory = `http://${ip_addr}:5000/series/`
+        urlCategory = `http://${ip_addr}:5000/series/`;
     }
     $.ajax({
         url: urlCategory,

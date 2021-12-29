@@ -4,7 +4,7 @@ from imdb import IMDb
 from flask_cors import CORS
 import time
 
-import torrent_api
+import torrent
 
 app = Flask(__name__, static_folder="web", template_folder="web")
 CORS(app)
@@ -74,7 +74,7 @@ def get_magnet(name, category):
                              categories=[rarbgapi.RarbgAPI.CATEGORY_MOVIE_H264_1080P,
                                          rarbgapi.RarbgAPI.CATEGORY_MOVIE_BD_REMUX])
     elif category == "series":
-        return client.search(search_imdb="tt0944947", extended_response=True, sort="seeders")
+        return client.search(search_imdb=name, extended_response=True, sort="seeders")
 
 
 @app.route('/imdb/movie/<string:name>/', methods=['GET'])
@@ -90,7 +90,7 @@ def imdb_series(name):
 @app.route('/<string:category>/', methods=['POST'])
 def mov_magnet(category):
     magnet_link = request.form
-    torrent_api.add_movie_to_api(magnet_link['magnet'], category)
+    torrent.torrentAPI(magnet_link['magnet'], category)
     return "", 204
 
 
