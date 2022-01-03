@@ -6,7 +6,7 @@
 #############################
 */
 
-const ip_addr = "localhost";
+const ip_addr = "10.0.0.33";
 let movie = false;
 let series = false;
 
@@ -43,7 +43,7 @@ document.getElementById("titleButton").addEventListener("click", function () {
     const inputVal = document.getElementById("title").value;
 
     const loader = document.getElementById('loader-div');
-    loader.style.display = "inline";
+    loader.style.display = "inline-block";
 
     // Removes unnecessary spaces
     var newStr = inputVal.replaceAll(" ", "%");
@@ -121,7 +121,7 @@ function getMagnet(event) {
         addHeaderTable(container, "Name of file", 0);
         addHeaderTable(container, "Seeders", 1);
         addHeaderTable(container, "Size", 2);
-        addHeaderTable(container, "Download", 3);
+        addHeaderTable(container, "Install", 3);
 
         function addHeaderTable(container, content, position) {
             const th = document.createElement("th");
