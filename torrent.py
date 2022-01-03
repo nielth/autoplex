@@ -11,7 +11,7 @@ qbt_client = qbittorrentapi.Client(
 
 def torrentAPI(magnet, category):
     if category == "movie":
-        qbt_client.torrents_add(magnet, save_path='/movies')
+        qbt_client.torrents_add(magnet, save_path='/movies', is_sequential_download=True)
     elif category == "series":
-        qbt_client.torrents_add(magnet, save_path='/tvseries')
+        qbt_client.torrents_add(magnet, save_path='/tvseries', is_sequential_download=True)
 
