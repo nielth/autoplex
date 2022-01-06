@@ -4,9 +4,9 @@ services:
     image: lscr.io/linuxserver/qbittorrent
     container_name: qbittorrent
     environment:
-      #- PUID=1000
-      #- PGID=1000
-      - TZ=Europe/Oslo
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/London
       - WEBUI_PORT=8081
     volumes:
       - ~/qbittorrent/config:/config
@@ -24,16 +24,3 @@ services:
       - "5000:5000"
     volumes:
       - .:/code
-  plex:
-    image: lscr.io/linuxserver/plex
-      #network_mode: host
-    container_name: plex
-    environment:
-      #- PUID=501
-      #- PGID=20
-      - VERSION=docker
-    volumes:
-      - /Users/thomasnie/plex/library:/config
-      - /Users/thomasnie/qbittorrent/downloads/tvseries:/tv
-      - /Users/thomasnie/qbittorrent/downloads/movies:/movies
-    restart: unless-stopped
