@@ -6,12 +6,12 @@ services:
     environment:
       - PUID=1000
       - PGID=1000
-      - TZ=Europe/London
+      - TZ=Europe/Oslo
       - WEBUI_PORT=8081
     volumes:
-      - ~/qbittorrent/config:/config
-      - ~/qbittorrent/downloads/movies:/downloads/movies
-      - ~/qbittorrent/downloads/tvseries:/downloads/tvseries
+      - /thomasnie/qbittorrent/config:/config
+      - /thomasnie/plex/movies:/downloads/movies
+      - /thomasnie/plex/tvseries:/downloads/tvseries
     ports:
       - 6881:6881
       - 6881:6881/udp

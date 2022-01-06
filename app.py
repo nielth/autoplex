@@ -53,15 +53,18 @@ def get_torrents(name, category):
             titles = get_magnet(name, category)
             tries += 1
         else:
+            tries = 0
             break
 
     for i in range(len(titles)):
-        torrent[i] = ({"filename": titles[i].filename,
-                       "size": round((titles[i].size / 1073741824), 2),
-                       "category": titles[i].category,
-                       "seeders": titles[i].seeders,
-                       "magnet": titles[i].download
-                       })
+        if titles[i].seeders != 0:
+            torrent[tries] = ({"filename": titles[i].filename,
+                               "size": round((titles[i].size / 1073741824), 2),
+                               "category": titles[i].category,
+                               "seeders": titles[i].seeders,
+                               "magnet": titles[i].download
+                               })
+            tries += 1
 
     response = jsonify(torrent)
     response.headers.add('Access-Control-Allow-Origin', '*')
@@ -70,11 +73,13 @@ def get_torrents(name, category):
 
 def get_magnet(name, category):
     if category == "movie":
-        return client.search(search_imdb=name, extended_response=True, sort="seeders",
+        return client.search(search_imdb=name, extended_response=True, sort="seeders", limit="100",
                              categories=[rarbgapi.RarbgAPI.CATEGORY_MOVIE_H264_1080P,
                                          rarbgapi.RarbgAPI.CATEGORY_MOVIE_BD_REMUX])
     elif category == "series":
-        return client.search(search_imdb=name, extended_response=True, sort="seeders")
+        return client.search(search_imdb=name, extended_response=True, sort="seeders", limit="100",
+                             categories=[rarbgapi.RarbgAPI.CATEGORY_TV_EPISODES_HD,
+                                         rarbgapi.RarbgAPI.CATEGORY_TV_EPISODES_UHD])
 
 
 @app.route('/imdb/movie/<string:name>/', methods=['GET'])
