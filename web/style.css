@@ -73,7 +73,7 @@ button {
 }
 
 #imageContainer #title-choose img {
-    height: 400px;''
+    height: 400px;
     width: 270px;
     object-fit: cover;
     margin: auto;
@@ -93,7 +93,7 @@ button {
 }
 
 table {
-    width: 70%;
+    width: 75%;
     margin: auto;
     padding-bottom: 40px;
 }
@@ -116,6 +116,7 @@ tr:hover {
 
 td {
     vertical-align: middle;
+    line-break: anywhere;
 }
 
 td a img {
