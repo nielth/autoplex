@@ -1,17 +1,17 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-    <meta charset="utf-8"/>
+    <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
     <title>AutoPlex</title>
-    <link href="{{ url_for('static',filename='style.css') }}" rel="stylesheet"/>
-    <link href="{{ url_for('static',filename='responsive.css') }}" rel="stylesheet"/>
-    <link href="{{ url_for('static',filename='style.scss') }}" rel="stylesheet"/>
+    <link href="{{ url_for('static',filename='style.css') }}" rel="stylesheet" />
+    <link href="{{ url_for('static',filename='responsive.css') }}" rel="stylesheet" />
 </head>
 
 <body>
-<!--
+    <!--
 <div id="menu">
     <ul>
         <li><a class="active" href="#search">Search</a></li>
@@ -19,31 +19,37 @@
     </ul>
 </div>
 -->
-<div id="loader-div">
-    <div class="loader"></div>
-</div>
-
-<div class="gooey">
-  <span class="dot"></span>
-  <div class="dots">
-    <span></span>
-    <span></span>
-    <span></span>
-  </div>
-</div>
-<div id="inputTitle">
-    <input type="text" autocomplete="off" id="title" placeholder="Search For Title">
-    <button id="titleButton">Search</button>
-    <div id="checkbox">
-        <input type="checkbox" autocomplete="off" id="movie" name="movie" value="Bike">
-        <label for="movie"> Movie</label>
-        <input type="checkbox" autocomplete="off" id="series" name="series" value="Bike">
-        <label for="series"> TV Series</label>
+    <div id="loader-div">
+        <div class="loader"></div>
     </div>
-</div>
+    <div id="inputTitle">
+        <form action="/search" method="get">
+            <input type="text" autocomplete="off" id="title" name="search" placeholder="Search For Title">
+            <button id="titleButton">Search</button>
+            <div id="checkbox">
+                    <input type="checkbox" autocomplete="off" id="movie" name="movie">
+                    <label for="movie"> Movie</label>
+                    <input type="checkbox" autocomplete="off" id="series" name="series">
+                    <label for="series"> TV Series</label>
+        </form>
+        </div>
+    </div>
+    <div id="imageContainer">
 
-<div id="imageContainer"></div>
+        {% if title %}
+        {% for i in range(0, len) %}
+
+        <div id="title-choose">
+            <img src="{{ cover[i] }}" alt="{{ id[i] }}">
+            <p>{{ title[i] }}</p>
+        </div>
+
+        {% endfor %}
+        {% endif %}
+
+    </div>
 </body>
 <script src="{{ url_for('static',filename='request.js') }}"></script>
 <script src="{{ url_for('static',filename='sort.js') }}"></script>
+
 </html>

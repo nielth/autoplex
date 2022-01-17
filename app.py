@@ -19,27 +19,38 @@ def index():
     return render_template("index.html")
 
 
-def get_title(name, category):
-    name.replace("%20", " ")
-    movie = ia.search_movie(name)
+@app.route('/search/')
+def search():
+    temp = request.args.get('search')
+    is_movie = request.args.get('movie')
+    is_series = request.args.get('movie')
+    if is_movie == "on":
+        get_title(temp, "movie")
+    elif is_series == "on":
+        get_title(temp, "series")
+
+
+def get_title(temp, category):
+    temp.replace("%20", " ")
+    movie = ia.search_movie(temp)
     movies = dict()
+    title = list()
+    cover = list()
+    id = list()
     titles = 0
 
     for i in range(len(movie)):
-        if movie[i].data['kind'] == category and "Podcast" not in movie[i].data['title'] and "podcast" not in \
+        if "Podcast" not in movie[i].data['title'] and "podcast" not in \
                 movie[i].data['title']:
             result = movie[i].data['cover url'].find("._V1_")
-            movies[titles] = ({"title": movie[i].data['title'],
-                               "cover-url": movie[i].data['cover url'].replace(
-                                   movie[i].data['cover url'][result + 3:result + 23], ""),
-                               "movie-id": "tt" + movie[i].movieID,
-                               })
+            title.append(movie[i].data['title'])
+            cover.append(movie[i].data['cover url'].replace(
+                                   movie[i].data['cover url'][result + 3:result + 23], ""))
+            id.append(movie[i].movieID)
             titles += 1
 
     response = jsonify(movies)
-    response.headers.add('Access-Control-Allow-Origin', '*')
-    return response
-
+    return render_template('index.html', len = len(title), title=title, cover=cover, id=id)
 
 @app.route('/torrent/<string:category>/<string:name>/', methods=['GET'])
 def get_torrents(name, category):

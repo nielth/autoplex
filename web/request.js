@@ -27,7 +27,6 @@ $('input[type="checkbox"]').on('change', function () {
     $('input[type="checkbox"]').not(this).prop('checked', false);
 });
 
-
 document.getElementById("titleButton").addEventListener("click", function () {
     const container = document.getElementById('imageContainer');
     if (document.getElementById("movie").checked) {
