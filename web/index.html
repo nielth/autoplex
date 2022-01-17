@@ -52,16 +52,16 @@
         <div>
             <table id="myTable">
                 <tr>
-                    <th>Name of file</th>
-                    <th>Seeders</th>
-                    <th>Size</th>
-                    <th>Install</th>
+                    <th onclick="sortTable(0)">Name of file</th>
+                    <th onclick="sortTable(1)">Seeders</th>
+                    <th onclick="sortTable(2)">Size</th>
+                    <th onclick="sortTable(3)">Install</th>
                 </tr>
         {% for i in range(0, len) %}
                 <tr>
                     <td>{{ filename[i] }}</td>
                     <td>{{ seeders[i] }}</td>
-                    <td>{{ size[i] }}</td>
+                    <td>{{ size[i] }} GB</td>
                     <td>
                         <a>
                             <img src="https://dyncdn.me/static/20/img/magnet.gif" alt="{{ magnet[i] }}">
@@ -77,5 +77,4 @@
 </body>
 <script src="{{ url_for('static',filename='request.js') }}"></script>
 <script src="{{ url_for('static',filename='sort.js') }}"></script>
-
 </html>
