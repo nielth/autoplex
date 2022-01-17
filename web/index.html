@@ -23,7 +23,6 @@
         <div class="loader"></div>
     </div>
     <div id="inputTitle">
-        <form action="/search" method="get">
             <input type="text" autocomplete="off" id="title" name="search" placeholder="Search For Title">
             <button id="titleButton">Search</button>
             <div id="checkbox">
@@ -31,7 +30,6 @@
                     <label for="movie"> Movie</label>
                     <input type="checkbox" autocomplete="off" id="series" name="series">
                     <label for="series"> TV Series</label>
-        </form>
         </div>
     </div>
     <div id="imageContainer">
@@ -39,10 +37,12 @@
         {% if title %}
         {% for i in range(0, len) %}
 
-        <div id="title-choose">
-            <img src="{{ cover[i] }}" alt="{{ id[i] }}">
-            <p>{{ title[i] }}</p>
-        </div>
+        <a href="/torrent/{{ id[i] }}/">
+            <div id="title-choose">
+                <img src="{{ cover[i] }}" alt="{{ id[i] }}">
+                <p>{{ title[i] }}</p>
+            </div>
+        </a>
 
         {% endfor %}
         {% endif %}

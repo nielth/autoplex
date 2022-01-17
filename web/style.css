@@ -33,6 +33,11 @@ li a:hover:not(.active) {
     background-color: #04AA6D;
 }
 
+a {
+    color: inherit;
+    text-decoration: inherit;
+  }
+
 #inputTitle {
     margin: auto;
     text-align: center;
