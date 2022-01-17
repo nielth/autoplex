@@ -1,3 +1,4 @@
+from nis import cat
 from flask import Flask, jsonify, request, render_template
 import rarbgapi
 from imdb import IMDb
@@ -21,6 +22,7 @@ def index():
 
 @app.route('/search/<string:category>/<string:temp>/', methods=['GET'])
 def search(category, temp):
+    return_category = category
     if(category == "series"):
         category = "tv " + category
     movie = ia.search_movie(temp)
@@ -38,7 +40,7 @@ def search(category, temp):
             id.append(movie[i].movieID)
             titles += 1
 
-    return render_template('index.html', len = len(title), title=title, cover=cover, id=id)
+    return render_template('index.html', len = len(title), title=title, cover=cover, id=id, category=return_category)
 
 
 def get_magnet(name, category):
@@ -74,15 +76,32 @@ def get_torrents(name, category):
             tries = 0
             break
 
+    f = open("magnets.md", "a")
     for i in range(len(titles)):
         if titles[i].seeders != 0:
             filename.append(titles[i].filename)
             size.append(round((titles[i].size / 1073741824), 2))
             seeders.append(titles[i].seeders)
             magnet.append(titles[i].download)
+            f.write(titles[i].download + "\n")
             tries += 1
+    f.close()
 
     return render_template('index.html', len = len(magnet), filename=filename, size=size, seeders=seeders, magnet=magnet, cover=cover)
+
+
+@app.route('/torrent/<string:category>/<string:id>/', methods=['POST'])
+def mov_magnet(category, id):
+    tries = 0
+    magnet_link = request.form
+    for line in reversed(open("magnets.md").readlines()):
+        if line.rstrip() in magnet_link['magnet']:
+            break
+        elif tries == 20:
+            return "", 404
+        tries += 1
+    torrent.torrentAPI(magnet_link['magnet'], category)
+    return "", 204
 
 
 if __name__ == '__main__':

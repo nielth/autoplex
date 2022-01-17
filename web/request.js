@@ -6,6 +6,8 @@
 #############################
 */
 
+let movie = window.location.pathname
+
 
 $("#title").keyup(function (event) {
     if (event.keyCode === 13) {
@@ -34,3 +36,23 @@ document.getElementById("titleButton").addEventListener("click", function () {
         alert("Choose movie or tv series");
     }
 })
+
+
+function torrentDownload(magnet) {
+    const magnet_link = {
+        'magnet': magnet,
+    };
+    let urlCategory = "";
+    urlCategory = window.location.pathname;
+
+    $.ajax({
+        url: urlCategory,
+        "async": false,
+        type: 'POST',
+        dataType: 'json',
+        data: magnet_link,
+        success: function () {
+            alert("Success!");
+        },
+    });
+}
