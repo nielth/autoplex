@@ -14,17 +14,16 @@ series = "tv series"
 movie = "movie"
 
 
-@app.route('/')
+@app.route('/', methods=['GET'])
 def index():
     return render_template("index.html")
 
 
-@app.route('/search/<string:category>/<string:temp>/')
+@app.route('/search/<string:category>/<string:temp>/', methods=['GET'])
 def search(category, temp):
     if(category == "series"):
         category = "tv " + category
     movie = ia.search_movie(temp)
-    movies = dict()
     title = list()
     cover = list()
     id = list()
@@ -39,7 +38,6 @@ def search(category, temp):
             id.append(movie[i].movieID)
             titles += 1
 
-    response = jsonify(movies)
     return render_template('index.html', len = len(title), title=title, cover=cover, id=id)
 
 
@@ -56,14 +54,21 @@ def get_magnet(name, category):
 
 @app.route('/torrent/<string:category>/<string:name>/', methods=['GET'])
 def get_torrents(name, category):
-    torrent = dict()
-    titles = get_magnet(name, category)
+    filename = list()
+    size = list()
+    seeders = list()
+    magnet = list()
+    title = ia.get_movie(name)
+    result = title.data['cover url'].find("._V1_")
+    cover = title.data['cover url'].replace(title.data['cover url'][result + 3:result + 23], "")
+    torrent_search = "tt" + name
+    titles = get_magnet(torrent_search, category)
     tries = 0
 
     while True:
         if not titles and tries <= 5:
             time.sleep(2)
-            titles = get_magnet(name, category)
+            titles = get_magnet(torrent_search, category)
             tries += 1
         else:
             tries = 0
@@ -71,17 +76,13 @@ def get_torrents(name, category):
 
     for i in range(len(titles)):
         if titles[i].seeders != 0:
-            torrent[tries] = ({"filename": titles[i].filename,
-                               "size": round((titles[i].size / 1073741824), 2),
-                               "category": titles[i].category,
-                               "seeders": titles[i].seeders,
-                               "magnet": titles[i].download
-                               })
+            filename.append(titles[i].filename)
+            size.append(round((titles[i].size / 1073741824), 2))
+            seeders.append(titles[i].seeders)
+            magnet.append(titles[i].download)
             tries += 1
 
-    response = jsonify(torrent)
-    response.headers.add('Access-Control-Allow-Origin', '*')
-    return response
+    return render_template('index.html', len = len(magnet), filename=filename, size=size, seeders=seeders, magnet=magnet, cover=cover)
 
 
 if __name__ == '__main__':

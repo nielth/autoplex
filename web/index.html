@@ -37,7 +37,7 @@
         {% if title %}
         {% for i in range(0, len) %}
 
-        <a href="/torrent/{{ id[i] }}/">
+        <a href="/torrent/movie/{{ id[i] }}/">
             <div id="title-choose">
                 <img src="{{ cover[i] }}" alt="{{ id[i] }}">
                 <p>{{ title[i] }}</p>
@@ -45,6 +45,32 @@
         </a>
 
         {% endfor %}
+        {% endif %}
+
+        {% if magnet %}
+        <img id="chosen" src="{{ cover }}">
+        <div>
+            <table id="myTable">
+                <tr>
+                    <th>Name of file</th>
+                    <th>Seeders</th>
+                    <th>Size</th>
+                    <th>Install</th>
+                </tr>
+        {% for i in range(0, len) %}
+                <tr>
+                    <td>{{ filename[i] }}</td>
+                    <td>{{ seeders[i] }}</td>
+                    <td>{{ size[i] }}</td>
+                    <td>
+                        <a>
+                            <img src="https://dyncdn.me/static/20/img/magnet.gif" alt="{{ magnet[i] }}">
+                        </a>
+                    </td>
+                </tr>
+        {% endfor %}
+            </table>
+        </div>
         {% endif %}
 
     </div>
