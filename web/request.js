@@ -37,9 +37,12 @@ document.getElementById("titleButton").addEventListener("click", function () {
 })
 
 
-function torrentDownload(magnet) {
+function torrentDownload(alt) {
+    var array = alt.split(' '),
+    magnet = array[0], title = array[1];
     const magnet_link = {
         'magnet': magnet,
+        'title': title
     };
     let urlCategory = window.location.pathname;
 
