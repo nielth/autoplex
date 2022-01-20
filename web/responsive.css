@@ -20,8 +20,13 @@
         width: 8px;
     }
 
+    #fileName {
+        width: 66%;
+    }
+
     #imageContainer {
         padding-top: 40px;
+        width: 100%;
     }
 
     #imageContainer p {
@@ -32,7 +37,7 @@
     }
 
     #imageContainer #title-choose {
-        padding: 0 5px 77px;
+        padding: 0 5px 55px;
     }
 
     #chosen {

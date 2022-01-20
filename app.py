@@ -1,9 +1,9 @@
-from nis import cat
-from flask import Flask, jsonify, request, render_template
+from flask import Flask, request, render_template
 import rarbgapi
 from imdb import IMDb
 from flask_cors import CORS
 import time
+import _thread
 
 import torrent
 
@@ -36,11 +36,11 @@ def search(category, temp):
                 movie[i].data['title'] and "._V1_" in movie[i].data['cover url']:
             result = movie[i].data['cover url'].find("._V1_")
             title.append(movie[i].data['title'])
-            cover.append(movie[i].data['cover url'].replace(movie[i].data['cover url'][result + 3:result + 23], ""))
+            cover.append(movie[i].data['cover url'].replace(
+                movie[i].data['cover url'][result + 3:result + 23], ""))
             id.append(movie[i].movieID)
             titles += 1
-
-    return render_template('index.html', len = len(title), title=title, cover=cover, id=id, category=return_category)
+    return render_template('index.html', len=len(title), title=title, cover=cover, id=id, category=return_category)
 
 
 def get_magnet(name, category):
@@ -62,7 +62,8 @@ def get_torrents(name, category):
     magnet = list()
     title = ia.get_movie(name)
     result = title.data['cover url'].find("._V1_")
-    cover = title.data['cover url'].replace(title.data['cover url'][result + 3:result + 23], "")
+    cover = title.data['cover url'].replace(
+        title.data['cover url'][result + 3:result + 23], "")
     torrent_search = "tt" + name
     titles = get_magnet(torrent_search, category)
     tries = 0
@@ -87,7 +88,7 @@ def get_torrents(name, category):
             tries += 1
     f.close()
 
-    return render_template('index.html', len = len(magnet), filename=filename, size=size, seeders=seeders, magnet=magnet, cover=cover)
+    return render_template('index.html', len=len(magnet), filename=filename, size=size, seeders=seeders, magnet=magnet, cover=cover)
 
 
 @app.route('/torrent/<string:category>/<string:id>/', methods=['POST'])
@@ -97,7 +98,7 @@ def mov_magnet(category, id):
     for line in reversed(open("magnets.md").readlines()):
         if line.rstrip() in magnet_link['magnet']:
             break
-        elif tries == 20:
+        elif tries == 100:
             return "", 404
         tries += 1
     torrent.torrentAPI(magnet_link['magnet'], category)
@@ -105,4 +106,5 @@ def mov_magnet(category, id):
 
 
 if __name__ == '__main__':
-    app.run(host="0.0.0.0", debug=True)
+    _thread.start_new_thread(torrent.deleteFinished, ())
+    app.run(host="0.0.0.0")

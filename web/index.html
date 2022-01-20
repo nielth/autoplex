@@ -23,19 +23,19 @@
         <div class="loader"></div>
     </div>
     <div id="inputTitle">
-            <input type="text" autocomplete="off" id="title" name="search" placeholder="Search For Title">
-            <button id="titleButton">Search</button>
-            <div id="checkbox">
-                    <input type="checkbox" autocomplete="off" id="movie" name="movie">
-                    <label for="movie"> Movie</label>
-                    <input type="checkbox" autocomplete="off" id="series" name="series">
-                    <label for="series"> TV Series</label>
+        <input type="text" autocomplete="off" id="title" name="search" placeholder="Search For Title">
+        <button id="titleButton">Search</button>
+        <div id="checkbox">
+            <input type="checkbox" autocomplete="off" id="movie" name="movie">
+            <label for="movie"> Movie</label>
+            <input type="checkbox" autocomplete="off" id="series" name="series">
+            <label for="series"> TV Series</label>
         </div>
     </div>
     <div id="imageContainer">
 
         {% if title %}
-            {% for i in range(0, len) %}
+        {% for i in range(0, len) %}
 
         <a href="/torrent/{{ category }}/{{ id[i] }}/">
             <div id="title-choose">
@@ -44,7 +44,7 @@
             </div>
         </a>
 
-            {% endfor %}
+        {% endfor %}
         {% endif %}
 
         {% if magnet %}
@@ -59,20 +59,21 @@
                     <th onclick="sortTable(3)">Install</th>
                 </tr>
 
-            {% for i in range(0, len) %}
+                {% for i in range(0, len) %}
 
                 <tr>
-                    <td>{{ filename[i] }}</td>
+                    <td id="fileName">{{ filename[i] }}</td>
                     <td>{{ seeders[i] }}</td>
                     <td>{{ size[i] }} GB</td>
                     <td>
                         <a>
-                            <img src="https://dyncdn.me/static/20/img/magnet.gif" alt="{{ magnet[i] }}" onclick="torrentDownload(this.alt)">
+                            <img src="https://dyncdn.me/static/20/img/magnet.gif" alt="{{ magnet[i] }}"
+                                onclick="torrentDownload(this.alt)">
                         </a>
                     </td>
                 </tr>
 
-            {% endfor %}
+                {% endfor %}
 
             </table>
         </div>
@@ -83,4 +84,5 @@
 </body>
 <script src="{{ url_for('static',filename='request.js') }}"></script>
 <script src="{{ url_for('static',filename='sort.js') }}"></script>
+
 </html>
