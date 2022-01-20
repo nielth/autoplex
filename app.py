@@ -4,6 +4,7 @@ from imdb import IMDb
 from flask_cors import CORS
 import time
 import _thread
+from datetime import datetime
 
 import torrent
 
@@ -101,6 +102,9 @@ def mov_magnet(category, id):
         elif tries == 100:
             return "", 404
         tries += 1
+    f = open("downloaded.txt", "a")
+    f.write(f"{datetime.today().strftime('%Y-%m-%d-%H:%M:%S')} - {category} - {magnet_link['title']} - {magnet_link['magnet']}")
+    f.close()
     torrent.torrentAPI(magnet_link['magnet'], category)
     return "", 204
 
