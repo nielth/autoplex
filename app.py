@@ -1,11 +1,12 @@
-from flask import Flask, request, render_template
 import rarbgapi
+import time
+
+from flask import Flask, request, render_template
 from imdb import IMDb
 from flask_cors import CORS
-import time
-import _thread
 from datetime import datetime
 
+import _thread
 import torrent
 
 app = Flask(__name__, static_folder="web", template_folder="web")
@@ -16,15 +17,15 @@ series = "tv series"
 movie = "movie"
 
 
-@app.route('/', methods=['GET'])
+@app.route("/", methods=["GET"])
 def index():
     return render_template("index.html")
 
 
-@app.route('/search/<string:category>/<string:temp>/', methods=['GET'])
+@app.route("/search/<string:category>/<string:temp>/", methods=["GET"])
 def search(category, temp):
     return_category = category
-    if(category == "series"):
+    if category == "series":
         category = "tv " + category
     movie = ia.search_movie(temp)
     title = list()
@@ -33,38 +34,67 @@ def search(category, temp):
     titles = 0
 
     for i in range(len(movie)):
-        if movie[i].data['kind'] == category and "Podcast" not in movie[i].data['title'] and "podcast" not in \
-                movie[i].data['title'] and "._V1_" in movie[i].data['cover url']:
-            result = movie[i].data['cover url'].find("._V1_")
-            title.append(movie[i].data['title'])
-            cover.append(movie[i].data['cover url'].replace(
-                movie[i].data['cover url'][result + 3:result + 23], ""))
+        if (
+            movie[i].data["kind"] == category
+            and "Podcast" not in movie[i].data["title"]
+            and "podcast" not in movie[i].data["title"]
+            and "._V1_" in movie[i].data["cover url"]
+        ):
+            result = movie[i].data["cover url"].find("._V1_")
+            title.append(movie[i].data["title"])
+            cover.append(
+                movie[i]
+                .data["cover url"]
+                .replace(movie[i].data["cover url"][result + 3 : result + 23], "")
+            )
             id.append(movie[i].movieID)
             titles += 1
-    return render_template('index.html', len=len(title), title=title, cover=cover, id=id, category=return_category)
+    return render_template(
+        "index.html",
+        len=len(title),
+        title=title,
+        cover=cover,
+        id=id,
+        category=return_category,
+    )
 
 
 def get_magnet(name, category):
     if category == "movie":
-        return client.search(search_imdb=name, extended_response=True, sort="seeders", limit="100",
-                             categories=[rarbgapi.RarbgAPI.CATEGORY_MOVIE_H264_1080P,
-                                         rarbgapi.RarbgAPI.CATEGORY_MOVIE_BD_REMUX])
+        return client.search(
+            search_imdb=name,
+            extended_response=True,
+            sort="seeders",
+            limit="100",
+            categories=[
+                rarbgapi.RarbgAPI.CATEGORY_MOVIE_H264_1080P,
+                rarbgapi.RarbgAPI.CATEGORY_MOVIE_BD_REMUX,
+            ],
+        )
     elif category == "series":
-        return client.search(search_imdb=name, extended_response=True, sort="seeders", limit="100",
-                             categories=[rarbgapi.RarbgAPI.CATEGORY_TV_EPISODES_HD,
-                                         rarbgapi.RarbgAPI.CATEGORY_TV_EPISODES_UHD])
+        return client.search(
+            search_imdb=name,
+            extended_response=True,
+            sort="seeders",
+            limit="100",
+            categories=[
+                rarbgapi.RarbgAPI.CATEGORY_TV_EPISODES_HD,
+                rarbgapi.RarbgAPI.CATEGORY_TV_EPISODES_UHD,
+            ],
+        )
 
 
-@app.route('/torrent/<string:category>/<string:name>/', methods=['GET'])
+@app.route("/torrent/<string:category>/<string:name>/", methods=["GET"])
 def get_torrents(name, category):
     filename = list()
     size = list()
     seeders = list()
     magnet = list()
     title = ia.get_movie(name)
-    result = title.data['cover url'].find("._V1_")
-    cover = title.data['cover url'].replace(
-        title.data['cover url'][result + 3:result + 23], "")
+    result = title.data["cover url"].find("._V1_")
+    cover = title.data["cover url"].replace(
+        title.data["cover url"][result + 3 : result + 23], ""
+    )
     torrent_search = "tt" + name
     titles = get_magnet(torrent_search, category)
     tries = 0
@@ -74,6 +104,8 @@ def get_torrents(name, category):
             time.sleep(2)
             titles = get_magnet(torrent_search, category)
             tries += 1
+        elif not titles and tries >= 5:
+            return "", 404
         else:
             tries = 0
             break
@@ -89,26 +121,36 @@ def get_torrents(name, category):
             tries += 1
     f.close()
 
-    return render_template('index.html', len=len(magnet), filename=filename, size=size, seeders=seeders, magnet=magnet, cover=cover)
+    return render_template(
+        "index.html",
+        len=len(magnet),
+        filename=filename,
+        size=size,
+        seeders=seeders,
+        magnet=magnet,
+        cover=cover,
+    )
 
 
-@app.route('/torrent/<string:category>/<string:id>/', methods=['POST'])
-def mov_magnet(category, id):
+@app.route("/torrent/<string:category>/<string:id>/", methods=["POST"])
+def mov_magnet(category):
     tries = 0
     magnet_link = request.form
     for line in reversed(open("magnets.md").readlines()):
-        if line.rstrip() in magnet_link['magnet']:
+        if line.rstrip() in magnet_link["magnet"]:
             break
         elif tries == 100:
             return "", 404
         tries += 1
     f = open("downloaded.txt", "a")
-    f.write(f"{datetime.today().strftime('%Y-%m-%d-%H:%M:%S')} - {category} - {magnet_link['title']} - {magnet_link['magnet']}")
+    f.write(
+        f"{datetime.today().strftime('%Y-%m-%d-%H:%M:%S')} - {category} - {magnet_link['title']} - {magnet_link['magnet']}"
+    )
     f.close()
-    torrent.torrentAPI(magnet_link['magnet'], category)
+    torrent.torrent_api(magnet_link["magnet"], category)
     return "", 204
 
 
-if __name__ == '__main__':
-    _thread.start_new_thread(torrent.deleteFinished, ())
+if __name__ == "__main__":
+    _thread.start_new_thread(torrent.delete_finished, ())
     app.run(host="0.0.0.0")
