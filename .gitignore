@@ -3,3 +3,6 @@ test.py
 magnets.md
 certificate
 downloaded.txt
+.env
+.gitignore
+.idea
