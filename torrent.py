@@ -27,8 +27,11 @@ def deleteFinished():
     while(True):
         time.sleep(30)
         with lock:
-            for torrent in qbt_client.torrents_info():
-                # check if torrent is downloading
-                if torrent.state_enum.is_complete:
-                    qbt_client.torrents_delete(
-                        delete_files=False, torrent_hashes=torrent.hash)
+            try:
+                for torrent in qbt_client.torrents_info():
+                    # check if torrent is downloading
+                    if torrent.state_enum.is_complete:
+                        qbt_client.torrents_delete(
+                            delete_files=False, torrent_hashes=torrent.hash)
+            except:
+                print("An exception occurred") 

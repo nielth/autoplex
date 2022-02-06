@@ -1,7 +1,6 @@
 from flask import Flask, request, render_template
 import rarbgapi
 from imdb import IMDb
-from flask_cors import CORS
 import time
 import _thread
 from datetime import datetime
@@ -9,7 +8,6 @@ from datetime import datetime
 import torrent
 
 app = Flask(__name__, static_folder="web", template_folder="web")
-CORS(app)
 client = rarbgapi.RarbgAPI()
 ia = IMDb()
 series = "tv series"
@@ -37,8 +35,7 @@ def search(category, temp):
                 movie[i].data['title'] and "._V1_" in movie[i].data['cover url']:
             result = movie[i].data['cover url'].find("._V1_")
             title.append(movie[i].data['title'])
-            cover.append(movie[i].data['cover url'].replace(
-                movie[i].data['cover url'][result + 3:result + 23], ""))
+            cover.append(movie[i].data['cover url'].replace(movie[i].data['cover url'][result + 3:result + 23], ""))
             id.append(movie[i].movieID)
             titles += 1
     return render_template('index.html', len=len(title), title=title, cover=cover, id=id, category=return_category)
@@ -103,7 +100,7 @@ def mov_magnet(category, id):
             return "", 404
         tries += 1
     f = open("downloaded.txt", "a")
-    f.write(f"{datetime.today().strftime('%Y-%m-%d-%H:%M:%S')} - {category} - {magnet_link['title']} - {magnet_link['magnet']}")
+    f.write(f"{datetime.today().strftime('%Y-%m-%d-%H:%M:%S')} - {category} - {magnet_link['title']} - {magnet_link['magnet']}\n")
     f.close()
     torrent.torrentAPI(magnet_link['magnet'], category)
     return "", 204
