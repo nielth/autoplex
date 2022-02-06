@@ -4,13 +4,13 @@ import time
 from flask import Flask, request, render_template
 from imdb import IMDb
 from flask_cors import CORS
+
 from datetime import datetime
 
 import _thread
 import torrent
 
 app = Flask(__name__, static_folder="web", template_folder="web")
-CORS(app)
 client = rarbgapi.RarbgAPI()
 ia = IMDb()
 series = "tv series"
@@ -47,6 +47,7 @@ def search(category, temp):
                 .data["cover url"]
                 .replace(movie[i].data["cover url"][result + 3 : result + 23], "")
             )
+
             id.append(movie[i].movieID)
             titles += 1
     return render_template(
