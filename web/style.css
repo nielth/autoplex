@@ -103,15 +103,19 @@ button {
 table {
     width: 75%;
     margin: auto;
-    padding-bottom: 40px;
+    padding-bottom: 30px;
 }
 
 th {
     cursor: pointer;
+    background-color: black;
+    vertical-align: middle;
+    color: white;
 }
 
 tr {
     vertical-align: baseline;
+    height: 30px;
 }
 
 tr:nth-child(even) {
