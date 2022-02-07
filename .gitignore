@@ -2,7 +2,6 @@ __pycache__
 test.py
 magnets.md
 certificate
-downloaded.txt
+downloaded.json
 .env
-.gitignore
 .idea
