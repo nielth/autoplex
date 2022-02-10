@@ -6,7 +6,7 @@ from imdb import IMDb
 
 import _thread
 import torrent
-import logging
+import logged_serv
 
 app = Flask(__name__, static_folder="web", template_folder="web")
 client = rarbgapi.RarbgAPI()
@@ -141,7 +141,7 @@ def mov_magnet(category, id):
         elif tries == 100:
             return "", 404
         tries += 1
-    logging.download_log(magnet_link, category)
+    logged_serv.download_log(magnet_link, category)
     torrent.torrent_api(magnet_link["magnet"], category)
     return "", 204
 
