@@ -45,7 +45,6 @@ def search(category, temp):
                 .data["cover url"]
                 .replace(movie[i].data["cover url"][result + 3: result + 23], "")
             )
-
             id.append(movie[i].movieID)
             titles += 1
     return render_template(
