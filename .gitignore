@@ -5,3 +5,4 @@ certificate
 downloaded.json
 .env
 .idea
+.DS_Store

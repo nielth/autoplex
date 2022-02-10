@@ -1,3 +1,11 @@
+html, body{
+    height: 100%;
+}
+
+html {
+    background-color: lightseagreen;
+}
+
 body {
     margin: auto;
     font-family: Tahoma, Verdana, Arial, Arial, serif;
@@ -29,6 +37,14 @@ li a:hover:not(.active) {
     background-color: #111;
 }
 
+#smaller-body{
+    width: 67%;
+    block-size: fit-content;
+    margin: 3% auto 0;
+    background-color: lightgray;
+    min-height: 100%;
+}
+
 .active {
     background-color: #04AA6D;
 }
@@ -42,12 +58,12 @@ li a:hover:not(.active) {
 #inputTitle {
     margin: auto;
     text-align: center;
-    padding-top: 85px;
+    padding-top: 21px;
 
 }
 
 #inputTitle #title {
-    width: 30%;
+    width: 60%;
     height: 29px;
 }
 
@@ -62,17 +78,13 @@ button {
 }
 
 #checkbox {
-    padding: 15px;
+    padding: 18px;
 }
 
 #imageContainer {
     text-align: center;
-    width: 80%;
+    width: 100%;
     margin: auto;
-}
-
-#title-choose {
-    cursor: pointer;
 }
 
 #imageContainer #title-choose {
@@ -86,6 +98,12 @@ button {
     object-fit: cover;
     margin: auto;
     display: block;
+    transition: .5s ease;
+    border-radius: 7px;
+}
+
+#imageContainer #title-choose img:hover {
+    opacity: 0.7;
 }
 
 #chosen {
@@ -101,7 +119,7 @@ button {
 }
 
 table {
-    width: 75%;
+    width: 95%;
     margin: auto;
     padding-bottom: 30px;
 }
