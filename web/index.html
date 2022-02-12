@@ -42,19 +42,16 @@
 
             {% if title %}
             {% for i in range(0, len) %}
-
             <a href="/torrent/{{ category }}/{{ id[i] }}/">
                 <div id="title-choose">
                         <img src="{{ cover[i] }}" alt="{{ id[i] }}">
                         <p>{{ title[i] }}</p>
                 </div>
             </a>
-
             {% endfor %}
             {% endif %}
 
             {% if magnet %}
-
             <img id="chosen" src="{{ cover }}">
             <div>
                 <table id="myTable">
@@ -64,9 +61,7 @@
                         <th onclick="sortTable(2)">Size</th>
                         <th onclick="sortTable(3)">Install</th>
                     </tr>
-
                     {% for i in range(0, len) %}
-
                     <tr>
                         <td id="fileName" style="text-align: left;">{{ filename[i] }}</td>
                         <td>{{ seeders[i] }}</td>
@@ -78,14 +73,10 @@
                             </a>
                         </td>
                     </tr>
-
                     {% endfor %}
-
                 </table>
             </div>
-
             {% endif %}
-
         </div>
     </div>
 </body>
