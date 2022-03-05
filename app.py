@@ -140,4 +140,4 @@ def mov_magnet(category, id):
 
 if __name__ == "__main__":
     _thread.start_new_thread(torrent.delete_finished, ())
-    app.run(host="0.0.0.0")
+    app.run(host="0.0.0.0", debug=True)
