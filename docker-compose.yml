@@ -21,7 +21,7 @@ services:
     build: .
     container_name: api
     volumes:
-      - .:/code
+      - ./app/:/code
   nginx:
     build: ./nginx
     container_name: nginx
