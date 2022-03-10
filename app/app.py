@@ -20,7 +20,7 @@ def index():
     return render_template("index.html")
 
 
-@app.route("/search/<string:category>/<string:title_search>/", methods=["GET"])
+@app.route("/search/<string:category>/<string:title_search>", methods=["GET"])
 def search(category, title_search):
     return_category = category
     if category == "series":
@@ -78,7 +78,7 @@ def get_magnet(name, category):
         )
 
 
-@app.route("/torrent/<string:category>/<string:name>/", methods=["GET"])
+@app.route("/torrent/<string:category>/<string:name>", methods=["GET"])
 def get_torrents(name, category):
     info_list = dict()
     title = ia.get_movie(name)
@@ -124,7 +124,7 @@ def get_torrents(name, category):
     )
 
 
-@app.route("/torrent/<string:category>/<string:id>/", methods=["POST"])
+@app.route("/torrent/<string:category>/<string:id>", methods=["POST"])
 def mov_magnet(category, id):
     magnet_link = request.form
     for line in reversed(open("magnets.md").readlines()):
