@@ -18,7 +18,9 @@ import backend.logged_serv as logged_serv
 
 app = Flask(__name__)
 app.config['ENV'] = 'development'
-app.config['SECRET_KEY'] = "thisissecret"
+app.config['SECRET_KEY'] = "thisissecret" # python -c 'import secrets; print(secrets.token_hex())'
+app.config['SESSION_COOKIE_SECURE'] = True
+app.config['SESSION_COOKIE_HTTPONLY'] = True
 
 client = rarbgapi.RarbgAPI()
 ia = IMDb()
@@ -28,8 +30,6 @@ movie = "movie"
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.session_protection = "strong"
-app.config['SESSION_COOKIE_SECURE'] = True
-app.config['SESSION_COOKIE_HTTPONLY'] = True
 
 @login_manager.user_loader
 def load_user(id):
@@ -46,6 +46,10 @@ class LoginForm(FlaskForm):
                              validators=[DataRequired(), Length(min=5, max=20, message="min 5 and max 20")],
                              render_kw={"placeholder": "Password"})
 
+class RegisterForm(FlaskForm):
+    email = EmailField(label='email', validators=[DataRequired(), Email(message="invalid email")], render_kw={"placeholder": "Email"})
+    password = PasswordField(label='password', validators=[DataRequired()], render_kw={"placeholder": "Password"})
+
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(100), nullable=False, unique=True)
@@ -53,13 +57,17 @@ class User(UserMixin, db.Model):
 db.create_all()
 
 
-@app.route("/home", methods=["GET"])
+@app.route("/", methods=["GET"])
 @login_required
 def index():
     return render_template("index.html")
 
+@app.errorhandler(401)
+def page_not_found(e):
+    return redirect(url_for('login'))
 
-@app.route("/", methods=['GET', 'POST'])
+
+@app.route("/login", methods=['GET', 'POST'])
 def login():
     form = LoginForm()
     if form.validate_on_submit():
@@ -69,7 +77,7 @@ def login():
         if user:
             if check_password_hash(user.password, password):
                 login_user(user)
-                return redirect(url_for('home'))
+                return redirect(url_for('index'))
             else:
                 flask.flash("incorrect password")
         else:
@@ -78,7 +86,30 @@ def login():
     return render_template("login.html", form=form)
 
 
+@app.route("/register", methods=['GET', 'POST'])
+def register():
+    form = RegisterForm()
+    if form.validate_on_submit():
+        email = form.email.data
+        password = form.password.data
+        if User.query.filter_by(email=email).first():
+            flask.flash("user has already registered")
+        else:
+            # create new user
+            new_user = User(
+                email = email,
+                password = generate_password_hash(password, method='pbkdf2:sha256', salt_length=8)
+            )
+            db.session.add(new_user)
+            db.session.commit()
+            login_user(new_user)
+            return redirect(url_for('index'))
+
+    return render_template("register.html", form=form)
+
+
 @app.route("/search/<string:category>/<string:title_search>", methods=["GET"])
+@login_required
 def search(category, title_search):
     return_category = category
     if category == "series":
@@ -137,6 +168,7 @@ def get_magnet(name, category):
 
 
 @app.route("/torrent/<string:category>/<string:name>", methods=["GET"])
+@login_required
 def get_torrents(name, category):
     info_list = dict()
     title = ia.get_movie(name)
@@ -183,6 +215,7 @@ def get_torrents(name, category):
 
 
 @app.route("/torrent/<string:category>/<string:id>", methods=["POST"])
+@login_required
 def mov_magnet(category, id):
     magnet_link = request.form
     for line in reversed(open("magnets.md").readlines()):
