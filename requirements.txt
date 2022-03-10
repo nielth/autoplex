@@ -4,5 +4,4 @@ rarbgapi
 git+https://github.com/alberanid/imdbpy 
 imdbpy 
 qbittorrent-api
-flask-cors
 python-dotenv
