@@ -1,8 +1,8 @@
 FROM alpine:latest
 
-ADD . /code
-
 WORKDIR /code
+
+ADD ./app /code
 
 RUN apk add cmd:pip3 git python3-dev && pip3 install --upgrade pip
 
@@ -12,4 +12,4 @@ COPY requirements.txt /code/requirements.txt
 
 RUN pip3 install -r /code/requirements.txt
 
-CMD [ "python3", "app/app.py" ] 
+CMD [ "python3", "/code/app.py" ] 
