@@ -1,15 +1,14 @@
 import rarbgapi
 import time
-import os
 
 from flask import Flask, request, render_template
 from imdb import IMDb
 
 import _thread
-import torrent
-import logged_serv
+import backend.torrent as torrent
+import backend.logged_serv as logged_serv
 
-app = Flask(__name__, static_folder="web", template_folder="web")
+app = Flask(__name__)
 client = rarbgapi.RarbgAPI()
 ia = IMDb()
 series = "tv series"
