@@ -1,31 +1,41 @@
 import rarbgapi
 import time
 import flask
+import os
+
 
 from flask_sqlalchemy import SQLAlchemy
+from dotenv import load_dotenv
 from flask_wtf import FlaskForm
 from wtforms import PasswordField
 from wtforms.validators import DataRequired, Email, Length
 from wtforms.fields import EmailField
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import (
-    UserMixin, 
-    login_user, 
-    LoginManager, 
-    login_required, 
-    current_user, 
+    UserMixin,
+    login_user,
+    LoginManager,
+    login_required,
+    current_user,
     logout_user
 )
-from flask import Flask, request, render_template, redirect,url_for
+from flask import Flask, request, render_template, redirect, url_for
 from imdb import IMDb
 
 import _thread
 import backend.torrent as torrent
 import backend.logged_serv as logged_serv
+import backend.plex_check as plex_check
+
+import asyncio
+from plexauth import PlexAuth
+
+load_dotenv()
 
 app = Flask(__name__)
 app.config['ENV'] = 'development'
-app.config['SECRET_KEY'] = "thisissecret" # python -c 'import secrets; print(secrets.token_hex())'
+# python -c 'import secrets; print(secrets.token_hex())'
+app.config['SECRET_KEY'] = os.getenv('SECRET_FLASK_KEY')
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 
@@ -38,9 +48,11 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.session_protection = "strong"
 
+
 @login_manager.user_loader
 def load_user(id):
     return User.query.get(int(id))
+
 
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///user.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -48,51 +60,59 @@ app.url_map.strict_slashes = False
 
 db = SQLAlchemy(app)
 
-class LoginForm(FlaskForm):
-    email = EmailField(label='email', validators=[DataRequired(), Email(message="invalid email")], render_kw={"placeholder": "Email"})
-    password = PasswordField(label='password',
-                             validators=[DataRequired(), Length(min=5, max=20, message="min 5 and max 20")],
-                             render_kw={"placeholder": "Password"})
-
-class RegisterForm(FlaskForm):
-    email = EmailField(label='email', validators=[DataRequired(), Email(message="invalid email")], render_kw={"placeholder": "Email"})
-    password = PasswordField(label='password', validators=[DataRequired()], render_kw={"placeholder": "Password"})
 
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(100), nullable=False, unique=True)
-    password = db.Column(db.String(100), nullable=False)
+
 db.create_all()
 
+PAYLOAD = {
+    'X-Plex-Product': 'Test Product',
+    'X-Plex-Version': '0.0.1',
+    'X-Plex-Device': 'Test Device',
+    'X-Plex-Platform': 'Test Platform',
+    'X-Plex-Device-Name': 'Test Device Name',
+    'X-Plex-Device-Vendor': 'Test Vendor',
+    'X-Plex-Model': 'Test Model',
+    'X-Plex-Client-Platform': 'Test Client Platform'
+}
 
 @app.route("/", methods=["GET"])
 @login_required
 def index():
     return render_template("index.html")
 
+
 @app.errorhandler(401)
 def page_not_found(e):
     return redirect(url_for('login'))
 
 
-@app.route("/login", methods=['GET', 'POST'])
-def login():
-    form = LoginForm()
-    if form.validate_on_submit():
-        email = form.email.data
-        password = form.password.data
-        user = User.query.filter_by(email=email).first()
-        if user:
-            if check_password_hash(user.password, password):
-                login_user(user)
-                return redirect(url_for('index'))
-            else:
-                flask.flash("incorrect password")
-        else:
-            flask.flash("user not found")
+loop = asyncio.get_event_loop()
 
-    return render_template("login.html", form=form)
 
+@app.route("/login", methods=['GET'])
+async def login():
+    plexauth = PlexAuth(PAYLOAD)
+    await plexauth.initiate_auth()
+    print(plexauth.auth_url(forward_url="http://localhost:1337"))
+    return f'<a href"{plexauth.auth_url(forward_url="http://localhost:1337")} target="_blank">Link</a>"'
+    token = await plexauth.token()
+    if token:
+        print("Token: {}".format(token))
+    else:
+        print("No token returned.")
+    time.sleep(30)
+    user = User.query.filter_by(email="thomas.nielsen98@gmail.com").first()
+    if 0:
+        if 1:
+            login_user(user)
+            return redirect(url_for('index'))
+    else:
+        flask.flash("user not found")
+
+    return render_template("index.html")
 
 @app.route("/register", methods=['GET', 'POST'])
 def register():
@@ -199,7 +219,7 @@ def get_torrents(name, category):
             tries = 0
             break
 
-    f = open("magnets.md", "a")
+    f = open("../log/magnets.md", "a")
     for i in range(len(titles)):
         if titles[i].seeders != 0:
             info_list.setdefault("filename", []).append(titles[i].filename)
@@ -226,7 +246,7 @@ def get_torrents(name, category):
 @login_required
 def mov_magnet(category, id):
     magnet_link = request.form
-    for line in reversed(open("magnets.md").readlines()):
+    for line in reversed(open("./log/magnets.md").readlines()):
         if line.rstrip() in magnet_link["magnet"]:
             break
         else:
