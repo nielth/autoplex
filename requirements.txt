@@ -10,3 +10,4 @@ git+https://github.com/alberanid/imdbpy
 imdbpy 
 qbittorrent-api
 python-dotenv
+plexapi

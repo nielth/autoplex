@@ -8,7 +8,14 @@ from wtforms import PasswordField
 from wtforms.validators import DataRequired, Email, Length
 from wtforms.fields import EmailField
 from werkzeug.security import generate_password_hash, check_password_hash
-from flask_login import UserMixin, login_user, LoginManager, login_required, current_user, logout_user
+from flask_login import (
+    UserMixin, 
+    login_user, 
+    LoginManager, 
+    login_required, 
+    current_user, 
+    logout_user
+)
 from flask import Flask, request, render_template, redirect,url_for
 from imdb import IMDb
 
@@ -37,8 +44,9 @@ def load_user(id):
 
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///user.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-db = SQLAlchemy(app)
+app.url_map.strict_slashes = False
 
+db = SQLAlchemy(app)
 
 class LoginForm(FlaskForm):
     email = EmailField(label='email', validators=[DataRequired(), Email(message="invalid email")], render_kw={"placeholder": "Email"})

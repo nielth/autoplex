@@ -25,7 +25,8 @@ $(document).ready(function () {
 
 document.getElementById("titleButton").addEventListener("click", function () {
 
-    const inputVal = document.getElementById("title").value;
+    const inputVal_space = document.getElementById("title").value.replace(" ", "%20");
+    const inputVal = inputVal_space.replace(" ", "%20");
 
     if (document.getElementById("movie").checked) {
         location.href = `/search/movie/${inputVal}`;
