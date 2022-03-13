@@ -1,8 +1,6 @@
 import rarbgapi
 import time
 import os
-import threading
-
 
 from flask_sqlalchemy import SQLAlchemy
 from multiprocessing import Process
@@ -27,9 +25,6 @@ import _thread
 import backend.torrent as torrent
 import backend.logged_serv as logged_serv
 import backend.plex_check as plex_check
-
-import asyncio
-from plexauth import PlexAuth
 
 load_dotenv()
 
@@ -65,9 +60,12 @@ db = SQLAlchemy(app)
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(100), nullable=False, unique=True)
+    uuid = db.Column(db.String(100), nullable=False, unique=True)
+    username = db.Column(db.String(100), nullable=False, unique=True)
 
 db.create_all()
 
+FORWARD_LINK = None
 PAYLOAD = {
     'X-Plex-Product': 'Test Product',
     'X-Plex-Version': '0.0.1',
@@ -91,11 +89,9 @@ def page_not_found(e):
     return redirect(url_for('login'))
 
 
-FORWARD_LINK = None
-TOKEN = None
-
 @app.route("/login", methods=['GET'])
 async def login():
+    FORWARD_LINK = plex_check.get_plex_link('http://localhost:5000/login/callback')
     while not FORWARD_LINK:
         time.sleep(0.5)
     return f'<meta http-equiv="refresh" content="0; URL={FORWARD_LINK}" />'
@@ -103,8 +99,10 @@ async def login():
 
 @app.route("/login/callback", methods=['GET'])
 async def callback():
-    user = User.query.filter_by(email="thomas.nielsen98@gmail.com").first()
-    if 0:
+    token = plex_check.return_token()
+    plex_user_info = plex_check.check_plex_user()
+    user = User.query.filter_by(email=plex_user_info['email']).first()
+    if user:
         if 1:
             login_user(user)
             return redirect(url_for('index'))
