@@ -11,3 +11,4 @@ imdbpy
 qbittorrent-api
 python-dotenv
 plexapi
+plexauth

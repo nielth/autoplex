@@ -1,10 +1,11 @@
 import rarbgapi
 import time
-import flask
 import os
+import threading
 
 
 from flask_sqlalchemy import SQLAlchemy
+from multiprocessing import Process
 from dotenv import load_dotenv
 from flask_wtf import FlaskForm
 from wtforms import PasswordField
@@ -81,7 +82,8 @@ PAYLOAD = {
 @app.route("/", methods=["GET"])
 @login_required
 def index():
-    return render_template("index.html")
+    if current_user.is_authenticated:
+        return render_template("index.html")
 
 
 @app.errorhandler(401)
@@ -89,51 +91,23 @@ def page_not_found(e):
     return redirect(url_for('login'))
 
 
-loop = asyncio.get_event_loop()
-
+FORWARD_LINK = None
+TOKEN = None
 
 @app.route("/login", methods=['GET'])
 async def login():
-    plexauth = PlexAuth(PAYLOAD)
-    await plexauth.initiate_auth()
-    print(plexauth.auth_url(forward_url="http://localhost:1337"))
-    return f'<a href"{plexauth.auth_url(forward_url="http://localhost:1337")} target="_blank">Link</a>"'
-    token = await plexauth.token()
-    if token:
-        print("Token: {}".format(token))
-    else:
-        print("No token returned.")
-    time.sleep(30)
+    while not FORWARD_LINK:
+        time.sleep(0.5)
+    return f'<meta http-equiv="refresh" content="0; URL={FORWARD_LINK}" />'
+
+
+@app.route("/login/callback", methods=['GET'])
+async def callback():
     user = User.query.filter_by(email="thomas.nielsen98@gmail.com").first()
     if 0:
         if 1:
             login_user(user)
             return redirect(url_for('index'))
-    else:
-        flask.flash("user not found")
-
-    return render_template("index.html")
-
-@app.route("/register", methods=['GET', 'POST'])
-def register():
-    form = RegisterForm()
-    if form.validate_on_submit():
-        email = form.email.data
-        password = form.password.data
-        if User.query.filter_by(email=email).first():
-            flask.flash("user has already registered")
-        else:
-            # create new user
-            new_user = User(
-                email = email,
-                password = generate_password_hash(password, method='pbkdf2:sha256', salt_length=8)
-            )
-            db.session.add(new_user)
-            db.session.commit()
-            login_user(new_user)
-            return redirect(url_for('index'))
-
-    return render_template("register.html", form=form)
 
 
 @app.route("/search/<string:category>/<string:title_search>", methods=["GET"])
@@ -257,5 +231,5 @@ def mov_magnet(category, id):
 
 
 if __name__ == "__main__":
-    _thread.start_new_thread(torrent.delete_finished, ())
-    app.run(host="0.0.0.0", debug=True)
+    #_thread.start_new_thread(torrent.delete_finished, ())
+    app.run(host="0.0.0.0", debug=True, threaded=True)
