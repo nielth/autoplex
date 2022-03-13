@@ -98,7 +98,7 @@ async def login():
 
 
 @app.route("/login/callback", methods=['GET'])
-async def callback():
+def callback():
     token = plex_check.return_token()
     plex_user_info = plex_check.check_plex_user()
     user = User.query.filter_by(email=plex_user_info['email']).first()
@@ -106,7 +106,18 @@ async def callback():
         if 1:
             login_user(user)
             return redirect(url_for('index'))
-
+    else:
+        new_user = User(
+            email = plex_user_info['email'],
+            id = plex_user_info['id'],
+            uuid = plex_user_info['uuid'],
+            username = plex_user_info['username']
+        )
+        db.session.add(new_user)
+        db.session.commit()
+        user = User.query.filter_by(email=plex_user_info['email']).first()
+        login_user(user)
+        return redirect(url_for('index'))
 
 @app.route("/search/<string:category>/<string:title_search>", methods=["GET"])
 @login_required
