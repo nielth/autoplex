@@ -26,7 +26,7 @@ app = Flask(__name__)
 app.config['ENV'] = 'development'
 # python -c 'import secrets; print(secrets.token_hex())'
 app.config['SECRET_KEY'] = os.getenv('SECRET_FLASK_KEY')
-app.config['SESSION_COOKIE_SECURE'] = True
+app.config['SESSION_COOKIE_SECURE'] = False
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 
 client = rarbgapi.RarbgAPI()
