@@ -77,8 +77,7 @@ PAYLOAD = {
 @app.route("/", methods=["GET"])
 @login_required
 def index():
-    if current_user.is_authenticated:
-        return render_template("index.html")
+    return render_template("index.html")
 
 
 @app.route("/logout")
@@ -94,7 +93,7 @@ def page_not_found(e):
 
 @app.route("/login", methods=['GET'])
 def login():
-    FORWARD_LINK = plex_check.get_plex_link(forward_url="http://{ADDRESS}:{80}/login/callback")
+    FORWARD_LINK = plex_check.get_plex_link(forward_url=f"http://{ADDRESS}:{PORT}/login/callback")
     return f'<a class="btn btn-success" href="{FORWARD_LINK}" target="_blank">Continue with Plex</a>'
 
 
@@ -110,9 +109,8 @@ def callback():
 
     user = User.query.filter_by(email=plex_user_info['email']).first()
     if user:
-        if 1:
-            login_user(user)
-            return redirect(url_for('index'))
+        login_user(user)
+        return redirect(url_for('index'))
     else:
         new_user = User(
             email = plex_user_info['email'],
