@@ -2,7 +2,7 @@ FROM alpine:latest
 
 WORKDIR /code
 
-ADD ./app /code
+ADD . /code
 
 RUN apk add cmd:pip3 git python3-dev && pip3 install --upgrade pip
 

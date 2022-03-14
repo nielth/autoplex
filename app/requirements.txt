@@ -1,5 +1,6 @@
-Flask
-redis
+Flask[async]
+flask-Login
+Flask-SQLAlchemy
 rarbgapi 
 git+https://github.com/alberanid/imdbpy 
 imdbpy 

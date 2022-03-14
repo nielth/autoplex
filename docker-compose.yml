@@ -1,4 +1,4 @@
-version: "2.1"
+version: "3.7"
 services:
   qbittorrent:
     image: lscr.io/linuxserver/qbittorrent
@@ -18,7 +18,7 @@ services:
       - 8080:8080
     restart: unless-stopped
   web:
-    build: .
+    build: ./app
     container_name: api
     volumes:
       - ./app/:/code
@@ -27,8 +27,6 @@ services:
     container_name: nginx
     ports:
       - 1337:80
-    volumes:
-      - ./nginx/conf.d:/etc/nginx/conf.d
     depends_on:
       - web
 
