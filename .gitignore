@@ -6,3 +6,4 @@ app/user.db
 .env
 .idea
 .DS_Store
+.vscode
