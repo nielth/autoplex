@@ -2,7 +2,7 @@ from datetime import datetime
 import json
 
 def download_log(magnet_link, category):
-    with open('downloaded.json', 'r+') as file:
+    with open('./log/downloaded.json', 'r+') as file:
         logged_download = {
             "time": datetime.today().strftime('%H:%M:%S'),
             "category": category,
