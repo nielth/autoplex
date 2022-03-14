@@ -3,6 +3,7 @@ import time
 import os
 
 from flask import Flask, request, render_template, redirect, url_for
+from werkzeug.middleware.proxy_fix import ProxyFix
 from flask_sqlalchemy import SQLAlchemy
 from dotenv import load_dotenv
 from imdb import IMDb
@@ -28,14 +29,17 @@ app.config["ENV"] = "development"
 app.config["SECRET_KEY"] = os.getenv("SECRET_FLASK_KEY")
 app.config["SESSION_COOKIE_SECURE"] = False
 app.config["SESSION_COOKIE_HTTPONLY"] = True
+# redirects stay https
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1 ,x_proto=1)
 
 client = rarbgapi.RarbgAPI()
 ia = IMDb()
 series = "tv series"
 movie = "movie"
 
-ADDRESS = os.getenv("ADDRESS")
-PORT = os.getenv("APP_PORT")
+PUB_ADDRESS = os.getenv("PUB_ADDRESS")
+PORT = os.getenv("PUB_PORT")
+SECURITY = os.getenv("SECURITY")
 
 login_manager = LoginManager()
 login_manager.init_app(app)
@@ -96,7 +100,7 @@ def page_not_found(e):
 @app.route("/login", methods=["GET"])
 def login():
     FORWARD_LINK = plex_check.get_plex_link(
-        forward_url=f"http://{ADDRESS}:{PORT}/login/callback"
+        forward_url=f"{SECURITY}://{PUB_ADDRESS}:{PORT}/login/callback"
     )
     return f'<a class="btn btn-success" href="{FORWARD_LINK}" target="_blank">Continue with Plex</a>'
 
