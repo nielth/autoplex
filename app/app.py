@@ -2,14 +2,10 @@ import rarbgapi
 import time
 import os
 
+from flask import Flask, request, render_template, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
-from multiprocessing import Process
 from dotenv import load_dotenv
-from flask_wtf import FlaskForm
-from wtforms import PasswordField
-from wtforms.validators import DataRequired, Email, Length
-from wtforms.fields import EmailField
-from werkzeug.security import generate_password_hash, check_password_hash
+from imdb import IMDb
 from flask_login import (
     UserMixin,
     login_user,
@@ -18,8 +14,6 @@ from flask_login import (
     current_user,
     logout_user
 )
-from flask import Flask, request, render_template, redirect, url_for
-from imdb import IMDb
 
 import _thread
 import backend.torrent as torrent
@@ -39,6 +33,9 @@ client = rarbgapi.RarbgAPI()
 ia = IMDb()
 series = "tv series"
 movie = "movie"
+
+ADDRESS = os.getenv('ADDRESS') 
+PORT = os.getenv('APP_PORT')
 
 login_manager = LoginManager()
 login_manager.init_app(app)
@@ -84,23 +81,33 @@ def index():
         return render_template("index.html")
 
 
+@app.route("/logout")
+def logout():
+    logout_user()
+    return redirect(url_for('login'))
+
+
 @app.errorhandler(401)
 def page_not_found(e):
     return redirect(url_for('login'))
 
 
 @app.route("/login", methods=['GET'])
-async def login():
-    FORWARD_LINK = plex_check.get_plex_link('http://localhost:5000/login/callback')
-    while not FORWARD_LINK:
-        time.sleep(0.5)
-    return f'<meta http-equiv="refresh" content="0; URL={FORWARD_LINK}" />'
+def login():
+    FORWARD_LINK = plex_check.get_plex_link(forward_url="http://{ADDRESS}:{80}/login/callback")
+    return f'<a class="btn btn-success" href="{FORWARD_LINK}" target="_blank">Continue with Plex</a>'
 
 
 @app.route("/login/callback", methods=['GET'])
 def callback():
     token = plex_check.return_token()
     plex_user_info = plex_check.check_plex_user()
+    plex_server_users = plex_check.get_server_accounts()
+    username = plex_user_info['username'] in plex_server_users
+    email = plex_user_info['email'] in plex_server_users
+    if not any((username, email)):
+        return 'User is not linked to Plex Server', 404
+
     user = User.query.filter_by(email=plex_user_info['email']).first()
     if user:
         if 1:

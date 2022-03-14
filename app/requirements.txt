@@ -1,14 +1,8 @@
-Flask
+Flask[async]
 flask-Login
-flask_wtf
-WTForms
-Werkzeug
-email_validator
 Flask-SQLAlchemy
 rarbgapi 
 git+https://github.com/alberanid/imdbpy 
 imdbpy 
 qbittorrent-api
 python-dotenv
-plexapi
-plexauth

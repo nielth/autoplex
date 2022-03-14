@@ -4,20 +4,24 @@ import time
 import requests
 import urllib.parse
 import uuid
+import os
+
+from dotenv import load_dotenv
+
 
 CODES_URL = 'https://plex.tv/api/v2/pins.json?strong=true'
 AUTH_URL = 'https://app.plex.tv/auth#!?{}'
 TOKEN_URL = 'https://plex.tv/api/v2/pins/{}'
 
 PAYLOAD = {
-    'X-Plex-Product': 'Test Product',
-    'X-Plex-Version': '0.0.1',
-    'X-Plex-Device': 'Test Device',
-    'X-Plex-Platform': 'Test Platform',
-    'X-Plex-Device-Name': 'Test Device Name',
-    'X-Plex-Device-Vendor': 'Test Vendor',
-    'X-Plex-Model': 'Test Model',
-    'X-Plex-Client-Platform': 'Test Client Platform',
+    'X-Plex-Product': 'Plex Auth App (Autoplex)',
+    'X-Plex-Version': '0.69.420',
+    'X-Plex-Device': 'Linux',
+    'X-Plex-Platform': 'Linux',
+    'X-Plex-Device-Name': 'Autoplex',
+    'X-Plex-Device-Vendor': '',
+    'X-Plex-Model': '',
+    'X-Plex-Client-Platform': '',
     'X-Plex-Client-Identifier': str(uuid.uuid4())
 }
 
@@ -40,7 +44,6 @@ def get_plex_link(forward_url=None):
     if forward_url:
         parameters['forwardUrl'] = forward_url
     url = AUTH_URL.format(urllib.parse.urlencode(parameters))
-    print(url)
     return url
 
 def response_func():
@@ -63,7 +66,6 @@ def return_token():
         if token or time.time() > timeout:
             break_loop = True
 
-    print(token)
     return token
 
 
@@ -81,4 +83,16 @@ def check_plex_user():
     username = xml_parsed.attrib['username']
     return { 'email': email, 'id': id, 'uuid': uuid, 'username': username }
 
+
+def get_server_accounts():
+    headers = {"Accept": "application/json"}
+    server_token = os.getenv('SERVER_TOKEN')
+    accounts_link = f"http://10.0.0.33:32400/accounts/?X-Plex-Token={server_token}"
+    resp = requests.get(accounts_link, headers=headers)
+    response = resp.json()
+    users = list()
+    for user in response['MediaContainer']['Account']:
+        users.append(user['name'])
+    return users
+    
 
