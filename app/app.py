@@ -2,10 +2,12 @@ import rarbgapi
 import time
 import os
 
-from flask import Flask, request, render_template, redirect, url_for
+from flask import Flask, request, render_template, redirect, url_for, session
 from werkzeug.middleware.proxy_fix import ProxyFix
 from flask_sqlalchemy import SQLAlchemy
+from multiprocessing import Process
 from dotenv import load_dotenv
+from threading import Thread
 from imdb import IMDb
 from flask_login import (
     UserMixin,
@@ -16,10 +18,9 @@ from flask_login import (
     logout_user,
 )
 
-import _thread
-import backend.torrent as torrent
-import backend.logged_serv as logged_serv
-import backend.plex_check as plex_check
+import backend.qbt as qbt
+import backend.log as log
+import backend.plex as plex
 
 load_dotenv()
 
@@ -27,10 +28,16 @@ app = Flask(__name__)
 app.config["ENV"] = "development"
 # python -c 'import secrets; print(secrets.token_hex())'
 app.config["SECRET_KEY"] = os.getenv("SECRET_FLASK_KEY")
-app.config["SESSION_COOKIE_SECURE"] = False
+app.config["SESSION_COOKIE_SECURE"] = True
 app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///user.db"
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+app.url_map.strict_slashes = False
 # redirects stay https
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1 ,x_proto=1)
+
+db = SQLAlchemy(app)
+from backend.db_ import *
 
 client = rarbgapi.RarbgAPI()
 ia = IMDb()
@@ -45,39 +52,11 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.session_protection = "strong"
 
+FORWARD_LINK = None
 
 @login_manager.user_loader
 def load_user(id):
     return User.query.get(int(id))
-
-
-app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///user.db"
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-app.url_map.strict_slashes = False
-
-db = SQLAlchemy(app)
-
-
-class User(UserMixin, db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    email = db.Column(db.String(100), nullable=False, unique=True)
-    uuid = db.Column(db.String(100), nullable=False, unique=True)
-    username = db.Column(db.String(100), nullable=False, unique=True)
-
-
-db.create_all()
-
-FORWARD_LINK = None
-PAYLOAD = {
-    "X-Plex-Product": "Test Product",
-    "X-Plex-Version": "0.0.1",
-    "X-Plex-Device": "Test Device",
-    "X-Plex-Platform": "Test Platform",
-    "X-Plex-Device-Name": "Test Device Name",
-    "X-Plex-Device-Vendor": "Test Vendor",
-    "X-Plex-Model": "Test Model",
-    "X-Plex-Client-Platform": "Test Client Platform",
-}
 
 
 @app.route("/", methods=["GET"])
@@ -99,17 +78,18 @@ def page_not_found(e):
 
 @app.route("/login", methods=["GET"])
 def login():
-    FORWARD_LINK = plex_check.get_plex_link(
+    FORWARD_LINK, identifier = plex.get_plex_link(
         forward_url=f"{SECURITY}://{PUB_ADDRESS}:{PORT}/login/callback"
     )
+    session["identifier"] = identifier
     return f'<a class="btn btn-success" href="{FORWARD_LINK}" target="_blank">Continue with Plex</a>'
 
 
 @app.route("/login/callback", methods=["GET"])
 def callback():
-    token = plex_check.return_token()
-    plex_user_info = plex_check.check_plex_user()
-    plex_server_users = plex_check.get_server_accounts()
+    token = plex.return_token(session["identifier"])
+    plex_user_info = plex.check_plex_user(token)
+    plex_server_users = plex.get_server_accounts()
     username = plex_user_info["username"] in plex_server_users
     email = plex_user_info["email"] in plex_server_users
     if not any((username, email)):
@@ -194,23 +174,23 @@ def get_magnet(name, category):
         )
 
 
-@app.route("/torrent/<string:category>/<string:name>", methods=["GET"])
+@app.route("/qbt/<string:category>/<string:name>", methods=["GET"])
 @login_required
-def get_torrents(name, category):
+def get_qbts(name, category):
     info_list = dict()
     title = ia.get_movie(name)
     result = title.data["cover url"].find("._V1_")
     cover = title.data["cover url"].replace(
         title.data["cover url"][result + 3 : result + 23], ""
     )
-    torrent_search = "tt" + name
-    titles = get_magnet(torrent_search, category)
+    qbt_search = "tt" + name
+    titles = get_magnet(qbt_search, category)
     tries = 0
 
     while True:
         if not titles and tries <= 5:
             time.sleep(2)
-            titles = get_magnet(torrent_search, category)
+            titles = get_magnet(qbt_search, category)
             tries += 1
         elif not titles and tries >= 5:
             return "", 404
@@ -241,7 +221,7 @@ def get_torrents(name, category):
     )
 
 
-@app.route("/torrent/<string:category>/<string:id>", methods=["POST"])
+@app.route("/qbt/<string:category>/<string:id>", methods=["POST"])
 @login_required
 def mov_magnet(category, id):
     magnet_link = request.form
@@ -250,11 +230,12 @@ def mov_magnet(category, id):
             break
         else:
             return "", 404
-    logged_serv.download_log(magnet_link, category)
-    torrent.torrent_api(magnet_link["magnet"], category)
+    log.download_log(magnet_link, category)
+    qbt.qbt_api(magnet_link["magnet"], category)
     return "", 204
 
 
 if __name__ == "__main__":
-    # _thread.start_new_thread(torrent.delete_finished, ())
-    app.run(host="0.0.0.0", debug=True, threaded=True)
+    p = Process(target = qbt.delete_finished)
+    #p.start()
+    app.run(host="0.0.0.0", debug=True)
