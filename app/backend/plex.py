@@ -6,8 +6,6 @@ import urllib.parse
 import uuid
 import os
 
-from dotenv import load_dotenv
-
 
 CODES_URL = "https://plex.tv/api/v2/pins.json?strong=true"
 AUTH_URL = "https://app.plex.tv/auth#!?{}"
@@ -22,60 +20,56 @@ PAYLOAD = {
     "X-Plex-Device-Vendor": "",
     "X-Plex-Model": "",
     "X-Plex-Client-Platform": "",
-    "X-Plex-Client-Identifier": str(uuid.uuid4()),
+    "X-Plex-Client-Identifier": "",
 }
 
-identifier = int
-parameters = {"clientID": PAYLOAD["X-Plex-Client-Identifier"], "code": ""}
+parameters = {"clientID": "", "code": ""}
 
-s = None
+PLEX_API_BASE_URL = "https://plex.tv/users/account/?X-Plex-Token="
+s = None 
 
 
 def get_plex_link(forward_url=None):
     global s
-    global identifier
     s = requests.Session()
+    PAYLOAD["X-Plex-Client-Identifier"] = str(uuid.uuid4())
     resp = s.post(CODES_URL, data=PAYLOAD, headers=None)
     response = resp.json()
     parameters["code"] = response["code"]
+    parameters["clientID"] = PAYLOAD["X-Plex-Client-Identifier"]
     identifier = response["id"]
     if forward_url:
         parameters["forwardUrl"] = forward_url
     url = AUTH_URL.format(urllib.parse.urlencode(parameters))
-    return url
+    return url, identifier
 
 
-def response_func():
-    global TOKEN
+def response_func(identifier):
+    token = str
     token_url = TOKEN_URL.format(parameters["code"])
     payload = dict(PAYLOAD)
     payload["Accept"] = "application/json"
     resp = s.get(TOKEN_URL.format(identifier), headers=payload)
     response = resp.json()
-    TOKEN = response["authToken"]
-    return TOKEN
+    token = response["authToken"]
+    return token
 
 
-def return_token():
+def return_token(identifier):
     token = None
     break_loop = False
     timeout = time.time() + 60 * 2
     while not break_loop:
         time.sleep(3)
-        token = response_func()
+        token = response_func(identifier)
         if token or time.time() > timeout:
             break_loop = True
 
     return token
 
 
-PLEX_API_BASE_URL = "https://plex.tv/users/account/?X-Plex-Token="
-TOKEN = None
-
-
-def check_plex_user():
-    global TOKEN
-    xml = requests.get(PLEX_API_BASE_URL + TOKEN)
+def check_plex_user(token):
+    xml = requests.get(PLEX_API_BASE_URL + token)
     xml_parsed = ET.fromstring(xml.content)
     email = xml_parsed.attrib["email"]
     id = xml_parsed.attrib["id"]
