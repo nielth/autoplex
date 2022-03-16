@@ -25,6 +25,8 @@ services:
   nginx:
     build: ./nginx
     container_name: nginx
+    volumes:
+      - ./nginx/letsencrypt:/etc/letsencrypt
     ports:
       - 1337:443
       - 80:80

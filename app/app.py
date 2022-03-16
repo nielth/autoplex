@@ -1,14 +1,12 @@
-import rarbgapi
-import time
 import os
 
 from flask import Flask, request, render_template, redirect, url_for, session
 from werkzeug.middleware.proxy_fix import ProxyFix
 from flask_sqlalchemy import SQLAlchemy
+from requests import exceptions
 from multiprocessing import Process
 from dotenv import load_dotenv
 from threading import Thread
-from imdb import IMDb
 from flask_login import (
     UserMixin,
     login_user,
@@ -21,6 +19,7 @@ from flask_login import (
 import backend.qbt as qbt
 import backend.log as log
 import backend.plex as plex
+import backend.titles as titles
 
 load_dotenv()
 
@@ -39,12 +38,10 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1 ,x_proto=1)
 db = SQLAlchemy(app)
 from backend.db_ import *
 
-client = rarbgapi.RarbgAPI()
-ia = IMDb()
 series = "tv series"
 movie = "movie"
 
-PUB_ADDRESS = os.getenv("PUB_ADDRESS")
+ADDRESS = os.getenv("PUB_ADDRESS")
 PORT = os.getenv("PUB_PORT")
 SECURITY = os.getenv("SECURITY")
 
@@ -79,7 +76,7 @@ def page_not_found(e):
 @app.route("/login", methods=["GET"])
 def login():
     FORWARD_LINK, identifier = plex.get_plex_link(
-        forward_url=f"{SECURITY}://{PUB_ADDRESS}:{PORT}/login/callback"
+        forward_url=f"{SECURITY}://{ADDRESS}:{PORT}/login/callback"
     )
     session["identifier"] = identifier
     return f'<a class="btn btn-success" href="{FORWARD_LINK}" target="_blank">Continue with Plex</a>'
@@ -89,7 +86,10 @@ def login():
 def callback():
     token = plex.return_token(session["identifier"])
     plex_user_info = plex.check_plex_user(token)
-    plex_server_users = plex.get_server_accounts()
+    try:
+        plex_server_users = plex.get_server_accounts()
+    except exceptions.ConnectionError:
+        return "Plex server down, meaning I can't valid we're friends or watch Plex :-(.", 404
     username = plex_user_info["username"] in plex_server_users
     email = plex_user_info["email"] in plex_server_users
     if not any((username, email)):
@@ -116,29 +116,8 @@ def callback():
 @app.route("/search/<string:category>/<string:title_search>", methods=["GET"])
 @login_required
 def search(category, title_search):
-    return_category = category
-    if category == "series":
-        category = "tv " + category
-    movie = ia.search_movie(title_search)
-    info_list = dict()
-    titles = 0
-
-    for i in range(len(movie)):
-        if (
-            movie[i].data["kind"] == category
-            and "Podcast" not in movie[i].data["title"]
-            and "podcast" not in movie[i].data["title"]
-            and "._V1_" in movie[i].data["cover url"]
-        ):
-            result = movie[i].data["cover url"].find("._V1_")
-            info_list.setdefault("title", []).append(movie[i].data["title"])
-            info_list.setdefault("cover", []).append(
-                movie[i]
-                .data["cover url"]
-                .replace(movie[i].data["cover url"][result + 3 : result + 23], "")
-            )
-            info_list.setdefault("id", []).append(movie[i].movieID)
-            titles += 1
+    t = titles.Titles
+    info_list, return_category = t.get_titles(category, title_search)
     return render_template(
         "index.html",
         len=len(info_list["title"]),
@@ -149,89 +128,41 @@ def search(category, title_search):
     )
 
 
-def get_magnet(name, category):
-    if category == "movie":
-        return client.search(
-            search_imdb=name,
-            extended_response=True,
-            sort="seeders",
-            limit="100",
-            categories=[
-                rarbgapi.RarbgAPI.CATEGORY_MOVIE_H264_1080P,
-                rarbgapi.RarbgAPI.CATEGORY_MOVIE_BD_REMUX,
-            ],
-        )
-    elif category == "series":
-        return client.search(
-            search_imdb=name,
-            extended_response=True,
-            sort="seeders",
-            limit="100",
-            categories=[
-                rarbgapi.RarbgAPI.CATEGORY_TV_EPISODES_HD,
-                rarbgapi.RarbgAPI.CATEGORY_TV_EPISODES_UHD,
-            ],
-        )
-
-
-@app.route("/qbt/<string:category>/<string:name>", methods=["GET"])
+@app.route("/torrent/<string:category>/<string:name>", methods=["GET"])
 @login_required
-def get_qbts(name, category):
-    info_list = dict()
-    title = ia.get_movie(name)
-    result = title.data["cover url"].find("._V1_")
-    cover = title.data["cover url"].replace(
-        title.data["cover url"][result + 3 : result + 23], ""
-    )
-    qbt_search = "tt" + name
-    titles = get_magnet(qbt_search, category)
-    tries = 0
-
-    while True:
-        if not titles and tries <= 5:
-            time.sleep(2)
-            titles = get_magnet(qbt_search, category)
-            tries += 1
-        elif not titles and tries >= 5:
-            return "", 404
-        else:
-            tries = 0
-            break
-
-    with open("backend/log/magnets.md", "a") as f:
-        for i in range(len(titles)):
-            if titles[i].seeders != 0:
-                info_list.setdefault("filename", []).append(titles[i].filename)
-                info_list.setdefault("size", []).append(
-                    round((titles[i].size / 1073741824), 2)
-                )
-                info_list.setdefault("seeders", []).append(titles[i].seeders)
-                info_list.setdefault("magnet", []).append(titles[i].download)
-                f.write(titles[i].download + "\n")
-                tries += 1
-
+def get_torrents(name, category):
+    t = titles.Titles
+    torrents, cover = t.torrents(name, category)
     return render_template(
         "index.html",
-        len=len(info_list["magnet"]),
-        filename=info_list["filename"],
-        size=info_list["size"],
-        seeders=info_list["seeders"],
-        magnet=info_list["magnet"],
+        len=len(torrents["magnet"]),
+        filename=torrents["filename"],
+        size=torrents["size"],
+        seeders=torrents["seeders"],
+        magnet=torrents["magnet"],
         cover=cover,
+        cat=category,
+        na=name
     )
 
 
-@app.route("/qbt/<string:category>/<string:id>", methods=["POST"])
+@app.route("/torrent/<string:category>/<string:name>", methods=["POST"])
 @login_required
-def mov_magnet(category, id):
-    magnet_link = request.form
-    for line in reversed(open("backend/log/magnets.md").readlines()):
-        if line.rstrip() in magnet_link["magnet"]:
+def mov_magnet(category, name):
+    req_form = request.form
+    magnet, title = req_form['magnet'], req_form['title']
+    script_dir = os.path.dirname(__file__)
+    abs_path = os.path.join(script_dir, "backend/log/magnets.txt")
+    legit_magnet = False
+    for line in reversed(open(abs_path).readlines()):
+        temp = line.rstrip()
+        if line.rstrip() in magnet:
+            legit_magnet = True
             break
-        else:
-            return "", 404
-    log.download_log(magnet_link, category)
-    qbt.qbt_api(magnet_link["magnet"], category)
+    if not legit_magnet:
+        return "", 404
+    log.download_log(magnet, category)
+    qbt.torrent_api(magnet, category)
     return "", 204
 
 
