@@ -36,25 +36,3 @@ document.getElementById("titleButton").addEventListener("click", function () {
         alert("Choose movie or tv series");
     }
 })
-
-
-function torrentDownload(alt) {
-    var array = alt.split(' '),
-    magnet = array[0], title = array[1];
-    const magnet_link = {
-        'magnet': magnet,
-        'title': title
-    };
-    let urlCategory = window.location.pathname;
-
-    $.ajax({
-        url: urlCategory,
-        "async": false,
-        type: 'POST',
-        dataType: 'json',
-        data: magnet_link,
-        success: function () {
-            alert("Success!");
-        },
-    });
-}

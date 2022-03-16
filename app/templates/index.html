@@ -68,8 +68,12 @@
                         <td>{{ size[i] }} GB</td>
                         <td>
                             <a>
-                                <img src="https://dyncdn.me/static/20/img/magnet.gif"
-                                    alt="{{ magnet[i] }} {{ filename[i] }}" onclick="torrentDownload(this.alt)">
+                                <form method="post" id="myForm", action="{{ url_for('get_torrents' ,category=cat, name=na) }}">
+                                    <input type="hidden" name="magnet" value="{{ magnet[i] }}"/>
+                                    <input type="hidden" name="title" value="{{ filename[i] }}"/>
+                                    <button type="submit" src="https://dyncdn.me/static/20/img/magnet.gif">
+                                    </button>
+                                </form>
                             </a>
                         </td>
                     </tr>
