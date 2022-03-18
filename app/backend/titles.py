@@ -61,8 +61,10 @@ class Titles:
                 break
 
         script_dir = os.path.dirname(__file__)
-        abs_path = os.path.join(script_dir, "log/magnets.txt")
-        with open(abs_path, "a") as f:
+        abs_path = os.path.join(script_dir, "log")
+        if not os.path.exists(abs_path):
+            os.makedirs(abs_path)
+        with open(abs_path + "/magnets.txt", "a") as f:
             for i in range(len(titles)):
                 if titles[i].seeders != 0:
                     info_list.setdefault("filename", []).append(titles[i].filename)
