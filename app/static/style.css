@@ -67,7 +67,7 @@ li a:hover:not(.active) {
     height: 29px;
 }
 
-button #titleButton {
+#titleButton {
     height: 35px;
     color: white;
     padding: 0 22px;

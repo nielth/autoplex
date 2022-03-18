@@ -10,7 +10,7 @@ import os
 CODES_URL = "https://plex.tv/api/v2/pins.json?strong=true"
 AUTH_URL = "https://app.plex.tv/auth#!?{}"
 TOKEN_URL = "https://plex.tv/api/v2/pins/{}"
-PRIV_ADDRESS = os.getenv("PRIV_ADDRESS")
+PUB_ADDRESS = os.getenv("PUB_ADDRESS")
 
 PAYLOAD = {
     "X-Plex-Product": "Plex Auth App (Autoplex)",
@@ -82,7 +82,7 @@ def check_plex_user(token):
 def get_server_accounts():
     headers = {"Accept": "application/json"}
     server_token = os.getenv("SERVER_TOKEN")
-    accounts_link = f"http://{PRIV_ADDRESS}:32444/accounts/?X-Plex-Token={server_token}"
+    accounts_link = f"http://{PUB_ADDRESS}:32444/accounts/?X-Plex-Token={server_token}"
     resp = requests.get(accounts_link, headers=headers)
     response = resp.json()
     users = list()

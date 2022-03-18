@@ -44,8 +44,8 @@
             {% for i in range(0, len) %}
             <a href="/torrent/{{ category }}/{{ id[i] }}">
                 <div id="title-choose">
-                        <img src="{{ cover[i] }}" alt="{{ id[i] }}">
-                        <p>{{ title[i] }}</p>
+                    <img src="{{ cover[i] }}" alt="{{ id[i] }}">
+                    <p>{{ title[i] }}</p>
                 </div>
             </a>
             {% endfor %}
@@ -67,14 +67,15 @@
                         <td>{{ seeders[i] }}</td>
                         <td>{{ size[i] }} GB</td>
                         <td>
-                            <a>
-                                <form method="post" id="myForm", action="{{ url_for('get_torrents' ,category=cat, name=na) }}">
-                                    <input type="hidden" name="magnet" value="{{ magnet[i] }}"/>
-                                    <input type="hidden" name="title" value="{{ filename[i] }}"/>
-                                    <button type="submit" src="https://dyncdn.me/static/20/img/magnet.gif">
+                            <form method="post" id="myForm" ,
+                                action="{{ url_for('get_torrents' ,category=cat, name=na) }}">
+                                <input type="hidden" name="magnet" value="{{ magnet[i] }}" />
+                                <input type="hidden" name="title" value="{{ filename[i] }}" />
+                                <div>
+                                    <button type="submit" src="https://dyncdn.me/static/20/img/magnet.gif"
+                                        style="background: url(https://dyncdn.me/static/20/img/magnet.gif); height: 12px; width: 12px; border: none; cursor: pointer; vertical-align: middle;">
                                     </button>
-                                </form>
-                            </a>
+                                </div>
                         </td>
                     </tr>
                     {% endfor %}

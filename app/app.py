@@ -89,7 +89,7 @@ def callback():
     try:
         plex_server_users = plex.get_server_accounts()
     except exceptions.ConnectionError:
-        return "Plex server down, meaning I can't valid we're friends or watch Plex :-(.", 404
+        return "Plex server down, meaning I can't valid we're friends and you can't watch Plex :-(", 404
     username = plex_user_info["username"] in plex_server_users
     email = plex_user_info["email"] in plex_server_users
     if not any((username, email)):
