@@ -23,10 +23,14 @@ import backend.titles as titles
 
 load_dotenv()
 
+DOMAIN = os.getenv("DOMAIN")
+SECERT_KEY = os.getenv("SECRET_FLASK_KEY")
+SECURITY = os.getenv("SECURITY")
+
 app = Flask(__name__)
 app.config["ENV"] = "development"
 # python -c 'import secrets; print(secrets.token_hex())'
-app.config["SECRET_KEY"] = os.getenv("SECRET_FLASK_KEY")
+app.config["SECRET_KEY"] = SECERT_KEY
 app.config["SESSION_COOKIE_SECURE"] = True
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///user.db"
@@ -41,15 +45,9 @@ from backend.db_ import *
 series = "tv series"
 movie = "movie"
 
-ADDRESS = os.getenv("PUB_ADDRESS")
-PORT = os.getenv("PUB_PORT")
-SECURITY = os.getenv("SECURITY")
-
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.session_protection = "strong"
-
-FORWARD_LINK = None
 
 @login_manager.user_loader
 def load_user(id):
@@ -75,11 +73,11 @@ def page_not_found(e):
 
 @app.route("/login", methods=["GET"])
 def login():
-    FORWARD_LINK, identifier = plex.get_plex_link(
-        forward_url=f"{SECURITY}://{ADDRESS}:{PORT}/login/callback"
+    forward_link, identifier = plex.get_plex_link(
+        forward_url=f"{SECURITY}://{DOMAIN}/login/callback"
     )
     session["identifier"] = identifier
-    return f'<a class="btn btn-success" href="{FORWARD_LINK}" target="_blank">Continue with Plex</a>'
+    return f'<a class="btn btn-success" href="{forward_link}" target="_blank">Continue with Plex</a>'
 
 
 @app.route("/login/callback", methods=["GET"])
@@ -161,7 +159,7 @@ def mov_magnet(category, name):
             break
     if not legit_magnet:
         return "", 404
-    log.download_log(magnet, category)
+    #log.download_log(title, category)
     qbt.torrent_api(magnet, category)
     return "", 204
 

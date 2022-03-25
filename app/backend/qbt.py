@@ -7,10 +7,9 @@ import os
 
 load_dotenv()
 
-# instantiate a Client using the appropriate WebUI configuration
 qbt_client = qbittorrentapi.Client(
-    host=os.getenv("ADDRESS"),
-    port=os.getenv("PORT"),
+    host="172.17.0.1",
+    port=os.getenv("QBT_PORT"),
     username=os.getenv("QBITTORRENT_USER"),
     password=os.getenv("QBITTORRENT_PASS"),
 )
@@ -21,11 +20,11 @@ lock = threading.Lock()
 def torrent_api(magnet, category):
     if category == "movie":
         qbt_client.torrents_add(
-            magnet, save_path=os.getenv("MOVIE_PATH"), is_sequential_download=True
+            magnet, save_path="/downloads/movies", is_sequential_download=True
         )
     elif category == "series":
         qbt_client.torrents_add(
-            magnet, save_path=os.getenv("TV_PATH"), is_sequential_download=True
+            magnet, save_path="/downloads/tvseries", is_sequential_download=True
         )
 
 
