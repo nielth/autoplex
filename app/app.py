@@ -55,7 +55,7 @@ def load_user(id):
 
 
 @app.route("/", methods=["GET"])
-#@login_required
+@login_required
 def index():
     return render_template("index.html")
 
@@ -112,7 +112,7 @@ def callback():
 
 
 @app.route("/search/<string:category>/<string:title_search>", methods=["GET"])
-#@login_required
+@login_required
 def search(category, title_search):
     t = titles.Titles
     info_list, return_category = t.get_titles(category, title_search)
@@ -127,7 +127,7 @@ def search(category, title_search):
 
 
 @app.route("/torrent/<string:category>/<string:name>", methods=["GET"])
-#@login_required
+@login_required
 def get_torrents(name, category):
     t = titles.Titles
     torrents, cover = t.torrents(name, category)
@@ -145,7 +145,7 @@ def get_torrents(name, category):
 
 
 @app.route("/torrent/<string:category>/<string:name>", methods=["POST"])
-#@login_required
+@login_required
 def mov_magnet(category, name):
     req_form = request.form
     magnet, title = req_form['magnet'], req_form['title']
@@ -159,7 +159,7 @@ def mov_magnet(category, name):
             break
     if not legit_magnet:
         return "", 404
-    #log.download_log(title, category)
+    #log.download_log(magnet, title, category)
     qbt.torrent_api(magnet, category)
     return "", 204
 
@@ -167,4 +167,4 @@ def mov_magnet(category, name):
 if __name__ == "__main__":
     p = Process(target = qbt.delete_finished)
     #p.start()
-    app.run(host="0.0.0.0", debug=True)
+    app.run(host="0.0.0.0")
