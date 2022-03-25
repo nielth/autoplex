@@ -9,9 +9,9 @@ load_dotenv()
 
 qbt_client = qbittorrentapi.Client(
     host="172.17.0.1",
-    port=os.getenv("QBT_PORT"),
-    username=os.getenv("QBITTORRENT_USER"),
-    password=os.getenv("QBITTORRENT_PASS"),
+    port="8080",
+    username="admin",
+    password="adminadmin",
 )
 
 lock = threading.Lock()
