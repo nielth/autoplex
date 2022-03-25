@@ -67,8 +67,7 @@
                         <td>{{ seeders[i] }}</td>
                         <td>{{ size[i] }} GB</td>
                         <td>
-                            <form method="post" id="myForm" ,
-                                action="{{ url_for('get_torrents' ,category=cat, name=na) }}">
+                            <form method="post" id="myForm" ,action="{{ url_for('get_torrents' ,category=cat, name=na) }}">
                                 <input type="hidden" name="magnet" value="{{ magnet[i] }}" />
                                 <input type="hidden" name="title" value="{{ filename[i] }}" />
                                 <div>
@@ -76,6 +75,7 @@
                                         style="background: url(https://dyncdn.me/static/20/img/magnet.gif); height: 12px; width: 12px; border: none; cursor: pointer; vertical-align: middle;">
                                     </button>
                                 </div>
+                            </form>
                         </td>
                     </tr>
                     {% endfor %}
