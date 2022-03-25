@@ -29,7 +29,7 @@ services:
       - ./nginx/letsencrypt:/etc/letsencrypt
     ports:
       - 1337:443
-      - 80:80
+      - 88:80
     depends_on:
       - web
 
