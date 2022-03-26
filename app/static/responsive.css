@@ -3,6 +3,11 @@
         padding-top: 25px;
     }
 
+    #smaller-body {
+        width: 100%;
+        margin: 0 auto 0;
+      }
+
     #titleButton {
         display: none;
     }
