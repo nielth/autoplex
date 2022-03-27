@@ -8,29 +8,30 @@
     <title>AutoPlex</title>
     <link href="{{ url_for('static',filename='style.css') }}" rel="stylesheet" />
     <link href="{{ url_for('static',filename='responsive.css') }}" rel="stylesheet" />
+    <!-- Add icon library -->
+    <script src='https://kit.fontawesome.com/a076d05399.js' crossorigin='anonymous'></script>
 </head>
 
 <body>
+    <div class="header">
+        <a href="/" class="logo">AutoPlex</a>
+        <div class="header-right">
+          <p> 
+            {% if current_user.is_authenticated %}
+                Logged in as, {{ current_user.email }}
+            {% endif %}
+        </p>
+        </div>
+      </div>
 
-    <div class="logo">
-    </div>
+
 
     <div id="smaller-body">
-
-        <!--
-            <div id="menu">
-                <ul>
-                    <li><a class="active" href="#search">Search</a></li>
-                    <li><a href="#downloading">Downloading</a></li>
-                </ul>
-            </div>
-        -->
-        <div id="loader-div">
-            <div class="loader"></div>
-        </div>
         <div id="inputTitle">
-            <input type="text" autocomplete="off" id="title" name="search" placeholder="Search For Title">
-            <button id="titleButton">Search</button>
+            <div id="search-field">
+                <input type="text" autocomplete="off" id="title" name="search" placeholder="Search For Title">
+                <button id="titleButton"><i class="fa fa-search" aria-hidden="true"></i></button>
+            </div>
             <div id="checkbox">
                 <input type="checkbox" autocomplete="off" id="movie" name="movie">
                 <label for="movies"> Movies</label>
@@ -38,6 +39,7 @@
                 <label for="series"> TV Series</label>
             </div>
         </div>
+
         <div id="imageContainer">
 
             {% if title %}
@@ -55,12 +57,14 @@
             <img id="chosen" src="{{ cover }}">
             <div>
                 <table id="myTable">
-                    <tr>
-                        <th onclick="sortTable(0)">Name of file</th>
-                        <th onclick="sortTable(1)">Seeders</th>
-                        <th onclick="sortTable(2)">Size</th>
-                        <th onclick="sortTable(3)">Install</th>
-                    </tr>
+                    <thead>
+                        <tr>
+                            <th onclick="sortTable(0)">Name of file</th>
+                            <th onclick="sortTable(1)">Seeders</th>
+                            <th onclick="sortTable(2)">Size</th>
+                            <th onclick="sortTable(3)">Install</th>
+                        </tr>
+                    </thead>
                     {% for i in range(0, len) %}
                     <tr>
                         <td id="fileName" style="text-align: left;">{{ filename[i] }}</td>

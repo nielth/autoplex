@@ -1,6 +1,8 @@
 import os
+import secrets
 
-from flask import Flask, request, render_template, redirect, url_for, session
+from flask import Flask, request, render_template, redirect, url_for, session, flash
+from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.middleware.proxy_fix import ProxyFix
 from flask_sqlalchemy import SQLAlchemy
 from requests import exceptions
@@ -26,15 +28,21 @@ load_dotenv()
 DOMAIN = os.getenv("DOMAIN")
 SECERT_KEY = os.getenv("SECRET_FLASK_KEY")
 SECURITY = os.getenv("SECURITY")
+REGISTER_KEY = None
 
 app = Flask(__name__)
 app.config["ENV"] = "development"
-# python -c 'import secrets; print(secrets.token_hex())'
+# python3 -c 'import secrets; print(secrets.token_hex())'
 app.config["SECRET_KEY"] = SECERT_KEY
 app.config["SESSION_COOKIE_SECURE"] = True
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///user.db"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+# For debugging
+#app.config["TEMPLATES_AUTO_RELOAD=True"] = True
+#app.config['DEBUG'] = True
+
 app.url_map.strict_slashes = False
 # redirects stay https
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1 ,x_proto=1)
@@ -74,10 +82,56 @@ def page_not_found(e):
 @app.route("/login", methods=["GET"])
 def login():
     forward_link, identifier = plex.get_plex_link(
-        forward_url=f"{SECURITY}://{DOMAIN}/login/callback"
+        forward_url=f"https://{DOMAIN}/login/callback"
     )
     session["identifier"] = identifier
-    return f'<a class="btn btn-success" href="{forward_link}" target="_blank">Continue with Plex</a>'
+    return render_template("connect.html", forward_link=forward_link)
+
+
+@app.route("/createkey", methods=['GET', 'POST'])
+@login_required
+def create_key():
+    global REGISTER_KEY
+    REGISTER_KEY = secrets.token_hex()
+    return REGISTER_KEY
+
+@app.route("/login/nonauth", methods=['GET', 'POST'])
+def sign_in():
+    if request.method=='GET':
+        return render_template('login.html')
+    else:
+        email = request.form.get('email')
+        password = request.form.get('password')
+        user = User.query.filter_by(email=email).first()
+        try:
+            passwd = user.password
+
+        except AttributeError:
+            return "Username or password wrong or not found. Maybe try loggin in through Plex?", 404
+        if not user or not passwd:
+            return "User not found", 404
+        elif not check_password_hash(passwd, password):
+            return "Username or password wrong or not found. Maybe try loggin in through Plex?", 404 
+        login_user(user)
+        return redirect(url_for('index'))
+
+@app.route(f'/signup/{REGISTER_KEY}', methods=['GET', 'POST'])
+def signup(): 
+    global REGISTER_KEY
+    if request.method=='GET':
+        return render_template('signup.html', REGISTER_KEY=REGISTER_KEY)
+    else:
+        email = request.form.get('email')
+        password = request.form.get('password')
+        user = User.query.filter_by(email=email).first()
+        if user:
+            return "User already exist or the email have logged in through Plex previously.", 404
+        new_user = User(email=email, password=generate_password_hash(password, method='sha256'))
+        db.session.add(new_user)
+        db.session.commit()
+        login_user(new_user)
+        REGISTER_KEY = None
+        return redirect(url_for('index'))
 
 
 @app.route("/login/callback", methods=["GET"])
@@ -165,6 +219,6 @@ def mov_magnet(category, name):
 
 
 if __name__ == "__main__":
-    p = Process(target = qbt.delete_finished)
+   # p = Process(target = qbt.delete_finished)
     #p.start()
     app.run(host="0.0.0.0")

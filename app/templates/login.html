@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <title>AutoPlex</title>
+    <link href="{{ url_for('static',filename='style.css') }}" rel="stylesheet" />
+    <link href="{{ url_for('static',filename='responsive.css') }}" rel="stylesheet" />
+    <!-- Add icon library -->
+    <script src='https://kit.fontawesome.com/a076d05399.js' crossorigin='anonymous'></script>
+</head>
+<body>
+    <div class="header">
+        <a href="/" class="logo">AutoPlex</a>
+        <div class="header-right">
+        </div>
+      </div>
+      <div id="login-div">
+          {% block content %}
+          <div class="column is-4 is-offset-4">
+              <h1 class="title">Login</h1>
+              <div class="box">
+                  {% with messages = get_flashed_messages() %}
+                      {% if messages %}
+                          <div class="notification is-danger">
+                              {{ messages[0] }}
+                          </div>
+                      {% endif %}
+                  {% endwith %}
+                  <form method="POST" action="/login/nonauth">
+                      <div class="field">
+                          <div class="control">
+                              <input class="input is-large" type="email" name="email" placeholder="Your Email" autofocus="">
+                          </div>
+                      </div>
+          
+                      <div class="field">
+                          <div class="control">
+                              <input class="input is-large" type="password" name="password" placeholder="Your Password">
+                          </div>
+                      </div>
+                      <button class="btn btn-success">Login</button>
+                  </form>
+              </div>
+          </div>
+          <p id="signup-msg">Have to request register link from yours truly</p>
+          {% endblock %}
+      </div>
+</html>
