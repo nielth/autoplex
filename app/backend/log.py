@@ -16,7 +16,7 @@ def download_log(magnet, title, category):
             "magnet": magnet,
         }
         try:
-            
+
             file_data = json.load(file)
             file_data[datetime.today().strftime("%Y-%m-%d")].append(logged_download)
             file.seek(0)

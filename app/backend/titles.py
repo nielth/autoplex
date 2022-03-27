@@ -11,7 +11,6 @@ class Titles:
     def __init__(self):
         pass
 
-
     def get_titles(category, title_search):
         info_list = dict()
         return_category = category
@@ -36,7 +35,6 @@ class Titles:
                 info_list.setdefault("id", []).append(movie[i].movieID)
                 titles += 1
         return info_list, return_category
-
 
     def torrents(name, category):
         info_list = dict()
