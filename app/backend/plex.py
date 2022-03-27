@@ -26,7 +26,7 @@ PAYLOAD = {
 parameters = {"clientID": "", "code": ""}
 
 PLEX_API_BASE_URL = "https://plex.tv/users/account/?X-Plex-Token="
-s = None 
+s = None
 
 
 def get_plex_link(forward_url=None):

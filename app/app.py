@@ -41,11 +41,11 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 # For debugging
 #app.config["TEMPLATES_AUTO_RELOAD=True"] = True
-#app.config['DEBUG'] = True
+#app.config["DEBUG"] = True
 
 app.url_map.strict_slashes = False
 # redirects stay https
-app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1 ,x_proto=1)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
 
 db = SQLAlchemy(app)
 from backend.db_ import *
@@ -56,6 +56,7 @@ movie = "movie"
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.session_protection = "strong"
+
 
 @login_manager.user_loader
 def load_user(id):
@@ -88,50 +89,63 @@ def login():
     return render_template("connect.html", forward_link=forward_link)
 
 
-@app.route("/createkey", methods=['GET', 'POST'])
+@app.route("/createkey", methods=["GET", "POST"])
 @login_required
 def create_key():
     global REGISTER_KEY
     REGISTER_KEY = secrets.token_hex()
-    return REGISTER_KEY
+    return f'https://www.autoplex.nielth.com/signup/{REGISTER_KEY}'
 
-@app.route("/login/nonauth", methods=['GET', 'POST'])
+
+@app.route("/login/nonauth", methods=["GET", "POST"])
 def sign_in():
-    if request.method=='GET':
-        return render_template('login.html')
+    if request.method == "GET":
+        return render_template("login.html")
     else:
-        email = request.form.get('email')
-        password = request.form.get('password')
+        email = request.form.get("email")
+        password = request.form.get("password")
         user = User.query.filter_by(email=email).first()
         try:
             passwd = user.password
-
         except AttributeError:
-            return "Username or password wrong or not found. Maybe try loggin in through Plex?", 404
+            return (
+                "Username or password wrong or not found. Maybe try loggin in through Plex?",
+                404,
+            )
         if not user or not passwd:
             return "User not found", 404
         elif not check_password_hash(passwd, password):
-            return "Username or password wrong or not found. Maybe try loggin in through Plex?", 404 
+            return (
+                "Username or password wrong or not found. Maybe try loggin in through Plex?",
+                404,
+            )
         login_user(user)
-        return redirect(url_for('index'))
+        return redirect(url_for("index"))
 
-@app.route(f'/signup/{REGISTER_KEY}', methods=['GET', 'POST'])
-def signup(): 
+
+@app.route(f"/signup/{REGISTER_KEY}", methods=["GET", "POST"])
+def signup():
     global REGISTER_KEY
-    if request.method=='GET':
-        return render_template('signup.html', REGISTER_KEY=REGISTER_KEY)
+    if request.method == "GET":
+        return render_template("signup.html", REGISTER_KEY=REGISTER_KEY)
     else:
-        email = request.form.get('email')
-        password = request.form.get('password')
+        email = request.form.get("email")
+        password = request.form.get("password")
         user = User.query.filter_by(email=email).first()
         if user:
-            return "User already exist or the email have logged in through Plex previously.", 404
-        new_user = User(email=email, password=generate_password_hash(password, method='sha256'))
+            user.password = generate_password_hash(password, method="sha256")
+            db.session.commit()
+            REGISTER_KEY = None
+            login_user(user)
+            return redirect(url_for("index"))
+        new_user = User(
+            email=email, password=generate_password_hash(password, method="sha256")
+        )
         db.session.add(new_user)
         db.session.commit()
         login_user(new_user)
         REGISTER_KEY = None
-        return redirect(url_for('index'))
+        return redirect(url_for("index"))
 
 
 @app.route("/login/callback", methods=["GET"])
@@ -141,7 +155,10 @@ def callback():
     try:
         plex_server_users = plex.get_server_accounts()
     except exceptions.ConnectionError:
-        return "Plex server down, meaning I can't valid we're friends and you can't watch Plex :-(", 404
+        return (
+            "Plex server down, meaning I can't valid we're friends and you can't watch Plex :-(",
+            404,
+        )
     username = plex_user_info["username"] in plex_server_users
     email = plex_user_info["email"] in plex_server_users
     if not any((username, email)):
@@ -150,6 +167,11 @@ def callback():
     user = User.query.filter_by(email=plex_user_info["email"]).first()
     if user:
         login_user(user)
+        if user.username is None:
+            user.id = plex_user_info["id"]
+            user.uuid = plex_user_info["uuid"]
+            user.username = plex_user_info["username"]
+            db.session.commit()
         return redirect(url_for("index"))
     else:
         new_user = User(
@@ -194,7 +216,7 @@ def get_torrents(name, category):
         magnet=torrents["magnet"],
         cover=cover,
         cat=category,
-        na=name
+        na=name,
     )
 
 
@@ -202,7 +224,7 @@ def get_torrents(name, category):
 @login_required
 def mov_magnet(category, name):
     req_form = request.form
-    magnet, title = req_form['magnet'], req_form['title']
+    magnet, title = req_form["magnet"], req_form["title"]
     script_dir = os.path.dirname(__file__)
     abs_path = os.path.join(script_dir, "backend/log/magnets.txt")
     legit_magnet = False
@@ -213,12 +235,12 @@ def mov_magnet(category, name):
             break
     if not legit_magnet:
         return "", 404
-    #log.download_log(magnet, title, category)
+    # log.download_log(magnet, title, category)
     qbt.torrent_api(magnet, category)
     return "", 204
 
 
 if __name__ == "__main__":
-   # p = Process(target = qbt.delete_finished)
-    #p.start()
+    # p = Process(target = qbt.delete_finished)
+    # p.start()
     app.run(host="0.0.0.0")
