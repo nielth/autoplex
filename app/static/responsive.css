@@ -1,52 +1,14 @@
 @media screen and (max-width: 670px) {
-    #inputTitle {
-        padding-top: 25px;
-    }
+    html {
+        background-color: #d5d1d1;
+      }
 
     #smaller-body {
         width: 100%;
-        margin: 0 auto 0;
+        margin: 0;
       }
-
-    #titleButton {
-        display: none;
-    }
-
-    #inputTitle #title {
-        width: 70%;
-    }
-
-    table {
-        font-size: 8px;
-        width: 95%;
-    }
-
-    td a img {
-        width: 8px;
-    }
-
-    #fileName {
-        width: 66%;
-    }
-
-    #imageContainer {
-        padding-top: 40px;
+    
+      #inputTitle {
         width: 100%;
-    }
-
-    #imageContainer p {
-        left: 0;
-        right: 0;
-        margin: auto;
-        padding: 10px;
-    }
-
-    #imageContainer #title-choose {
-        padding: 0 5px 55px;
-    }
-
-    #chosen {
-        padding: 4px 0 15px 0;
-        width: 29%;
-    }
+      }
 }

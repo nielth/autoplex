@@ -3,7 +3,7 @@ html, body{
 }
 
 html {
-    background-color: lightseagreen;
+    background-color: #393939;
 }
 
 body {
@@ -11,6 +11,96 @@ body {
     font-family: Tahoma, Verdana, Arial, Arial, serif;
     touch-action: auto;
 }
+
+.header {
+    overflow: hidden;
+    padding: 0 10px;
+    background-color: #161616;
+    color: #fff;
+  }
+  
+.header a {
+    float: left;
+    color: #ffff;
+    text-align: center;
+    padding: 12px;
+    text-decoration: none;
+    font-size: 18px; 
+    line-height: 25px;
+    border-radius: 4px;
+  }
+
+  .btn {
+    background-color: rgb(193 127 52);
+    color: white;
+    padding: 15px 0px;
+    font-size: 16px;
+    cursor: pointer;
+    margin: auto;
+    text-decoration: none;
+    border-style: solid;
+    border-width: 2px;
+    border-color: black;
+    display: block;
+    width: 38%;
+    margin: 12px auto;
+  }
+
+  .btn.btn-success.login {
+    margin: -8px auto;
+  }
+
+  #signup-msg {
+    bottom: 4px;
+    position: absolute;
+    margin-left: auto;
+    margin-right: auto;
+    left: 0;
+    right: 0;
+    text-align: center;
+    color: #151515;
+  }
+
+  .field {
+    margin: 2px auto;
+  }
+
+  .is-large {
+    height: 21px;
+    width: 36%;
+  }
+
+#h1-login {
+    padding: 20px 0;
+    font-size: 24px;
+}
+
+#login-div {
+    height: 330px;
+    width: 38%;
+    margin: 70px auto;
+    text-align: center;
+    border-style: solid;
+    border-width: 2px;
+    background-color: #f2f2f2;
+    position: relative;
+}
+  
+
+.header a.logo {
+    font-size: 25px;
+    font-weight: bold;
+  }
+  
+  .header a:hover {
+    background-color: rgb(31, 30, 30);
+    color: white;
+  }
+
+.header-right {
+    float: right;
+    font-size: 15px;
+  }
 
 ul {
     list-style-type: none;
@@ -41,7 +131,7 @@ li a:hover:not(.active) {
     width: 67%;
     block-size: fit-content;
     margin: 3% auto 0;
-    background-color: lightgray;
+    background-color: #d5d1d1;
     min-height: 100%;
 }
 
@@ -58,23 +148,42 @@ li a:hover:not(.active) {
 #inputTitle {
     margin: auto;
     text-align: center;
-    padding-top: 21px;
+    padding-top: 30px;
+    width: 50%;
+}
 
+#search-field {
+    position:relative;
+    margin-bottom:10px;
+    margin: auto;
+    width: 80%;
 }
 
 #inputTitle #title {
-    width: 60%;
-    height: 29px;
+    height: 30px;
+    width: 100%;
+    padding-left: 10px;
+    border-radius: 4px;
+    border: none;
+    outline: none;
+    font-size: 14px;
 }
 
 #titleButton {
-    height: 35px;
-    color: white;
-    padding: 0 22px;
+    position: absolute;
+    right: 0px;
+    top: 4px;
+    border: none;
+    height: 20px;
+    width: 20px;
+    border-radius: 100%;
+    outline: none;
+    text-align: center;
+    font-weight: bold;
+    padding: 2px;
+    background-color: transparent;
+    font-size: 15px;
     cursor: pointer;
-    background-color: gray;
-    border-color: gray;
-    border-radius: 1px;
 }
 
 #checkbox {
@@ -90,16 +199,18 @@ li a:hover:not(.active) {
 #imageContainer #title-choose {
     display: inline-block;
     padding: 20px 20px 40px;
+    vertical-align: text-top;
 }
 
 #imageContainer #title-choose img {
-    height: 400px;
-    width: 270px;
+    height: 352px;
+    max-width: 235px;
     object-fit: cover;
-    margin: auto;
     display: block;
     transition: .5s ease;
     border-radius: 7px;
+    display:block;
+    margin:auto;
 }
 
 #imageContainer #title-choose img:hover {
@@ -115,7 +226,6 @@ li a:hover:not(.active) {
     text-align: center;
     font: normal normal 400 11pt normal Tahoma, Verdana, Arial, Arial;
     width: 280px;
-    position: absolute;
 }
 
 table {
@@ -152,45 +262,4 @@ td {
 td a img {
     width: 12px;
     cursor: pointer;
-}
-
-#loader-div {
-    height: 100%;
-    width: 100%;
-    position: absolute;
-    background-color: gray;
-    opacity: 0.5;
-    display: none;
-}
-
-.loader {
-    border: 9px solid #f3f3f3;
-    border-radius: 50%;
-    border-top: 9px solid #3498db;
-    width: 50px;
-    height: 50px;
-    -webkit-animation: spin 2s linear infinite; /* Safari */
-    animation: spin 2s linear infinite;
-    position: sticky;
-    margin: auto;
-    top: 50%;
-}
-
-/* Safari */
-@-webkit-keyframes spin {
-    0% {
-        -webkit-transform: rotate(0deg);
-    }
-    100% {
-        -webkit-transform: rotate(360deg);
-    }
-}
-
-@keyframes spin {
-    0% {
-        transform: rotate(0deg);
-    }
-    100% {
-        transform: rotate(360deg);
-    }
 }
