@@ -16,13 +16,13 @@
     <div class="header">
         <a href="/" class="logo">AutoPlex</a>
         <div class="header-right">
-          <p> 
-            {% if current_user.is_authenticated %}
-                Logged in as, {{ current_user.email }}
-            {% endif %}
-        </p>
+            <p>
+                {% if current_user.is_authenticated %}
+                Logged in as: {{ current_user.email }}
+                {% endif %}
+            </p>
         </div>
-      </div>
+    </div>
 
 
 
@@ -30,7 +30,7 @@
         <div id="inputTitle">
             <div id="search-field">
                 <input type="text" autocomplete="off" id="title" name="search" placeholder="Search For Title">
-                <button id="titleButton"><i class="fa fa-search" aria-hidden="true"></i></button>
+                <button id="titleButton"></button>
             </div>
             <div id="checkbox">
                 <input type="checkbox" autocomplete="off" id="movie" name="movie">
@@ -55,23 +55,27 @@
 
             {% if magnet %}
             <img id="chosen" src="{{ cover }}">
+            <div id="torrent-info">
+                <p>More seeders = Better</p>
+                <p>Movies/Episodes (preffered): 1GB - 8GB</p>
+                <p>Seasons (Preffered): 10GB - 50GB</p>
+            </div>
             <div>
                 <table id="myTable">
-                    <thead>
-                        <tr>
-                            <th onclick="sortTable(0)">Name of file</th>
-                            <th onclick="sortTable(1)">Seeders</th>
-                            <th onclick="sortTable(2)">Size</th>
-                            <th onclick="sortTable(3)">Install</th>
-                        </tr>
-                    </thead>
+                    <tr>
+                        <th onclick="sortTable(0)">Name of file</th>
+                        <th onclick="sortTable(1)">Seeders</th>
+                        <th onclick="sortTable(2)">Size</th>
+                        <th onclick="sortTable(3)">Install</th>
+                    </tr>
                     {% for i in range(0, len) %}
                     <tr>
                         <td id="fileName" style="text-align: left;">{{ filename[i] }}</td>
                         <td>{{ seeders[i] }}</td>
                         <td>{{ size[i] }} GB</td>
                         <td>
-                            <form method="post" id="myForm" ,action="{{ url_for('get_torrents' ,category=cat, name=na) }}">
+                            <form method="post" id="myForm"
+                                ,action="{{ url_for('get_torrents' ,category=cat, name=na) }}">
                                 <input type="hidden" name="magnet" value="{{ magnet[i] }}" />
                                 <input type="hidden" name="title" value="{{ filename[i] }}" />
                                 <div>
