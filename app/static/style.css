@@ -263,3 +263,21 @@ td a img {
     width: 12px;
     cursor: pointer;
 }
+
+.download-bar-full {
+    background-color: rgb(193 127 52) !important;
+    color: #fff !important;
+}
+
+.download-div {
+    width: 100%;
+    text-align: left;
+}
+
+.progress {
+    padding: 2%;
+}
+
+.downloading {
+    padding: 3px 0;
+  }

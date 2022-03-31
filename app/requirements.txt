@@ -1,4 +1,5 @@
-Flask[async]
+Flask
+Werkzeug~=2.0.0
 flask-Login
 Flask-SQLAlchemy
 rarbgapi 

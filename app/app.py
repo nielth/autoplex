@@ -1,5 +1,4 @@
 import os
-import secrets
 
 from flask import Flask, request, render_template, redirect, url_for, session, flash
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -28,7 +27,7 @@ load_dotenv()
 DOMAIN = os.getenv("DOMAIN")
 SECERT_KEY = os.getenv("SECRET_FLASK_KEY")
 SECURITY = os.getenv("SECURITY")
-REGISTER_KEY = None
+REGISTER_KEY = os.getenv("REGISTER_KEY")
 
 app = Flask(__name__)
 app.config["ENV"] = "development"
@@ -66,7 +65,10 @@ def load_user(id):
 @app.route("/", methods=["GET"])
 @login_required
 def index():
-    return render_template("index.html")
+    if current_user.is_authenticated:
+       return render_template('index.html')
+    else:
+       return render_template('login.html')
 
 
 @app.route("/logout")
@@ -89,14 +91,6 @@ def login():
     return render_template("connect.html", forward_link=forward_link)
 
 
-@app.route("/createkey", methods=["GET", "POST"])
-@login_required
-def create_key():
-    global REGISTER_KEY
-    REGISTER_KEY = secrets.token_hex()
-    return f'https://www.autoplex.nielth.com/signup/{REGISTER_KEY}'
-
-
 @app.route("/login/nonauth", methods=["GET", "POST"])
 def sign_in():
     if request.method == "GET":
@@ -109,14 +103,14 @@ def sign_in():
             passwd = user.password
         except AttributeError:
             return (
-                "Username or password wrong or not found. Maybe try loggin in through Plex?",
+                "Username or password wrong or not found. Maybe try logging in through Plex?",
                 404,
             )
         if not user or not passwd:
             return "User not found", 404
         elif not check_password_hash(passwd, password):
             return (
-                "Username or password wrong or not found. Maybe try loggin in through Plex?",
+                "Username or password wrong or not found. Maybe try logging in through Plex?",
                 404,
             )
         login_user(user)
@@ -135,7 +129,6 @@ def signup():
         if user:
             user.password = generate_password_hash(password, method="sha256")
             db.session.commit()
-            REGISTER_KEY = None
             login_user(user)
             return redirect(url_for("index"))
         new_user = User(
@@ -144,19 +137,22 @@ def signup():
         db.session.add(new_user)
         db.session.commit()
         login_user(new_user)
-        REGISTER_KEY = None
         return redirect(url_for("index"))
 
 
 @app.route("/login/callback", methods=["GET"])
 def callback():
-    token = plex.return_token(session["identifier"])
+    try:
+        sess = session["identifier"]
+    except KeyError:
+        return redirect(url_for("index"))
+    token = plex.return_token(sess)
     plex_user_info = plex.check_plex_user(token)
     try:
         plex_server_users = plex.get_server_accounts()
     except exceptions.ConnectionError:
         return (
-            "Plex server down, meaning I can't valid we're friends and you can't watch Plex :-(",
+            "Cannot contact my Plex server :-( Alert yours truly if persistent.",
             404,
         )
     username = plex_user_info["username"] in plex_server_users
@@ -238,6 +234,18 @@ def mov_magnet(category, name):
     # log.download_log(magnet, title, category)
     qbt.torrent_api(magnet, category)
     return "", 204
+
+
+@app.route("/downloading", methods=["GET"])
+@login_required
+def downloading():
+    return_title, return_status = qbt.download_status()
+    return render_template(
+        "download.html",
+        len=len(return_title),
+        title=return_title,
+        progress=return_status
+    )
 
 
 if __name__ == "__main__":

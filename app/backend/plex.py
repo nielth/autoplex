@@ -52,6 +52,7 @@ def response_func(identifier):
     resp = s.get(TOKEN_URL.format(identifier), headers=payload)
     response = resp.json()
     token = response["authToken"]
+
     return token
 
 
@@ -64,12 +65,12 @@ def return_token(identifier):
         token = response_func(identifier)
         if token or time.time() > timeout:
             break_loop = True
-
     return token
 
 
 def check_plex_user(token):
-    xml = requests.get(PLEX_API_BASE_URL + token)
+    headers = {"Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"}
+    xml = requests.get(PLEX_API_BASE_URL + token, headers=headers)
     xml_parsed = ET.fromstring(xml.content)
     email = xml_parsed.attrib["email"]
     id = xml_parsed.attrib["id"]

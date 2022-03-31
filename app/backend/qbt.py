@@ -28,6 +28,17 @@ def torrent_api(magnet, category):
         )
 
 
+def download_status():
+    torrent_list_active = qbt_client.torrents.info.downloading()
+    return_title = []
+    return_status = []
+    for torrent in torrent_list_active:
+        return_title.append(torrent["name"])
+        return_status.append(float("{:.3f}".format(torrent["progress"])) * 100)
+
+    return return_title, return_status
+
+
 def delete_finished():
     while True:
         time.sleep(30)
