@@ -16,14 +16,10 @@
     <div class="header">
         <a href="/" class="logo">AutoPlex</a>
         <div class="header-right">
-            <p>
-                {% if current_user.is_authenticated %}
-                Logged in as: {{ current_user.email }}
-                {% endif %}
-            </p>
+            <a href="/downloading" class="logo">Downloading</a>
+            <a href="/" class="logo active">Home</a>
         </div>
     </div>
-
 
 
     <div id="smaller-body">
@@ -92,6 +88,13 @@
             {% endif %}
         </div>
     </div>
+    <footer>
+        <p style="text-align: center;">
+            {% if current_user.is_authenticated %}
+            Logged in as {{ current_user.email }}
+            {% endif %}
+        </p>
+    </footer>
 </body>
 <script src="{{ url_for('static',filename='request.js') }}"></script>
 <script src="{{ url_for('static',filename='sort.js') }}"></script>

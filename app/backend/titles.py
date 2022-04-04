@@ -16,7 +16,11 @@ class Titles:
         return_category = category
         if category == "series":
             category = "tv " + category
-        movie = ia.search_movie(title_search)
+        try:
+            movie = ia.search_movie(title_search)
+        except IMDbError as e:
+            print(e)
+            return False
         titles = 0
         for i in range(len(movie)):
             if (
@@ -38,7 +42,11 @@ class Titles:
 
     def torrents(name, category):
         info_list = dict()
-        title = ia.get_movie(name)
+        try:
+            title = ia.get_movie(name)
+        except IMDbError as e:
+            print(e)
+            return False
         result = title.data["cover url"].find("._V1_")
         cover = title.data["cover url"].replace(
             title.data["cover url"][result + 3 : result + 23], ""

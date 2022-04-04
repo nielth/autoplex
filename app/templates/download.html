@@ -16,11 +16,8 @@
     <div class="header">
         <a href="/" class="logo">AutoPlex</a>
         <div class="header-right">
-            <p>
-                {% if current_user.is_authenticated %}
-                Logged in as: {{ current_user.email }}
-                {% endif %}
-            </p>
+            <a href="/downloading" class="logo active">Downloading</a>
+            <a href="/" class="logo">Home</a>
         </div>
     </div>
 
@@ -34,7 +31,7 @@
                 <div class="downloading">
                     {{title[i]}}
                 </div>
-                <div class="download-bar" class="w3-progressbar w3-green" style="width: 100%;">
+                <div class="download-bar" class="w3-progressbar w3-green" style="width: 60%;">
                     <div class="download-bar-full" class="w3-center w3-text-white" style="width:{{ progress[i] }}%">
                         {{ progress[i] }}%
                     </div>
@@ -46,23 +43,13 @@
         {% endif %}
     </div>
 
-    <script>
-        function move() {
-            var elem = document.getElementById("myBar");
-            var width = 20;
-            var id = setInterval(frame, 10);
-            function frame() {
-                if (width >= 100) {
-                    clearInterval(id);
-                } else {
-                    width++;
-                    elem.style.width = width + '%';
-                    document.getElementById("demo").innerHTML = width * 1 + '%';
-                }
-            }
-        }
-    </script>
-
+    <footer>
+        <p style="text-align: center;">
+            {% if current_user.is_authenticated %}
+            Logged in as {{ current_user.email }}
+            {% endif %}
+        </p>
+    </footer>
 </body>
 
 </html>

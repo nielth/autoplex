@@ -8,13 +8,12 @@ import os
 load_dotenv()
 
 qbt_client = qbittorrentapi.Client(
-    host="172.17.0.1",
-    port="8080",
-    username="admin",
-    password="adminadmin",
+    host="172.17.0.1", port="8080", username="admin", password="adminadmin"
 )
 
-lock = threading.Lock()
+qbt_client_now = qbittorrentapi.Client(
+    host="172.17.0.1", port="8081", username="admin", password="adminadmin"
+)
 
 
 def torrent_api(magnet, category):
@@ -30,22 +29,14 @@ def torrent_api(magnet, category):
 
 def download_status():
     torrent_list_active = qbt_client.torrents.info.downloading()
+    torrent_list_active_norw = qbt_client_now.torrents.info.downloading()
     return_title = []
     return_status = []
     for torrent in torrent_list_active:
         return_title.append(torrent["name"])
-        return_status.append(float("{:.3f}".format(torrent["progress"])) * 100)
+        return_status.append(round((float(torrent["progress"]) * 100), 1))
+    for torrent in torrent_list_active_norw:
+        return_title.append(torrent["name"])
+        return_status.append(round((float(torrent["progress"]) * 100), 1))
 
     return return_title, return_status
-
-
-def delete_finished():
-    while True:
-        time.sleep(30)
-        # with lock:
-        # for torrent in qbt_client.torrents_info():
-        # check if torrent is downloading
-        # if torrent.state_enum.is_complete:
-        #    qbt_client.torrents_delete(
-        #        delete_files=False, torrent_hashes=torrent.hash
-        #    )

@@ -52,7 +52,6 @@ def response_func(identifier):
     resp = s.get(TOKEN_URL.format(identifier), headers=payload)
     response = resp.json()
     token = response["authToken"]
-
     return token
 
 
@@ -69,7 +68,9 @@ def return_token(identifier):
 
 
 def check_plex_user(token):
-    headers = {"Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"}
+    headers = {
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"
+    }
     xml = requests.get(PLEX_API_BASE_URL + token, headers=headers)
     xml_parsed = ET.fromstring(xml.content)
     email = xml_parsed.attrib["email"]
@@ -86,6 +87,8 @@ def get_server_accounts():
     resp = requests.get(accounts_link, headers=headers)
     response = resp.json()
     users = list()
+    id_list = list()
     for user in response["MediaContainer"]["Account"]:
         users.append(user["name"])
-    return users
+        id_list.append(user["id"])
+    return users, id_list
