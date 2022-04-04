@@ -1,5 +1,6 @@
 html, body{
     height: 100%;
+    position: relative;
 }
 
 html {
@@ -14,9 +15,8 @@ body {
 
 .header {
     overflow: hidden;
-    padding: 0 10px;
+    padding: 0 0 0 10px;
     background-color: #161616;
-    color: #fff;
   }
   
 .header a {
@@ -25,9 +25,7 @@ body {
     text-align: center;
     padding: 12px;
     text-decoration: none;
-    font-size: 18px; 
     line-height: 25px;
-    border-radius: 4px;
   }
 
   .btn {
@@ -76,14 +74,14 @@ body {
 }
 
 #login-div {
-    height: 330px;
-    width: 38%;
+    width: 50%;
     margin: 70px auto;
     text-align: center;
     border-style: solid;
-    border-width: 2px;
+    border-width: 4px;
     background-color: #f2f2f2;
     position: relative;
+    padding: 55px;
 }
   
 
@@ -91,6 +89,11 @@ body {
     font-size: 25px;
     font-weight: bold;
   }
+
+.logo.active {
+    border-radius: 0;
+    background-color: #393939;
+}
   
   .header a:hover {
     background-color: rgb(31, 30, 30);
@@ -99,8 +102,7 @@ body {
 
 .header-right {
     float: right;
-    font-size: 15px;
-  }
+}
 
 ul {
     list-style-type: none;
@@ -131,12 +133,10 @@ li a:hover:not(.active) {
     width: 67%;
     block-size: fit-content;
     margin: 3% auto 0;
-    background-color: #d5d1d1;
+    background-color: #f2f2f2;
     min-height: 100%;
-}
-
-.active {
-    background-color: #04AA6D;
+    border-width: 4px;
+    border-style: solid;
 }
 
 #imageContainer a {
@@ -167,6 +167,7 @@ li a:hover:not(.active) {
     border: none;
     outline: none;
     font-size: 14px;
+    border-style: solid;
 }
 
 #titleButton {
@@ -225,7 +226,6 @@ li a:hover:not(.active) {
 #imageContainer p {
     text-align: center;
     font: normal normal 400 11pt normal Tahoma, Verdana, Arial, Arial;
-    width: 280px;
 }
 
 table {
@@ -264,6 +264,12 @@ td a img {
     cursor: pointer;
 }
 
+.download-bar {
+    width: 100%;
+    border-style: solid;
+    border-width: 1px;
+}
+
 .download-bar-full {
     background-color: rgb(193 127 52) !important;
     color: #fff !important;
@@ -279,5 +285,17 @@ td a img {
 }
 
 .downloading {
-    padding: 3px 0;
+    padding: 20px 0 4px 0;
+    line-break: anywhere;
   }
+
+#torrent-info {
+    text-align: center;
+}
+
+footer {
+    position: inherit;
+    bottom: 0;
+    width: 100%;
+    
+}

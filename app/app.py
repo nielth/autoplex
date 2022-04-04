@@ -39,8 +39,8 @@ app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///user.db"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 # For debugging
-#app.config["TEMPLATES_AUTO_RELOAD=True"] = True
-#app.config["DEBUG"] = True
+# app.config["TEMPLATES_AUTO_RELOAD=True"] = True
+# app.config["DEBUG"] = True
 
 app.url_map.strict_slashes = False
 # redirects stay https
@@ -66,9 +66,9 @@ def load_user(id):
 @login_required
 def index():
     if current_user.is_authenticated:
-       return render_template('index.html')
+        return render_template("index.html")
     else:
-       return render_template('login.html')
+        return render_template("login.html")
 
 
 @app.route("/logout")
@@ -136,7 +136,7 @@ def signup():
         )
         db.session.add(new_user)
         db.session.commit()
-        login_user(new_user)
+        login_user(user)
         return redirect(url_for("index"))
 
 
@@ -149,19 +149,21 @@ def callback():
     token = plex.return_token(sess)
     plex_user_info = plex.check_plex_user(token)
     try:
-        plex_server_users = plex.get_server_accounts()
+        plex_server_users, plex_server_id = plex.get_server_accounts()
     except exceptions.ConnectionError:
         return (
             "Cannot contact my Plex server :-( Alert yours truly if persistent.",
             404,
         )
+
+    id_plex = plex_user_info["id"] in plex_server_id
     username = plex_user_info["username"] in plex_server_users
     email = plex_user_info["email"] in plex_server_users
-    if not any((username, email)):
+    if not any((id_plex, username, email)):
         return "User is not linked to Plex Server", 404
 
     user = User.query.filter_by(email=plex_user_info["email"]).first()
-    if user:
+    if user and user:
         login_user(user)
         if user.username is None:
             user.id = plex_user_info["id"]
@@ -188,6 +190,8 @@ def callback():
 def search(category, title_search):
     t = titles.Titles
     info_list, return_category = t.get_titles(category, title_search)
+    if info_list is False:
+        return "Had problems connecting to IMDB to retrieve movies and series", 404
     return render_template(
         "index.html",
         len=len(info_list["title"]),
@@ -203,6 +207,8 @@ def search(category, title_search):
 def get_torrents(name, category):
     t = titles.Titles
     torrents, cover = t.torrents(name, category)
+    if torrents is False:
+        return "Had problems connecting to IMDB to retrieve movies and series", 404
     return render_template(
         "index.html",
         len=len(torrents["magnet"]),
@@ -244,11 +250,9 @@ def downloading():
         "download.html",
         len=len(return_title),
         title=return_title,
-        progress=return_status
+        progress=return_status,
     )
 
 
 if __name__ == "__main__":
-    # p = Process(target = qbt.delete_finished)
-    # p.start()
     app.run(host="0.0.0.0")
