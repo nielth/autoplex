@@ -1,6 +1,5 @@
 __pycache__
 log
-cert
 letsencrypt
 test.py
 certificate
@@ -9,3 +8,4 @@ app/user.db
 .idea
 .DS_Store
 .vscode
+./.git
