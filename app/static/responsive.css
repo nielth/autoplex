@@ -13,10 +13,6 @@
         width: 100%;
       }
 
-      .header-right {
-        display: none;
-      }
-
       #login-div {
         height: 100%;
         width: 100%;
@@ -26,6 +22,7 @@
         border-width: 2px;
         background-color: #f2f2f2;
         position: relative;
+        padding: 0;
       }
 
       #imageContainer {
@@ -39,5 +36,13 @@
 
       #torrent-info p {
         font-size: 10px;
+    }
+
+    .header a {
+      padding: 7px;
+    }
+
+    .header a.logo {
+      font-size: 17px;
     }
 }
