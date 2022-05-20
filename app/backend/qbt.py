@@ -8,11 +8,11 @@ import os
 load_dotenv()
 
 qbt_client = qbittorrentapi.Client(
-    host="127.17.0.1", port="8080", username="admin", password="adminadmin"
+    host="172.17.0.1", port="8080", username="admin", password="adminadmin"
 )
 
 qbt_client_now = qbittorrentapi.Client(
-    host="127.17.0.1", port="8081", username="admin", password="adminadmin"
+    host="172.17.0.1", port="8081", username="admin", password="adminadmin"
 )
 
 
