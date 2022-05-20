@@ -5,7 +5,6 @@ services:
     container_name: api
     volumes:
       - ./app/:/code
-    restart: unless-stopped
   nginx:
     build: ./nginx
     container_name: nginx
@@ -18,54 +17,4 @@ services:
     depends_on:
       - web
       - web_exam
-    restart: unless-stopped
-
-  gitlab:
-    image: 'gitlab/gitlab-ee:14.10.0-ee.0'
-    restart: always
-    container_name: gitlab_ee
-    hostname: 'gitlab.example.com'
-    environment:
-      GITLAB_OMNIBUS_CONFIG: |
-        external_url 'http://gitlab.ab-finance.wtf'
-        nginx['listen_port'] = 80
-        nginx['listen_https'] = false
-        gitlab_rails['gitlab_shell_ssh_port'] = 2224
-    ports:
-      - '81:80'
-      - '2224:22'
-    volumes:
-      - './devops/gitlab/config:/etc/gitlab'
-      - './devops/gitlab/logs:/var/log/gitlab'
-      - './devops/gitlab/data:/var/opt/gitlab'
-    shm_size: '256m'
-  web_exam:
-    build: ./devops/flask
-    container_name: flask_exam
-    volumes:
-      - ./devops/flask/flask-example:/flask
-    restart: always
-  nextcloud:
-    image: "nextcloud:18.0.4"
-    container_name: nextcloud
-    hostname: ServerName
-    ports:
-      - "8082:80"
-    volumes:
-      - ./devops/flask/nextcloud:/var/www/html
-  postgres:
-    image: postgres:14.2
-    container_name: postgres
-    environment:
-      - POSTGRES_USER=thomasnie
-      - POSTGRES_PASSWORD=veldighemmelig
-      - POSTGRES_DB=work_db
-    volumes:
-      - ./devops/db:/var/lib/postgresql/data
-  gitlab-runner:
-    image: 'gitlab/gitlab-runner:v14.10.1'
-    container_name: gitlab-runner
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - ./devops/gitlab-runner:/etc/gitlab-runner
     restart: unless-stopped
