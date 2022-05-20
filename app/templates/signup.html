@@ -12,11 +12,8 @@
     <script src='https://kit.fontawesome.com/a076d05399.js' crossorigin='anonymous'></script>
 </head>
 <body>
-    <div class="header">
-        <a href="/" class="logo">AutoPlex</a>
-        <div class="header-right">
-        </div>
-      </div>
+    {% include "header.html" %}
+    
       <div id="login-div">
         {% block content %}
         <div class="column is-4 is-offset-4">

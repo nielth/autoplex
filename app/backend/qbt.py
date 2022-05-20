@@ -19,11 +19,11 @@ qbt_client_now = qbittorrentapi.Client(
 def torrent_api(magnet, category):
     if category == "movie":
         qbt_client.torrents_add(
-            magnet, save_path="/downloads/movies", is_sequential_download=True
+            magnet, save_path="/downloads/disk1_movies", is_sequential_download=True
         )
     elif category == "series":
         qbt_client.torrents_add(
-            magnet, save_path="/downloads/tvseries", is_sequential_download=True
+            magnet, save_path="/downloads/disk1_tvseries", is_sequential_download=True
         )
 
 
