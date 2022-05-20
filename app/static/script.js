@@ -26,6 +26,9 @@ $(document).ready(function () {
     else if (currentPage.includes("/series/")){
         $("input[name='series']").attr('checked', 'checked');
     }
+    else {
+        $("input[name='movie']").attr('checked', 'checked');
+    }
 });
 
 
