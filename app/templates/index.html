@@ -22,9 +22,9 @@
                 <button id="titleButton"></button>
             </div>
             <div id="checkbox">
-                <input type="checkbox" autocomplete="off" id="movie" name="movie">
+                <input type="checkbox" autocomplete="off" id="movie" name="movie" autocomplete="on">
                 <label for="movies"> Movies</label>
-                <input type="checkbox" autocomplete="off" id="series" name="series">
+                <input type="checkbox" autocomplete="off" id="series" name="series" autocomplete="on">
                 <label for="series"> TV Series</label>
             </div>
         </div>
@@ -89,7 +89,5 @@
         </p>
     </footer>
 </body>
-<script src="{{ url_for('static',filename='request.js') }}"></script>
-<script src="{{ url_for('static',filename='sort.js') }}"></script>
-
+{% include "scripts.html" %}
 </html>

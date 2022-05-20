@@ -81,6 +81,14 @@ def logout():
 def page_not_found(e):
     return redirect(url_for("login"))
 
+@app.errorhandler(404)
+def not_found_error(error):
+    return render_template('404.html'),404
+
+@app.errorhandler(500)
+def not_found_error(error):
+    return render_template('404.html'),500
+
 
 @app.route("/login", methods=["GET"])
 def login():
@@ -113,7 +121,7 @@ def sign_in():
                 "Username or password wrong or not found. Maybe try logging in through Plex?",
                 404,
             )
-        login_user(user)
+        login_user(user, remember=True)
         return redirect(url_for("index"))
 
 
@@ -129,14 +137,14 @@ def signup():
         if user:
             user.password = generate_password_hash(password, method="sha256")
             db.session.commit()
-            login_user(user)
+            login_user(user, remember=True)
             return redirect(url_for("index"))
         new_user = User(
             email=email, password=generate_password_hash(password, method="sha256")
         )
         db.session.add(new_user)
         db.session.commit()
-        login_user(user)
+        login_user(user, remember=True)
         return redirect(url_for("index"))
 
 
@@ -164,7 +172,7 @@ def callback():
 
     user = User.query.filter_by(email=plex_user_info["email"]).first()
     if user and user:
-        login_user(user)
+        login_user(user, remember=True)
         if user.username is None:
             user.id = plex_user_info["id"]
             user.uuid = plex_user_info["uuid"]
@@ -181,7 +189,7 @@ def callback():
         db.session.add(new_user)
         db.session.commit()
         user = User.query.filter_by(email=plex_user_info["email"]).first()
-        login_user(user)
+        login_user(user, remember=True)
         return redirect(url_for("index"))
 
 

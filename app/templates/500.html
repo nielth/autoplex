@@ -11,13 +11,15 @@
     <!-- Add icon library -->
     <script src='https://kit.fontawesome.com/a076d05399.js' crossorigin='anonymous'></script>
 </head>
-
 <body>
     {% include "header.html" %}
+    
       <div id="login-div">
-          <h1 id="h1-login">SIGN IN TO CONTINUE</h1><br>
-          <a class="btn btn-success login" href="{{ forward_link }}">Continue with Plex</a><br>
-          <a class="btn btn-success login" href="/login/nonauth">Sign In</a>
+        {% block content %}
+        <div class="column is-4 is-offset-4">
+            <h3 class="title">Error from server. Try refreshing. Movie/series might not be available if not working.</h3>
+        </div>
+        {% endblock %}
       </div>
 </body>
 {% include "scripts.html" %}
