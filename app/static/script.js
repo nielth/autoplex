@@ -19,7 +19,13 @@ $('input[type="checkbox"]').on('change', function () {
 
 
 $(document).ready(function () {
-    $("input[name='movie']").attr('checked', 'checked');
+    const currentPage = window.location.pathname;
+    if (currentPage.includes("/movie/")){
+        $("input[name='movie']").attr('checked', 'checked');
+    }
+    else if (currentPage.includes("/series/")){
+        $("input[name='series']").attr('checked', 'checked');
+    }
 });
 
 
