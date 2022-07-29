@@ -5,16 +5,29 @@ services:
     container_name: api
     volumes:
       - ./app/:/code
+    restart: unless-stopped
+    networks:
+      vpcbr:
   nginx:
     build: ./nginx
+    #image: nginx-build
     container_name: nginx
     volumes:
-      - ./nginx/letsencrypt:/etc/letsencrypt
-      - ./devops/cert/:/etc/nginx/ssl/:ro
+      - ./certbot/www:/var/www/certbot/:ro
+      - ./certbot/conf/:/etc/nginx/ssl/:ro
     ports:
       - 1337:443
       - 88:80
     depends_on:
       - web
-      - web_exam
     restart: unless-stopped
+    networks:
+      vpcbr:
+  certbot:
+    image: certbot/certbot:latest
+    volumes:
+      - ./certbot/www/:/var/www/certbot/:rw
+      - ./certbot/conf/:/etc/letsencrypt/:rw
+
+networks:
+  vpcbr:
