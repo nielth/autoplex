@@ -1,9 +1,9 @@
-from imdb import IMDb
+from imdb import Cinemagoer
 import rarbgapi
 import time
 import os
 
-ia = IMDb()
+ia = Cinemagoer()
 client = rarbgapi.RarbgAPI()
 
 
@@ -27,6 +27,7 @@ class Titles:
                 movie[i].data["kind"] == category
                 and "Podcast" not in movie[i].data["title"]
                 and "podcast" not in movie[i].data["title"]
+                and movie[i].has_key("cover url")
                 and "._V1_" in movie[i].data["cover url"]
             ):
                 result = movie[i].data["cover url"].find("._V1_")
