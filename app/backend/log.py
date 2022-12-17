@@ -2,6 +2,7 @@ from datetime import datetime
 import json
 import os
 
+
 def store_magnet(magnet):
     script_dir = os.path.dirname(__file__)
     abs_path = os.path.join(script_dir, "log/magnets.txt")
@@ -14,15 +15,30 @@ def store_magnet(magnet):
     if not legit_magnet:
         return "", 404
 
+
 def log_user_download(current_user, category, title, magnet):
     script_dir = os.path.dirname(__file__)
-    with open(os.path.join(script_dir, "log/download.json"), 'r+') as file_read:
+    with open(os.path.join(script_dir, "log/download.json"), "r+") as file_read:
         try:
             read_json = json.load(file_read)
         except json.decoder.JSONDecodeError:
             read_json = {}
-        lst = [current_user.email, datetime.now().strftime("%Y-%m-%d %H:%M"), category, magnet]
+        lst = {
+            "user": current_user.email,
+            "time": datetime.now().strftime("%Y-%m-%d %H:%M"),
+            "category": category,
+            "magnet": magnet,
+        }
         read_json[title] = lst
-        print(read_json)
         file_read.seek(0)
-        json.dump(read_json, file_read, indent = 4)
+        json.dump(read_json, file_read, indent=4)
+
+
+def get_user_download():
+    script_dir = os.path.dirname(__file__)
+    with open(os.path.join(script_dir, "log/download.json"), "r") as file_read:
+        try:
+            read_json = json.load(file_read)
+        except json.decoder.JSONDecodeError:
+            read_json = {}
+        return read_json

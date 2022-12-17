@@ -1,14 +1,13 @@
 import os
 import json
 
-from flask import Flask, request, render_template, redirect, url_for, session, flash
+from flask import Flask, request, render_template, redirect, url_for, session, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.middleware.proxy_fix import ProxyFix
 from flask_sqlalchemy import SQLAlchemy
 from requests import exceptions
 from multiprocessing import Process
 from dotenv import load_dotenv
-from datetime import datetime
 from threading import Thread
 from flask_login import (
     UserMixin,
@@ -83,13 +82,15 @@ def logout():
 def page_not_found(e):
     return redirect(url_for("login"))
 
+
 @app.errorhandler(404)
 def not_found_error(error):
-    return render_template('404.html'),404
+    return render_template("404.html"), 404
+
 
 @app.errorhandler(500)
 def not_found_error(error):
-    return render_template('404.html'),500
+    return render_template("404.html"), 500
 
 
 @app.route("/login", methods=["GET"])
@@ -253,6 +254,13 @@ def downloading():
         title=return_title,
         progress=return_status,
     )
+
+
+@app.route("/log", methods=["GET"])
+@login_required
+def download_log():
+    logged_download = log.get_user_download()
+    return jsonify(logged_download)
 
 
 if __name__ == "__main__":
