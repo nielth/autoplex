@@ -2,27 +2,27 @@ from datetime import datetime
 import json
 import os
 
-
-def download_log(magnet, title, category):
+def store_magnet(magnet):
     script_dir = os.path.dirname(__file__)
-    abs_path = os.path.join(script_dir, "log")
-    if not os.path.exists(abs_path):
-        os.makedirs(abs_path)
-    with open(abs_path + "/downloaded.json", "a") as file:
-        logged_download = {
-            "time": datetime.today().strftime("%H:%M:%S"),
-            "category": category,
-            "title": title,
-            "magnet": magnet,
-        }
-        try:
+    abs_path = os.path.join(script_dir, "log/magnets.txt")
+    legit_magnet = False
+    for line in reversed(open(abs_path).readlines()):
+        temp = line.rstrip()
+        if line.rstrip() in magnet:
+            legit_magnet = True
+            break
+    if not legit_magnet:
+        return "", 404
 
-            file_data = json.load(file)
-            file_data[datetime.today().strftime("%Y-%m-%d")].append(logged_download)
-            file.seek(0)
-            json.dump(file_data, file, indent=4)
-        except:
-            logged_download_new = {
-                datetime.today().strftime("%Y-%m-%d"): logged_download
-            }
-            json.dump(logged_download_new, file, indent=4)
+def log_user_download(current_user, category, title, magnet):
+    script_dir = os.path.dirname(__file__)
+    with open(os.path.join(script_dir, "log/download.json"), 'r+') as file_read:
+        try:
+            read_json = json.load(file_read)
+        except json.decoder.JSONDecodeError:
+            read_json = {}
+        lst = [current_user.email, datetime.now().strftime("%Y-%m-%d %H:%M"), category, magnet]
+        read_json[title] = lst
+        print(read_json)
+        file_read.seek(0)
+        json.dump(read_json, file_read, indent = 4)

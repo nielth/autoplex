@@ -1,4 +1,5 @@
 import os
+import json
 
 from flask import Flask, request, render_template, redirect, url_for, session, flash
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -7,6 +8,7 @@ from flask_sqlalchemy import SQLAlchemy
 from requests import exceptions
 from multiprocessing import Process
 from dotenv import load_dotenv
+from datetime import datetime
 from threading import Thread
 from flask_login import (
     UserMixin,
@@ -39,8 +41,8 @@ app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///user.db"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 # For debugging
-# app.config["TEMPLATES_AUTO_RELOAD=True"] = True
-# app.config["DEBUG"] = True
+app.config["TEMPLATES_AUTO_RELOAD=True"] = True
+app.config["DEBUG"] = True
 
 app.url_map.strict_slashes = False
 # redirects stay https
@@ -235,17 +237,8 @@ def get_torrents(name, category):
 def mov_magnet(category, name):
     req_form = request.form
     magnet, title = req_form["magnet"], req_form["title"]
-    script_dir = os.path.dirname(__file__)
-    abs_path = os.path.join(script_dir, "backend/log/magnets.txt")
-    legit_magnet = False
-    for line in reversed(open(abs_path).readlines()):
-        temp = line.rstrip()
-        if line.rstrip() in magnet:
-            legit_magnet = True
-            break
-    if not legit_magnet:
-        return "", 404
-    # log.download_log(magnet, title, category)
+    log.store_magnet(magnet)
+    log.log_user_download(current_user, category, title, magnet)
     qbt.torrent_api(magnet, category)
     return "", 204
 
