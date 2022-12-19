@@ -40,8 +40,8 @@ app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///user.db"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 # For debugging
-app.config["TEMPLATES_AUTO_RELOAD=True"] = True
-app.config["DEBUG"] = True
+# app.config["TEMPLATES_AUTO_RELOAD=True"] = True
+# app.config["DEBUG"] = True
 
 app.url_map.strict_slashes = False
 # redirects stay https

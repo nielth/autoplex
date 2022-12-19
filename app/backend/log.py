@@ -24,12 +24,16 @@ def log_user_download(current_user, category, title, magnet):
         except json.decoder.JSONDecodeError:
             read_json = {}
         lst = {
+            "title": title,
             "user": current_user.email,
             "time": datetime.now().strftime("%Y-%m-%d %H:%M"),
             "category": category,
             "magnet": magnet,
         }
-        read_json[title] = lst
+        existing_key = read_json.get(datetime.now().strftime("%Y-%m-%d %H:%M"))
+        if not existing_key:
+            read_json[datetime.now().strftime("%Y-%m-%d %H:%M")] = {}
+        read_json[datetime.now().strftime("%Y-%m-%d %H:%M")][title] = lst
         file_read.seek(0)
         json.dump(read_json, file_read, indent=4)
 
