@@ -1,16 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 
-<head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
-    <title>AutoPlex</title>
-    <link href="{{ url_for('static',filename='style.css') }}" rel="stylesheet" />
-    <link href="{{ url_for('static',filename='responsive.css') }}" rel="stylesheet" />
-    <!-- Add icon library -->
-    <script src='https://kit.fontawesome.com/a076d05399.js' crossorigin='anonymous'></script>
-</head>
+{% include "head.html" %}
 
 <body>
     {% include "header.html" %}
@@ -23,7 +14,7 @@
             </div>
             <div id="checkbox">
                 <input type="checkbox" autocomplete="off" id="movie" name="movie" autocomplete="on">
-                <label for="movies"> Movies</label>
+                <label for="movie"> Movies</label>
                 <input type="checkbox" autocomplete="off" id="series" name="series" autocomplete="on">
                 <label for="series"> TV Series</label>
             </div>
@@ -55,7 +46,7 @@
                         <th onclick="sortTable(0)">Name of file</th>
                         <th onclick="sortTable(1)">Seeders</th>
                         <th onclick="sortTable(2)">Size</th>
-                        <th onclick="sortTable(3)">Install</th>
+                        <th onclick="sortTable(3)">Download</th>
                     </tr>
                     {% for i in range(0, len) %}
                     <tr>

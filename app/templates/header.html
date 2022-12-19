@@ -1,6 +1,9 @@
 <div class="header">
     <a href="/" class="logo">AutoPlex</a>
     <div class="header-right">
+        {% if current_user.email == "thomas.nielsen98@gmail.com" %}
+        <a href="/log" class="logo">Log</a>
+        {% endif %}
         <a href="/downloading" class="logo">Downloading</a>
         <a href="/" class="logo home">Home</a>
     </div>
