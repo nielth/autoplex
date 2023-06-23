@@ -1,9 +1,0 @@
-Flask
-Werkzeug~=2.0.0
-flask-Login
-Flask-SQLAlchemy
-rarbgapi 
-git+https://github.com/alberanid/imdbpy 
-imdbpy 
-qbittorrent-api
-python-dotenv
