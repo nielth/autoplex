@@ -6,27 +6,57 @@ import { PageContainer } from "./PageContainer";
 
 const theme = createTheme({
   palette: {
-    background: {
-      paper: '#fff',
+    primary: {
+      main: '#e7edf2',
     },
-    text: {
-      primary: '#173A5E',
-      secondary: '#46505A',
-    },
-    action: {
-      active: '#001E3C',
+    plex_col: {
+      main: '#c17f34',
     },
   },
+  typography: {
+    // In Chinese and Japanese the characters are usually larger,
+    // so a smaller fontsize may be appropriate.
+    button: {
+      fontWeight: 'bold',
+    },
+    fontSize: 17,
+    fontFamily: [
+      'Tahoma',
+      'Verdana',
+      'Arial',
+      'serif',
+    ].join(','),
+  },
 });
+
+
+
+declare module '@mui/material/styles' {
+  interface Palette {
+    plex_col: Palette['primary'];
+  }
+
+  // allow configuration using `createTheme`
+  interface PaletteOptions {
+    plex_col?: PaletteOptions['primary'];
+  }
+}
+
+// @babel-ignore-comment-in-output Update the Button's color prop options
+declare module '@mui/material/Button' {
+  interface ButtonPropsColorOverrides {
+    plex_col: true;
+  }
+}
 
 
 function App() {
   return (
     <>
-    <ThemeProvider theme={theme}>
-      <NavBar />
-      <PageContainer />
-    </ThemeProvider>
+      <ThemeProvider theme={theme}>
+        <NavBar />
+        <PageContainer />
+      </ThemeProvider>
     </>
   );
 }

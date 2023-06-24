@@ -11,10 +11,18 @@ var arr = {
 
 export default function ButtonAppBar() {
   return (
-    <Box sx={{ bgcolor: "#161616" }}>
+    <Box
+      sx={{
+        bgcolor: "#020409",
+        borderStyle: "solid",
+        border: 0,
+        borderBottom: 1,
+        borderColor: "#202429",
+      }}
+    >
       <AppBar position="static" elevation={0} sx={{ bgcolor: "inherit" }}>
         <Toolbar sx={{ height: 70 }}>
-          <Button sx={{ minHeight: 1 }} size="large" color="inherit" href="/">
+          <Button sx={{ minHeight: 1 }} size="large" href="/">
             <Avatar
               variant="square"
               alt="AP"
@@ -25,12 +33,7 @@ export default function ButtonAppBar() {
           </Button>
           <Box sx={{ ml: "auto", mr: 0, height: "inherit" }}>
             {Object.entries(arr).map(([key, value]) => (
-              <Button
-                sx={{ minHeight: 1 }}
-                size="large"
-                color="inherit"
-                href={value}
-              >
+              <Button sx={{ minHeight: 1 }} size="large" href={value}>
                 {key}
               </Button>
             ))}
