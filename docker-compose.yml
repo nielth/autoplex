@@ -1,0 +1,16 @@
+version: '3'
+services:
+  api:
+    build: ./backend
+    container_name: flask-api
+    volumes:
+      - ./backend/api:/api
+    ports:
+      - 5000:5000
+    restart: always
+  torrent-api:
+    build: ./torrent-api
+    container_name: torrent-api
+    ports:
+      - 5050:8080
+    restart: always

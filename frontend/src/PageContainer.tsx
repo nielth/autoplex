@@ -1,8 +1,8 @@
 import { Box } from "@mui/material";
-import Button from "@mui/material/Button";
-import { minWidth } from "@mui/system";
 
-export function PageContainer() {
+type main = {main: any}
+
+const PageContainer = ({main}: main) => {
   return (
     <div className="PageContainer">
       <Box
@@ -22,15 +22,10 @@ export function PageContainer() {
           margin: 'auto',
         }}
       >
-        <Button
-          variant="outlined"
-          href="#outlined-buttons"
-          size="large"
-          color="plex_col"
-        >
-          Continue with Plex
-        </Button>
+        {main}
       </Box>
     </div>
-  );
+  )
 }
+
+export default PageContainer
