@@ -38,11 +38,11 @@ def protected():
     current_user = get_jwt_identity()
     return jsonify(logged_in_as=current_user), 200
 
-@app.route("/api", methods=["POST"])
+@app.route("/authToken", methods=["POST"])
 def temp():
-    response = jsonify({'some': 'data'})
-    response.headers.add('Access-Control-Allow-Origin', '*')
-    return response
+    data = request.json
+    print(data)
+    return data
 
 
 if __name__ == "__main__":
