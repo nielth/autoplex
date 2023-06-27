@@ -6,10 +6,15 @@ from flask import jsonify
 from flask import request
 from flask import abort
 
+from datetime import datetime
+from datetime import timedelta
+from datetime import timezone
+
 from flask_cors import CORS
 
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from flask_jwt_extended import get_jwt
 from flask_jwt_extended import create_access_token
 from flask_jwt_extended import set_access_cookies
 from flask_jwt_extended import get_jwt_identity
@@ -24,39 +29,63 @@ CORS(app, supports_credentials=True)
 limiter = Limiter(
     get_remote_address,
     app=app,
-    default_limits=["200 per day", "50 per hour"],
+    #default_limits=["200 per day", "50 per hour"],
     storage_uri="memory://",
 )
 
 
 # Setup the Flask-JWT-Extended extension
-app.config["JWT_TOKEN_LOCATION"] = [
-    "headers", "cookies", "json", "query_string"]
+app.config["JWT_TOKEN_LOCATION"] = ["cookies"]
 # If true this will only allow the cookies that contain your JWTs to be sent
 # over https. In production, this should always be set to True
 app.config["JWT_COOKIE_SECURE"] = False
+app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(hours=1)
 
 app.config["JWT_SECRET_KEY"] = "super-secret"  # Change this!
 
 jwt = JWTManager(app)
 
+# Using an `after_request` callback, we refresh any token that is within 30
+# minutes of expiring. Change the timedeltas to match the needs of your application.
 
-# Create a route to authenticate your users and return JWTs. The
-# create_access_token() function is used to actually generate the JWT.
-@app.route("/login", methods=["POST"])
-def login():
-    username = request.json.get("username", None)
-    password = request.json.get("password", None)
-    if username != "test" or password != "test":
-        return jsonify({"msg": "Bad username or password"}), 401
 
-    access_token = create_access_token(identity=username)
-    return jsonify(access_token=access_token)
+@app.after_request
+def refresh_expiring_jwts(response):
+    try:
+        exp_timestamp = get_jwt()["exp"]
+        now = datetime.now(timezone.utc)
+        target_timestamp = datetime.timestamp(now + timedelta(minutes=30))
+        if target_timestamp > exp_timestamp:
+            access_token = create_access_token(identity=get_jwt_identity())
+            set_access_cookies(response, access_token)
+        return response
+    except (RuntimeError, KeyError):
+        # Case where there is not a valid JWT. Just return the original response
+        return response
+
+
+def get_identity_if_logedin():
+    try:
+        return get_jwt_identity()
+    except Exception:
+        pass
+
+
+@app.route("/hello", methods=["GET"])
+def hello():
+    current_user = get_jwt_identity()
+    # check if user is loged in
+    if current_user:
+        print("True")
+        return jsonify(logged_in_as=current_user), 200
+    else:
+        print("False")
+        return ""
 
 
 # Protect a route with jwt_required, which will kick out requests
 # without a valid JWT present.
-@app.route("/protected", methods=["GET"])
+@app.route("/protected", methods=["GET", "POST"])
 @jwt_required()
 def protected():
     # Access the identity of the current user with get_jwt_identity

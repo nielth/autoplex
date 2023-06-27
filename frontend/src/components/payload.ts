@@ -8,5 +8,6 @@ export var PAYLOAD = {
     "X-Plex-Model": "",
     "X-Plex-Client-Platform": "",
     "X-Plex-Client-Identifier": "",
-    "Accept": "application/json"
+    "Content-Type": "application/json",
+    "Accept": "application/json",
   };

@@ -11,13 +11,14 @@ import {
   Routes,
   BrowserRouter,
 } from "react-router-dom";
-import { PageA } from "./pages/pageA";
+import { PageA } from "./pages/home";
 import { PageB } from "./pages/pageB";
 import { Callback } from "./pages/callback";
 
 var arr = {
   Logs: "/logs",
   Downloads: "/downloads",
+  Home: "/"
 };
 
 const theme = createTheme({
