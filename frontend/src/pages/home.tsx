@@ -54,9 +54,8 @@ export function PageA() {
         .catch(() => {
           setIsLoggedIn(false);
         });
+        console.log("1")
     }
-
-    verifyAuth();
 
     const loadPost = async () => {
       // Till the data is fetch using API
@@ -103,6 +102,11 @@ export function PageA() {
     } else {
       setUrl(buttonUrl);
     }
+
+    verifyAuth().then(() => {
+      setLoading(true);
+    })
+    
   }, []);
 
   useEffect(() => {
@@ -114,8 +118,6 @@ export function PageA() {
   }, []);
 
   return (
-    <>
-      {isLoggedIn ? <h1>Welcome back!</h1> : url ? notLoggedIn(url) : <div />}
-    </>
+    <>{loading ? (isLoggedIn ? <h1>Logged in</h1> : url ? notLoggedIn(url) : <div />) : <div />}</>
   );
 }
