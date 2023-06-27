@@ -27,7 +27,15 @@ function notLoggedIn(url: string) {
             margin: "auto",
           }}
         >
-          <Button variant="outlined" href={url} size="large" color="plex_col">
+          <Button
+            variant="outlined"
+            onClick={function () {
+              localStorage.removeItem("url");
+            }}
+            href={url}
+            size="large"
+            color="plex_col"
+          >
             Continue with Plex
           </Button>
         </Box>
@@ -40,7 +48,9 @@ export function PageA() {
   const [url, setUrl] = useState("");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [posts, setPosts] = useState([]);
+  var url_auth_para: string = "";
+  var url_auth = "https://app.plex.tv/auth#!?";
+  var forwardUrl = "http://localhost:3000/callback";
 
   useEffect(() => {
     async function verifyAuth() {
@@ -54,18 +64,11 @@ export function PageA() {
         .catch(() => {
           setIsLoggedIn(false);
         });
-        console.log("1")
     }
 
     const loadPost = async () => {
-      // Till the data is fetch using API
-      // the Loading page will show.
-      setLoading(true);
-
       const uuid4 = uuidv4();
       PAYLOAD["X-Plex-Client-Identifier"] = uuid4;
-      var url_auth = "https://app.plex.tv/auth#!?";
-      var forwardUrl = "http://localhost:3000/callback";
 
       // Await make wait until that
       // promise settles and return its result
@@ -78,8 +81,7 @@ export function PageA() {
         .then((res) => {
           var code = res.data.code;
           localStorage.setItem("items", JSON.stringify(res.data));
-          setPosts(res.data);
-          var url_auth_para =
+          url_auth_para =
             url_auth +
             "clientID=" +
             uuid4 +
@@ -87,26 +89,25 @@ export function PageA() {
             code +
             "&forwardUrl=" +
             forwardUrl;
-          setUrl(url_auth_para);
           setWithExpiry("url", url_auth_para, res.data.expiresIn * 1000);
         })
         .catch(() => {});
-
-      setLoading(false);
     };
 
-    const buttonUrl = getWithExpiry("url");
+    url_auth_para = getWithExpiry("url");
 
-    if (!buttonUrl) {
-      loadPost();
+    if (!url_auth_para) {
+      loadPost().then(() => {
+        setUrl(url_auth_para);
+        console.log(url_auth_para);
+      });
     } else {
-      setUrl(buttonUrl);
+      setUrl(url_auth_para);
     }
 
     verifyAuth().then(() => {
       setLoading(true);
-    })
-    
+    });
   }, []);
 
   useEffect(() => {
@@ -118,6 +119,18 @@ export function PageA() {
   }, []);
 
   return (
-    <>{loading ? (isLoggedIn ? <h1>Logged in</h1> : url ? notLoggedIn(url) : <div />) : <div />}</>
+    <>
+      {loading ? (
+        isLoggedIn ? (
+          <h1>Logged in</h1>
+        ) : url ? (
+          notLoggedIn(url)
+        ) : (
+          <div />
+        )
+      ) : (
+        <div />
+      )}
+    </>
   );
 }
