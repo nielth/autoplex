@@ -14,3 +14,9 @@ services:
     ports:
       - 5050:8080
     restart: always
+  app:
+    build: ./frontend
+    container_name: node
+    restart: always
+    ports:
+      - 3000:3000

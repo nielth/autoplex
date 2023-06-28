@@ -10,7 +10,7 @@ export function setWithExpiry(key: string, value: string, ttl: number) {
   localStorage.setItem(key, JSON.stringify(item));
 }
 
-export function getWithExpiry(key: string) {
+export async function getWithExpiry(key: string) {
   const itemStr = localStorage.getItem(key);
 
   // if the item doesn't exist, return null
@@ -18,7 +18,7 @@ export function getWithExpiry(key: string) {
     return null;
   }
 
-  const item = JSON.parse(itemStr);
+  const item = await JSON.parse(itemStr);
   const now = new Date();
 
   // compare the expiry time of the item with the current time

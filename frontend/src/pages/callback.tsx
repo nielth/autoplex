@@ -1,59 +1,30 @@
-import axios from "axios";
 import { useEffect, useState } from "react";
-import { PAYLOAD } from "../components/payload";
 import { redirect } from "react-router-dom";
+import { login } from "../api/auth";
+import { PAYLOAD } from "../components/payload";
+import { useNavigate } from "react-router-dom";
 
 export function Callback() {
-  const [items, setItems] = useState([]);
+  const [success, setSuccess] = useState(false);
   const [loaded, setLoaded] = useState(false);
   var url_auth = "https://plex.tv/api/v2/pins/";
   var url_auth_code = "";
-  var authToken = "";
+
+  const navigate = useNavigate();
 
   useEffect(() => {
-    const items = JSON.parse(localStorage.getItem("items") || "{}");
-    PAYLOAD["X-Plex-Client-Identifier"] = items.clientIdentifier;
-    url_auth_code = url_auth + items.id;
-    console.log(url_auth_code);
-    if (items) {
-      setItems(items);
-    }
-
-    async function myDisplay() {
-      await axios
-        .get(url_auth_code, { headers: PAYLOAD })
-        .then((res) => {
-          authToken = res.data.authToken;
-          axios
-            .post(
-              "http://192.168.0.165:5000/authToken",
-              { authToken: authToken },
-              {
-                withCredentials: true,
-                headers: { "Access-Control-Allow-Origin": "*" },
-              }
-            )
-            .then(() => {
-              axios
-                .get("http://192.168.0.165:5000/protected", {
-                  withCredentials: true,
-                })
-                .then(() => {
-                  console.log("true, king")
-                  setLoaded(true);
-                })
-                .catch(() => {
-                  
-                });
-            });
-        })
-        .catch((err) => {
-          console.log(err);
-        });
-    }
-    myDisplay();
-
+    (async () => {
+      const lstore = JSON.parse(localStorage.getItem("items") || "{}");
+      PAYLOAD["X-Plex-Client-Identifier"] = lstore.clientIdentifier;
+      url_auth_code = url_auth + lstore.id;
+      console.log(url_auth_code);
+      login(url_auth_code).then(() => {
+        console.log("logged in")
+        setSuccess(true);
+        setLoaded(true)
+      });
+    })();
   }, []);
 
-  return <>{loaded ? redirect("/") : <h1>not</h1>}</>;
+  return <>{loaded ? (success ? navigate("/") : <h1>not</h1>) : <div />}</>;
 }

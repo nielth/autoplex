@@ -20,6 +20,8 @@ from flask_jwt_extended import set_access_cookies
 from flask_jwt_extended import get_jwt_identity
 from flask_jwt_extended import jwt_required
 from flask_jwt_extended import JWTManager
+from flask_jwt_extended import unset_jwt_cookies
+from flask_jwt_extended import verify_jwt_in_request
 
 plex_auth = "https://plex.tv/users/account/?X-Plex-Token="
 
@@ -86,11 +88,21 @@ def hello():
 # Protect a route with jwt_required, which will kick out requests
 # without a valid JWT present.
 @app.route("/protected", methods=["GET", "POST"])
-@jwt_required()
 def protected():
     # Access the identity of the current user with get_jwt_identity
-    current_user = get_jwt_identity()
-    return jsonify(logged_in_as=current_user), 200
+    try:
+        verify_jwt_in_request()
+        current_user = get_jwt_identity()
+        return jsonify(logged_in_as=current_user), 200
+    except:
+        return ""
+
+
+@app.route("/logout", methods=["POST"])
+def logout_with_cookies():
+    response = jsonify({"msg": "logout successful"})
+    unset_jwt_cookies(response)
+    return response
 
 
 def req(url):
