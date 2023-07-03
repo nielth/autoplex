@@ -1,11 +1,16 @@
-import { Box, Button, Table, colors } from "@mui/material";
-import { v4 as uuidv4 } from "uuid";
-import axios from "axios";
-import qs from "qs";
 import { useEffect, useState } from "react";
-import { PAYLOAD } from "../components/payload";
+
 import "../styles.css";
 import { setWithExpiry, getWithExpiry } from "../components/localStorExpire";
+import { getCookie } from "../components/getCookies";
+import { logout } from "../api/auth";
+import { PAYLOAD } from "../components/payload";
+import { funcLoggedIn } from "../api/auth";
+import { oauthPlexLink } from "../api/auth";
+
+import { Box, Button, Table, colors } from "@mui/material";
+import Paper from "@mui/material/Paper";
+import axios from "axios";
 import {
   TableContainer,
   TableHead,
@@ -13,7 +18,6 @@ import {
   TableCell,
   TableBody,
 } from "@mui/material";
-import Paper from "@mui/material/Paper";
 
 function notLoggedIn(url: string) {
   return (
@@ -115,41 +119,12 @@ function loggedIn() {
   );
 }
 
-async function oauthPlexLink() {
-  const uuid4: string = uuidv4();
-  var url_auth: string = "https://app.plex.tv/auth#!?";
-  var forwardUrl: string = "http://localhost:3000/callback";
-  var payload = PAYLOAD;
-  payload["X-Plex-Client-Identifier"] = uuid4;
-  var url_auth_para: string = "";
-
-  await axios
-    .post(
-      "https://plex.tv/api/v2/pins.json?strong=true",
-      qs.stringify(PAYLOAD),
-      { headers: {} }
-    )
-    .then((res) => {
-      const code = res.data.code;
-      localStorage.setItem("items", JSON.stringify(res.data));
-      url_auth_para =
-        url_auth +
-        "clientID=" +
-        uuid4 +
-        "&code=" +
-        code +
-        "&forwardUrl=" +
-        forwardUrl;
-
-      setWithExpiry("url", url_auth_para, res.data.expiresIn * 1000);
-
-      console.log(url_auth_para);
-    })
-    .catch(() => {
-      return false;
-    });
-
-  return url_auth_para;
+async function setUrlFunc() {
+  const temp = await getWithExpiry("url");
+  if (!temp) {
+    oauthPlexLink();
+  }
+  return temp;
 }
 
 export function PageA() {
@@ -158,33 +133,18 @@ export function PageA() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    let funcLoggedIn = async () => {
-      await axios
-        .get("http://192.168.0.165:5000/protected", {
-          withCredentials: true,
-        })
-        .then((resp) => {
-          // JSON.parse()
-          if (resp.data.logged_in_as) {
-            setIsLoggedIn(true);
-          } 
-        });
-        await getWithExpiry("url").then((resp) => {
-          if (resp) {
-            setUrl(resp);
-          } else {
-            oauthPlexLink().then((pLink) => {
-              setUrl(pLink);
-            });
-          }
-        });
-    };
+    funcLoggedIn().then((resp) => {
+      if (resp.data.logged_in_as) {
+        setIsLoggedIn(true);
+      }
+      setLoading(true);
+    });
 
-    funcLoggedIn().then(() => {
-      setLoading(true)
-    })
-
-  }, []);
+    setUrlFunc().then((resp: any) => {
+      setUrl(resp);
+    });
+    
+  }, [isLoggedIn]);
 
   return (
     <>

@@ -14,9 +14,21 @@ services:
     ports:
       - 5050:8080
     restart: always
-  app:
-    build: ./frontend
-    container_name: node
+  app-dev:
+    build: 
+      context: ./frontend
+      dockerfile: Dockerfile.development
+    container_name: node-dev
+    volumes:
+      - ./frontend:/app
     restart: always
     ports:
       - 3000:3000
+  # app-prod:
+  #   build: 
+  #     context: ./frontend
+  #     dockerfile: Dockerfile.production
+  #   container_name: node-prod
+  #   restart: always
+  #   ports:
+  #     - 3000:3000

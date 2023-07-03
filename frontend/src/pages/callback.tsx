@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { redirect } from "react-router-dom";
 import { login } from "../api/auth";
 import { PAYLOAD } from "../components/payload";
 import { useNavigate } from "react-router-dom";

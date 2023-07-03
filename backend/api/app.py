@@ -99,6 +99,7 @@ def protected():
 
 
 @app.route("/logout", methods=["POST"])
+@jwt_required()
 def logout_with_cookies():
     response = jsonify({"msg": "logout successful"})
     unset_jwt_cookies(response)
