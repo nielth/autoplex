@@ -1,7 +1,7 @@
 import axios from "axios";
 import { PAYLOAD } from "../components/payload";
 import { getCookie } from "../components/getCookies";
-import { setWithExpiry, getWithExpiry } from "../components/localStorExpire";
+import { setWithExpiry } from "../components/localStorExpire";
 import { v4 as uuidv4 } from "uuid";
 import qs from "qs";
 
@@ -48,21 +48,18 @@ export async function logout() {
         headers: { "X-CSRF-TOKEN": getCookie("csrf_access_token") },
       }
     )
-    .then(() => {
-
-    })
+    .then(() => {})
     .catch(() => {
       console.log("error logout");
     });
 }
 
 export async function funcLoggedIn() {
-  const resp = await axios
-    .get("http://localhost:5000/protected", {
-      withCredentials: true,
-      headers: { "X-CSRF-TOKEN": getCookie("csrf_access_token") },
-    })
-    return resp
+  const resp = await axios.get("http://localhost:5000/protected", {
+    withCredentials: true,
+    headers: { "X-CSRF-TOKEN": getCookie("csrf_access_token") },
+  });
+  return resp;
 }
 
 export async function oauthPlexLink() {

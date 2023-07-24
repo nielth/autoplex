@@ -1,19 +1,9 @@
-import AppBar from "@mui/material/AppBar";
-import Box from "@mui/material/Box";
-import Toolbar from "@mui/material/Toolbar";
-import Button from "@mui/material/Button";
-import Avatar from "@mui/material/Avatar";
 import { createTheme, ThemeProvider } from "@mui/material/styles";
-import {
-  BrowserRouter as Router,
-  Route,
-  Routes,
-  BrowserRouter,
-} from "react-router-dom";
-import { PageA } from "./pages/home";
-import { PageB } from "./pages/pageB";
+import { Route, Routes, BrowserRouter } from "react-router-dom";
+
+import { Home } from "./pages/home";
+import { Temp } from "./pages/temp";
 import { Callback } from "./pages/callback";
-import { logout } from "./api/auth";
 import { NavBar } from "./components/NavBar";
 
 const theme = createTheme({
@@ -47,14 +37,11 @@ declare module "@mui/material/styles" {
   }
 }
 
-// @babel-ignore-comment-in-output Update the Button's color prop options
 declare module "@mui/material/Button" {
   interface ButtonPropsColorOverrides {
     plex_col: true;
   }
 }
-
-export async function temp() {}
 
 export default function App() {
   return (
@@ -62,9 +49,9 @@ export default function App() {
       <ThemeProvider theme={theme}>
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<NavBar />}>
-              <Route index element={<PageA />} />
-              <Route path="downloads" element={<PageB />} />
+            <Route element={<NavBar />}>
+              <Route path="/" element={<Home />} />
+              <Route path="downloads" element={<Temp />} />
               <Route path="callback" element={<Callback />} />
             </Route>
           </Routes>

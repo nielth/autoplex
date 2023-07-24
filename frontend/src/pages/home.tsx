@@ -1,23 +1,20 @@
-import { useEffect, useState } from "react";
-
 import "../styles.css";
-import { setWithExpiry, getWithExpiry } from "../components/localStorExpire";
-import { getCookie } from "../components/getCookies";
-import { logout } from "../api/auth";
-import { PAYLOAD } from "../components/payload";
-import { funcLoggedIn } from "../api/auth";
-import { oauthPlexLink } from "../api/auth";
+import { useOutletContext } from "react-router-dom";
 
-import { Box, Button, Table, colors } from "@mui/material";
 import Paper from "@mui/material/Paper";
-import axios from "axios";
 import {
   TableContainer,
   TableHead,
   TableRow,
   TableCell,
   TableBody,
+  Box,
+  Button,
+  Table,
 } from "@mui/material";
+import { Dict } from "styled-components/dist/types";
+import { useEffect, useState } from "react";
+import { funcLoggedIn } from "../api/auth";
 
 function notLoggedIn(url: string) {
   return (
@@ -56,24 +53,6 @@ function notLoggedIn(url: string) {
     </div>
   );
 }
-
-function createData(
-  name: string,
-  calories: number,
-  fat: number,
-  carbs: number,
-  protein: number
-) {
-  return { name, calories, fat, carbs, protein };
-}
-
-const rows = [
-  createData("Frozen yoghurt", 159, 6.0, 24, 4.0),
-  createData("Ice cream sandwich", 237, 9.0, 37, 4.3),
-  createData("Eclair", 262, 16.0, 24, 6.0),
-  createData("Cupcake", 305, 3.7, 67, 4.3),
-  createData("Gingerbread", 356, 16.0, 49, 3.9),
-];
 
 function loggedIn() {
   return (
@@ -119,40 +98,34 @@ function loggedIn() {
   );
 }
 
-async function setUrlFunc() {
-  const temp = await getWithExpiry("url");
-  if (!temp) {
-    oauthPlexLink();
-  }
-  return temp;
+function createData(
+  name: string,
+  calories: number,
+  fat: number,
+  carbs: number,
+  protein: number
+) {
+  return { name, calories, fat, carbs, protein };
 }
 
-export function PageA() {
-  const [url, setUrl] = useState("");
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [loading, setLoading] = useState(false);
+const rows = [
+  createData("Frozen yoghurt", 159, 6.0, 24, 4.0),
+  createData("Ice cream sandwich", 237, 9.0, 37, 4.3),
+  createData("Eclair", 262, 16.0, 24, 6.0),
+  createData("Cupcake", 305, 3.7, 67, 4.3),
+  createData("Gingerbread", 356, 16.0, 49, 3.9),
+];
 
-  useEffect(() => {
-    funcLoggedIn().then((resp) => {
-      if (resp.data.logged_in_as) {
-        setIsLoggedIn(true);
-      }
-      setLoading(true);
-    });
-
-    setUrlFunc().then((resp: any) => {
-      setUrl(resp);
-    });
-    
-  }, [isLoggedIn]);
+export function Home() {
+  const context: Dict = useOutletContext();
 
   return (
     <>
-      {loading ? (
-        isLoggedIn ? (
+      {context.loading ? (
+        context.isLoggedIn ? (
           loggedIn()
-        ) : url ? (
-          notLoggedIn(url)
+        ) : context.url ? (
+          notLoggedIn(context.url)
         ) : (
           <div />
         )
