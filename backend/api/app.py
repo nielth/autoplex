@@ -1,5 +1,8 @@
 import requests
 import xmltodict
+import json
+
+from pathlib import Path
 
 from flask import Flask
 from flask import jsonify
@@ -105,6 +108,24 @@ def logout_with_cookies():
     unset_jwt_cookies(response)
     return response
 
+@app.route("/search", methods=["POST"])
+@jwt_required()
+def search_torrent():
+    data = request.json
+    session = requests.session()
+    cookies = json.loads(Path("cookies.json").read_text())
+    cookies = requests.utils.cookiejar_from_dict(cookies) 
+    session.cookies.update(cookies) 
+    data = session.get("https://www.torrentleech.org/torrents/browse/list/categories/15,12,14,37,29,26,32,27/query/ga")
+    response = jsonify(data.json())
+    return response
+
+@app.route("/download", methods=["POST"])
+@jwt_required()
+def retrieve_torrent():
+    data = request.json
+    response = jsonify({"msg": "torrent received"})
+    return response
 
 def req(url):
     try:

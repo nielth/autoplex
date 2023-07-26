@@ -18,6 +18,8 @@ import { styled } from "@mui/material/styles";
 import TextField from "@mui/material/TextField";
 import torrentList from "./data.json";
 import ArrowCircleDownIcon from "@mui/icons-material/ArrowCircleDown";
+import { torrentPost, torrentSearch } from "../api/auth";
+import { useState } from "react";
 
 const StyledTableCell = styled(TableCell)(({ theme }) => ({
   [`&.${tableCellClasses.head}`]: {},
@@ -118,6 +120,13 @@ function formatBytes(bytes: number, decimals = 2) {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
 }
 
+async function torrentDownload() {
+  const resp: any = await torrentPost();
+  if (resp) {
+    return true;
+  }
+}
+
 function data() {
   return (
     <>
@@ -146,7 +155,13 @@ function data() {
                     </StyledTableCell>
                     <StyledTableCell align="center" component="th" scope="row">
                       <Button
-                        sx={{ "&:hover": { backgroundColor: "inherit" }, '.MuiTouchRipple-root span': {backgroundColor: 'inherit'} }}
+                        onClick={torrentDownload}
+                        sx={{
+                          "&:hover": { backgroundColor: "inherit" },
+                          ".MuiTouchRipple-root span": {
+                            backgroundColor: "inherit",
+                          },
+                        }}
                       >
                         <ArrowCircleDownIcon
                           fontSize="medium"
@@ -178,6 +193,12 @@ function data() {
 }
 
 function searchBox() {
+  const handleKeyDown = (event:any) => {
+    if (event.key === 'Enter') {
+      torrentSearch(event.target.value)
+    }
+  };
+
   return (
     <>
       <div className="serach-bar">
@@ -188,6 +209,7 @@ function searchBox() {
               variant="outlined"
               placeholder="Search movie or show"
               fullWidth
+              onKeyDown={handleKeyDown}
               label="Search"
               sx={{
                 border: "1px solid #c17f34",
@@ -207,7 +229,6 @@ function loggedIn() {
 
 export function Home() {
   const context: Dict = useOutletContext();
-  console.log(torrentList.torrentList);
 
   return (
     <>
