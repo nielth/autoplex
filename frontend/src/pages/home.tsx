@@ -19,29 +19,19 @@ import TextField from "@mui/material/TextField";
 import torrentList from "./data.json";
 import ArrowCircleDownIcon from "@mui/icons-material/ArrowCircleDown";
 import { torrentPost, torrentSearch } from "../api/auth";
-import { useState } from "react";
+import { formatBytes } from "../components/formatBytes";
 
 const StyledTableCell = styled(TableCell)(({ theme }) => ({
   [`&.${tableCellClasses.head}`]: {},
   [`&.${tableCellClasses.body}`]: {
-    fontSize: 13,
+    fontSize: 15,
   },
   color: "#e7edf2",
   borderBottom: "1px solid #161b22",
+  lineHeight: "21px",
 }));
 
-const StyledTableRow = styled(TableRow)(({ theme }) => ({
-  textAlign: "center",
-  // "&:nth-of-type(odd)": {
-  //   backgroundColor: "transparent",
-  // },
-  "&:last-child td, &:last-child th": {
-    border: 0,
-  },
-}));
-
-const StyledTableHead = styled(TableHead)(({ theme }) => ({}));
-
+  
 function notLoggedIn(url: string) {
   return (
     <div>
@@ -98,28 +88,6 @@ const rows = [
   createData("Gingerbread", 356, 16.0, 49, 3.9),
 ];
 
-function formatBytes(bytes: number, decimals = 2) {
-  if (!+bytes) return "0 Bytes";
-
-  const k = 1024;
-  const dm = decimals < 0 ? 0 : decimals;
-  const sizes = [
-    "Bytes",
-    "KiB",
-    "MiB",
-    "GiB",
-    "TiB",
-    "PiB",
-    "EiB",
-    "ZiB",
-    "YiB",
-  ];
-
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
-}
-
 async function torrentDownload() {
   const resp: any = await torrentPost();
   if (resp) {
@@ -127,7 +95,28 @@ async function torrentDownload() {
   }
 }
 
-function data() {
+function freeleech(tags: any) {
+  if (tags.includes("FREELEECH")) {
+    return (
+      <>
+        <span
+          style={{
+            color: "#4d4d4d",
+            backgroundColor: "#FFDF00",
+            fontWeight: "500",
+            border: "3px solid #FFDF00",
+            borderRadius: "2px",
+            margin: "0 10px",
+          }}
+        >
+          FREELEECH
+        </span>
+      </>
+    );
+  }
+}
+
+function torrentTable() {
   return (
     <>
       <div className="data">
@@ -141,17 +130,23 @@ function data() {
                 <TableRow>
                   <StyledTableCell align="center">Torrent Name</StyledTableCell>
                   <StyledTableCell align="center"></StyledTableCell>
-                  <StyledTableCell align="center">Added</StyledTableCell>
-                  <StyledTableCell align="center">Size</StyledTableCell>
-                  <StyledTableCell align="center">Completed</StyledTableCell>
+                  <StyledTableCell align="center" sx={{ minWidth: "100px;" }}>
+                    Size
+                  </StyledTableCell>
                   <StyledTableCell align="center">Seeders</StyledTableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {torrentList.torrentList.map((row) => (
-                  <StyledTableRow key={row.fid}>
+                  <TableRow key={row.fid}>
                     <StyledTableCell component="th" scope="row">
-                      {row.name}
+                      <div>
+                        {row.name}
+                        {freeleech(row.tags)}
+                      </div>
+                      <div style={{ color: "#978f8f", fontSize: "12px" }}>
+                        Added: {row.addedTimestamp} | Completed: {row.completed}
+                      </div>
                     </StyledTableCell>
                     <StyledTableCell align="center" component="th" scope="row">
                       <Button
@@ -169,19 +164,13 @@ function data() {
                         />
                       </Button>
                     </StyledTableCell>
-                    <StyledTableCell align="center" component="th" scope="row">
-                      {row.addedTimestamp}
-                    </StyledTableCell>
-                    <StyledTableCell align="center" component="th" scope="row">
+                    <StyledTableCell align="right" component="th" scope="row">
                       {formatBytes(row.size)}
-                    </StyledTableCell>
-                    <StyledTableCell align="center" component="th" scope="row">
-                      {row.completed}
                     </StyledTableCell>
                     <StyledTableCell align="center" component="th" scope="row">
                       {row.seeders}
                     </StyledTableCell>
-                  </StyledTableRow>
+                  </TableRow>
                 ))}
               </TableBody>
             </Table>
@@ -192,13 +181,12 @@ function data() {
   );
 }
 
-function searchBox() {
-  const handleKeyDown = (event:any) => {
-    if (event.key === 'Enter') {
-      torrentSearch(event.target.value)
+function loggedIn() {
+  const handleKeyDown = (event: any) => {
+    if (event.key === "Enter") {
+      torrentSearch(encodeURI(event.target.value));
     }
   };
-
   return (
     <>
       <div className="serach-bar">
@@ -218,13 +206,9 @@ function searchBox() {
           </div>
         </div>
       </div>
-      {data()}
+      {torrentTable()}
     </>
   );
-}
-
-function loggedIn() {
-  return <>{searchBox()}</>;
 }
 
 export function Home() {

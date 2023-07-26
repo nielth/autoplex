@@ -11,3 +11,4 @@ app/user.db
 ./.git
 devops
 cookies.json
+data.json
