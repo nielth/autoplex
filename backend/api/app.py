@@ -144,7 +144,7 @@ def temp():
         return ""
 
     server_req = req(
-        "http://193.29.107.103:38983/accounts/?X-Plex-Token=nWWbRwG4matE1jXjBimL")
+        "http://193.29.107.103:43577/accounts/?X-Plex-Token=nWWbRwG4matE1jXjBimL")
     if server_req.status_code == 200:
         server_dump = xmltodict.parse(server_req.content)
     else:

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { login } from "../api/auth";
 import { PAYLOAD } from "../components/payload";
 import { useNavigate, useOutletContext } from "react-router-dom";

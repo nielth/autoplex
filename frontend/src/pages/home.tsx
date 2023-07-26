@@ -13,8 +13,32 @@ import {
   Table,
 } from "@mui/material";
 import { Dict } from "styled-components/dist/types";
-import { useEffect, useState } from "react";
-import { funcLoggedIn } from "../api/auth";
+import { tableCellClasses } from "@mui/material/TableCell";
+import { styled } from "@mui/material/styles";
+import TextField from "@mui/material/TextField";
+import torrentList from "./data.json";
+import ArrowCircleDownIcon from "@mui/icons-material/ArrowCircleDown";
+
+const StyledTableCell = styled(TableCell)(({ theme }) => ({
+  [`&.${tableCellClasses.head}`]: {},
+  [`&.${tableCellClasses.body}`]: {
+    fontSize: 13,
+  },
+  color: "#e7edf2",
+  borderBottom: "1px solid #161b22",
+}));
+
+const StyledTableRow = styled(TableRow)(({ theme }) => ({
+  textAlign: "center",
+  // "&:nth-of-type(odd)": {
+  //   backgroundColor: "transparent",
+  // },
+  "&:last-child td, &:last-child th": {
+    border: 0,
+  },
+}));
+
+const StyledTableHead = styled(TableHead)(({ theme }) => ({}));
 
 function notLoggedIn(url: string) {
   return (
@@ -54,50 +78,6 @@ function notLoggedIn(url: string) {
   );
 }
 
-function loggedIn() {
-  return (
-    <>
-      <div id="pageContainer">
-        <div id="table">
-          <TableContainer component={Paper}>
-            <Table
-              sx={{ minWidth: 650 }}
-              size="small"
-              aria-label="a dense table"
-            >
-              <TableHead>
-                <TableRow>
-                  <TableCell>Dessert (100g serving)</TableCell>
-                  <TableCell align="right">Calories</TableCell>
-                  <TableCell align="right">Fat&nbsp;(g)</TableCell>
-                  <TableCell align="right">Carbs&nbsp;(g)</TableCell>
-                  <TableCell align="right">Protein&nbsp;(g)</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {rows.map((row) => (
-                  <TableRow
-                    key={row.name}
-                    sx={{ "&:last-child td, &:last-child th": { border: 0 } }}
-                  >
-                    <TableCell component="th" scope="row">
-                      {row.name}
-                    </TableCell>
-                    <TableCell align="right">{row.calories}</TableCell>
-                    <TableCell align="right">{row.fat}</TableCell>
-                    <TableCell align="right">{row.carbs}</TableCell>
-                    <TableCell align="right">{row.protein}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </div>
-      </div>
-    </>
-  );
-}
-
 function createData(
   name: string,
   calories: number,
@@ -116,8 +96,118 @@ const rows = [
   createData("Gingerbread", 356, 16.0, 49, 3.9),
 ];
 
+function formatBytes(bytes: number, decimals = 2) {
+  if (!+bytes) return "0 Bytes";
+
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = [
+    "Bytes",
+    "KiB",
+    "MiB",
+    "GiB",
+    "TiB",
+    "PiB",
+    "EiB",
+    "ZiB",
+    "YiB",
+  ];
+
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+}
+
+function data() {
+  return (
+    <>
+      <div className="data">
+        <div id="table">
+          <TableContainer
+            component={Paper}
+            sx={{ backgroundColor: "transparent", border: "1px solid #30363d" }}
+          >
+            <Table sx={{ minWidth: 700 }} aria-label="customized table">
+              <TableHead sx={{ backgroundColor: "#161b22" }}>
+                <TableRow>
+                  <StyledTableCell align="center">Torrent Name</StyledTableCell>
+                  <StyledTableCell align="center"></StyledTableCell>
+                  <StyledTableCell align="center">Added</StyledTableCell>
+                  <StyledTableCell align="center">Size</StyledTableCell>
+                  <StyledTableCell align="center">Completed</StyledTableCell>
+                  <StyledTableCell align="center">Seeders</StyledTableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {torrentList.torrentList.map((row) => (
+                  <StyledTableRow key={row.fid}>
+                    <StyledTableCell component="th" scope="row">
+                      {row.name}
+                    </StyledTableCell>
+                    <StyledTableCell align="center" component="th" scope="row">
+                      <Button
+                        sx={{ "&:hover": { backgroundColor: "inherit" }, '.MuiTouchRipple-root span': {backgroundColor: 'inherit'} }}
+                      >
+                        <ArrowCircleDownIcon
+                          fontSize="medium"
+                          sx={{ verticalAlign: "bottom", color: "green" }}
+                        />
+                      </Button>
+                    </StyledTableCell>
+                    <StyledTableCell align="center" component="th" scope="row">
+                      {row.addedTimestamp}
+                    </StyledTableCell>
+                    <StyledTableCell align="center" component="th" scope="row">
+                      {formatBytes(row.size)}
+                    </StyledTableCell>
+                    <StyledTableCell align="center" component="th" scope="row">
+                      {row.completed}
+                    </StyledTableCell>
+                    <StyledTableCell align="center" component="th" scope="row">
+                      {row.seeders}
+                    </StyledTableCell>
+                  </StyledTableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function searchBox() {
+  return (
+    <>
+      <div className="serach-bar">
+        <div className="main">
+          <div className="search">
+            <TextField
+              id="outlined-basic"
+              variant="outlined"
+              placeholder="Search movie or show"
+              fullWidth
+              label="Search"
+              sx={{
+                border: "1px solid #c17f34",
+              }}
+            />
+          </div>
+        </div>
+      </div>
+      {data()}
+    </>
+  );
+}
+
+function loggedIn() {
+  return <>{searchBox()}</>;
+}
+
 export function Home() {
   const context: Dict = useOutletContext();
+  console.log(torrentList.torrentList);
 
   return (
     <>
