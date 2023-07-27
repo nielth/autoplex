@@ -16,10 +16,10 @@ import { Dict } from "styled-components/dist/types";
 import { tableCellClasses } from "@mui/material/TableCell";
 import { styled } from "@mui/material/styles";
 import TextField from "@mui/material/TextField";
-import torrentList from "./data.json";
 import ArrowCircleDownIcon from "@mui/icons-material/ArrowCircleDown";
 import { torrentPost, torrentSearch } from "../api/auth";
 import { formatBytes } from "../components/formatBytes";
+import { useEffect, useState } from "react";
 
 const StyledTableCell = styled(TableCell)(({ theme }) => ({
   [`&.${tableCellClasses.head}`]: {},
@@ -31,8 +31,8 @@ const StyledTableCell = styled(TableCell)(({ theme }) => ({
   lineHeight: "21px",
 }));
 
-  
-function notLoggedIn(url: string) {
+export function NotLoggedIn(context:any) {
+  console.log(context.url)
   return (
     <div>
       <div className="PageContainer">
@@ -58,7 +58,7 @@ function notLoggedIn(url: string) {
             onClick={function () {
               localStorage.removeItem("url");
             }}
-            href={url}
+            href={context.url}
             size="large"
             color="plex_col"
           >
@@ -69,24 +69,6 @@ function notLoggedIn(url: string) {
     </div>
   );
 }
-
-function createData(
-  name: string,
-  calories: number,
-  fat: number,
-  carbs: number,
-  protein: number
-) {
-  return { name, calories, fat, carbs, protein };
-}
-
-const rows = [
-  createData("Frozen yoghurt", 159, 6.0, 24, 4.0),
-  createData("Ice cream sandwich", 237, 9.0, 37, 4.3),
-  createData("Eclair", 262, 16.0, 24, 6.0),
-  createData("Cupcake", 305, 3.7, 67, 4.3),
-  createData("Gingerbread", 356, 16.0, 49, 3.9),
-];
 
 async function torrentDownload() {
   const resp: any = await torrentPost();
@@ -116,80 +98,21 @@ function freeleech(tags: any) {
   }
 }
 
-function torrentTable() {
-  return (
-    <>
-      <div className="data">
-        <div id="table">
-          <TableContainer
-            component={Paper}
-            sx={{ backgroundColor: "transparent", border: "1px solid #30363d" }}
-          >
-            <Table sx={{ minWidth: 700 }} aria-label="customized table">
-              <TableHead sx={{ backgroundColor: "#161b22" }}>
-                <TableRow>
-                  <StyledTableCell align="center">Torrent Name</StyledTableCell>
-                  <StyledTableCell align="center"></StyledTableCell>
-                  <StyledTableCell align="center" sx={{ minWidth: "100px;" }}>
-                    Size
-                  </StyledTableCell>
-                  <StyledTableCell align="center">Seeders</StyledTableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {torrentList.torrentList.map((row) => (
-                  <TableRow key={row.fid}>
-                    <StyledTableCell component="th" scope="row">
-                      <div>
-                        {row.name}
-                        {freeleech(row.tags)}
-                      </div>
-                      <div style={{ color: "#978f8f", fontSize: "12px" }}>
-                        Added: {row.addedTimestamp} | Completed: {row.completed}
-                      </div>
-                    </StyledTableCell>
-                    <StyledTableCell align="center" component="th" scope="row">
-                      <Button
-                        onClick={torrentDownload}
-                        sx={{
-                          "&:hover": { backgroundColor: "inherit" },
-                          ".MuiTouchRipple-root span": {
-                            backgroundColor: "inherit",
-                          },
-                        }}
-                      >
-                        <ArrowCircleDownIcon
-                          fontSize="medium"
-                          sx={{ verticalAlign: "bottom", color: "green" }}
-                        />
-                      </Button>
-                    </StyledTableCell>
-                    <StyledTableCell align="right" component="th" scope="row">
-                      {formatBytes(row.size)}
-                    </StyledTableCell>
-                    <StyledTableCell align="center" component="th" scope="row">
-                      {row.seeders}
-                    </StyledTableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </div>
-      </div>
-    </>
-  );
-}
-
-function loggedIn() {
+export function LoggedIn() {
+  const [torrentList, setTorrentList] = useState<any>("");
   const handleKeyDown = (event: any) => {
     if (event.key === "Enter") {
-      torrentSearch(encodeURI(event.target.value));
+      torrentSearch(event.target.value).then((res: any) => {
+        setTorrentList(res);
+      });
     }
   };
+
+  useEffect(() => {}, [torrentList]);
+
   return (
     <>
-      <div className="serach-bar">
+      <div className="search-bar">
         <div className="main">
           <div className="search">
             <TextField
@@ -206,7 +129,82 @@ function loggedIn() {
           </div>
         </div>
       </div>
-      {torrentTable()}
+      {torrentList ? (
+        <div className="data">
+          <div id="table">
+            <TableContainer
+              component={Paper}
+              sx={{
+                backgroundColor: "transparent",
+                border: "1px solid #30363d",
+              }}
+            >
+              <Table sx={{ minWidth: 700 }} aria-label="customized table">
+                <TableHead sx={{ backgroundColor: "#161b22" }}>
+                  <TableRow>
+                    <StyledTableCell align="center">
+                      Torrent Name
+                    </StyledTableCell>
+                    <StyledTableCell align="center"></StyledTableCell>
+                    <StyledTableCell align="center" sx={{ minWidth: "100px;" }}>
+                      Size
+                    </StyledTableCell>
+                    <StyledTableCell align="center">Seeders</StyledTableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {torrentList!.torrentList.map((row: any) => (
+                    <TableRow key={row.fid}>
+                      <StyledTableCell component="th" scope="row">
+                        <div>
+                          {row.name}
+                          {freeleech(row.tags)}
+                        </div>
+                        <div style={{ color: "#978f8f", fontSize: "12px" }}>
+                          Added: {row.addedTimestamp} | Completed:{" "}
+                          {row.completed}
+                        </div>
+                      </StyledTableCell>
+                      <StyledTableCell
+                        align="center"
+                        component="th"
+                        scope="row"
+                      >
+                        <Button
+                          onClick={torrentDownload}
+                          sx={{
+                            "&:hover": { backgroundColor: "inherit" },
+                            ".MuiTouchRipple-root span": {
+                              backgroundColor: "inherit",
+                            },
+                          }}
+                        >
+                          <ArrowCircleDownIcon
+                            fontSize="medium"
+                            sx={{ verticalAlign: "bottom", color: "green" }}
+                          />
+                        </Button>
+                      </StyledTableCell>
+                      <StyledTableCell align="right" component="th" scope="row">
+                        {formatBytes(row.size)}
+                      </StyledTableCell>
+                      <StyledTableCell
+                        align="center"
+                        component="th"
+                        scope="row"
+                      >
+                        {row.seeders}
+                      </StyledTableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </div>
+        </div>
+      ) : (
+        <div />
+      )}
     </>
   );
 }
@@ -218,9 +216,9 @@ export function Home() {
     <>
       {context.loading ? (
         context.isLoggedIn ? (
-          loggedIn()
+          <LoggedIn />
         ) : context.url ? (
-          notLoggedIn(context.url)
+          <NotLoggedIn url={context.url} />
         ) : (
           <div />
         )

@@ -99,30 +99,32 @@ export async function oauthPlexLink() {
 
 export async function torrentPost() {
   await axios
-    .post("http://localhost:5000/download", 
-    { test: "123" },
-    {
-      withCredentials: true,
-      headers: { "X-CSRF-TOKEN": getCookie("csrf_access_token") },
-    })
+    .post(
+      "http://localhost:5000/download",
+      { test: "123" },
+      {
+        withCredentials: true,
+        headers: { "X-CSRF-TOKEN": getCookie("csrf_access_token") },
+      }
+    )
     .then((res) => {
-      return true
-    }).catch(() => {
-      return false
+      return true;
     })
+    .catch(() => {
+      return false;
+    });
 }
 
-export async function torrentSearch(data:any) {
-  await axios
-    .post("http://localhost:5000/search", 
-    { data },
+export async function torrentSearch(data: any) {
+  const encodeData = encodeURI(data);
+  const response = await axios.post(
+    "http://localhost:5000/search",
+    { search: encodeData },
     {
       withCredentials: true,
       headers: { "X-CSRF-TOKEN": getCookie("csrf_access_token") },
-    })
-    .then((res) => {
-      return true
-    }).catch(() => {
-      return false
-    })
+    }
+  );
+
+  return response;
 }

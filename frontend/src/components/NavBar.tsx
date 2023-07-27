@@ -70,17 +70,18 @@ export function NavBar() {
                   </Button>
                 </Link>
               ))}
-              {
-                isLoggedIn ?
+              {isLoggedIn ? (
                 <Button
-                onClick={async () => {
-                  await logout();
-                  setIsLoggedIn(false);
-                }}
+                  onClick={async () => {
+                    await logout();
+                    setIsLoggedIn(false);
+                  }}
                 >
-                logout
-              </Button> : <div />
-              }
+                  logout
+                </Button>
+              ) : (
+                <div />
+              )}
             </Box>
           </Toolbar>
         </AppBar>

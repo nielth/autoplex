@@ -116,8 +116,8 @@ def search_torrent():
     cookies = json.loads(Path("cookies.json").read_text())
     cookies = requests.utils.cookiejar_from_dict(cookies) 
     session.cookies.update(cookies) 
-    data = session.get("https://www.torrentleech.org/torrents/browse/list/categories/15,12,14,37,29,26,32,27/query/ga")
-    response = jsonify(data.json())
+    torrent_data = session.get(f"https://www.torrentleech.org/torrents/browse/list/categories/37,43,14,12,47,15,29,26,32,27/query/{data['search']}/orderby/seeders/order/desc")
+    response = jsonify(torrent_data.json())
     return response
 
 @app.route("/download", methods=["POST"])
@@ -145,7 +145,7 @@ def req(url):
 
 
 @app.route("/authToken", methods=["POST"])
-def temp():
+def authToken():
     data = request.json
     if not "authToken" in data:
         return ""
