@@ -126,5 +126,5 @@ export async function torrentSearch(data: any) {
     }
   );
 
-  return response;
+  return response.data;
 }

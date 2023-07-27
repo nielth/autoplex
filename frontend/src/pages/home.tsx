@@ -108,8 +108,6 @@ export function LoggedIn() {
     }
   };
 
-  useEffect(() => {}, [torrentList]);
-
   return (
     <>
       <div className="search-bar">
