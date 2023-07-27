@@ -1,6 +1,7 @@
 import requests
 import xmltodict
 import json
+import shutil
 
 from pathlib import Path
 
@@ -25,6 +26,8 @@ from flask_jwt_extended import jwt_required
 from flask_jwt_extended import JWTManager
 from flask_jwt_extended import unset_jwt_cookies
 from flask_jwt_extended import verify_jwt_in_request
+
+from qbt.qbt import qbtTorrentDownload
 
 plex_auth = "https://plex.tv/users/account/?X-Plex-Token="
 
@@ -124,6 +127,13 @@ def search_torrent():
 @jwt_required()
 def retrieve_torrent():
     data = request.json
+    torrent_link = f"https://www.torrentleech.org/download/{data['fid']}/{data['filename']}"
+    session = requests.session()
+    cookies = json.loads(Path("cookies.json").read_text())
+    cookies = requests.utils.cookiejar_from_dict(cookies) 
+    session.cookies.update(cookies) 
+    response = session.get(torrent_link, stream=True)
+    qbtTorrentDownload(response.raw)
     response = jsonify({"msg": "torrent received"})
     return response
 

@@ -1,8 +1,11 @@
-version: '3'
+version: "3"
 services:
   api:
     build: ./backend
     container_name: flask-api
+    environment:
+      - QBT_USER=${QBT_USER}
+      - QBT_PASS=${QBT_PASS}
     volumes:
       - ./backend/api:/api
     ports:
@@ -15,7 +18,7 @@ services:
       - 5050:8080
     restart: always
   app-dev:
-    build: 
+    build:
       context: ./frontend
       dockerfile: development.Dockerfile
     container_name: node-dev
@@ -25,7 +28,7 @@ services:
     ports:
       - 3000:3000
   # app-prod:
-  #   build: 
+  #   build:
   #     context: ./frontend
   #     dockerfile: production.Dockerfile
   #   container_name: node-prod

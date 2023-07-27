@@ -31,8 +31,8 @@ const StyledTableCell = styled(TableCell)(({ theme }) => ({
   lineHeight: "21px",
 }));
 
-export function NotLoggedIn(context:any) {
-  console.log(context.url)
+export function NotLoggedIn(context: any) {
+  console.log(context.url);
   return (
     <div>
       <div className="PageContainer">
@@ -68,13 +68,6 @@ export function NotLoggedIn(context:any) {
       </div>
     </div>
   );
-}
-
-async function torrentDownload() {
-  const resp: any = await torrentPost();
-  if (resp) {
-    return true;
-  }
 }
 
 function freeleech(tags: any) {
@@ -144,14 +137,12 @@ export function LoggedIn() {
                       Torrent Name
                     </StyledTableCell>
                     <StyledTableCell align="center"></StyledTableCell>
-                    <StyledTableCell align="center" sx={{ minWidth: "100px;" }}>
-                      Size
-                    </StyledTableCell>
+                    <StyledTableCell align="center">Size</StyledTableCell>
                     <StyledTableCell align="center">Seeders</StyledTableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {torrentList!.torrentList.map((row: any) => (
+                  {torrentList.torrentList.map((row: any) => (
                     <TableRow key={row.fid}>
                       <StyledTableCell component="th" scope="row">
                         <div>
@@ -169,7 +160,7 @@ export function LoggedIn() {
                         scope="row"
                       >
                         <Button
-                          onClick={torrentDownload}
+                          onClick={() => torrentPost(row)}
                           sx={{
                             "&:hover": { backgroundColor: "inherit" },
                             ".MuiTouchRipple-root span": {
