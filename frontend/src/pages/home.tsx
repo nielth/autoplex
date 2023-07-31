@@ -1,219 +1,201 @@
-import "../styles.css";
-import { useOutletContext } from "react-router-dom";
-
-import Paper from "@mui/material/Paper";
+import { useState } from "react";
 import {
-  TableContainer,
-  TableHead,
-  TableRow,
-  TableCell,
-  TableBody,
+  AppBar,
+  Avatar,
   Box,
   Button,
-  Table,
+  Container,
+  IconButton,
+  Menu,
+  MenuItem,
+  Toolbar,
+  Tooltip,
+  Typography,
 } from "@mui/material";
-import { Dict } from "styled-components/dist/types";
-import { tableCellClasses } from "@mui/material/TableCell";
-import { styled } from "@mui/material/styles";
-import TextField from "@mui/material/TextField";
-import ArrowCircleDownIcon from "@mui/icons-material/ArrowCircleDown";
-import { torrentPost, torrentSearch } from "../api/auth";
-import { formatBytes } from "../components/formatBytes";
-import { useEffect, useState } from "react";
+import MenuIcon from "@mui/icons-material/Menu";
 
-const StyledTableCell = styled(TableCell)(({ theme }) => ({
-  [`&.${tableCellClasses.head}`]: {},
-  [`&.${tableCellClasses.body}`]: {
-    fontSize: 15,
-  },
-  color: "#e7edf2",
-  borderBottom: "1px solid #161b22",
-  lineHeight: "21px",
-}));
-
-export function NotLoggedIn(context: any) {
-  console.log(context.url);
-  return (
-    <div>
-      <div className="PageContainer">
-        <Box
-          height={1}
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            width: "300px",
-            backgroundColor: "#171b21",
-            borderColor: "#202429",
-            borderRadius: "7px",
-            borderStyle: "solid",
-            borderWidth: "1px",
-            minWidth: "400px",
-            minHeight: "400px",
-            margin: "auto",
-          }}
-        >
-          <Button
-            variant="outlined"
-            onClick={function () {
-              localStorage.removeItem("url");
-            }}
-            href={context.url}
-            size="large"
-            color="plex_col"
-          >
-            Continue with Plex
-          </Button>
-        </Box>
-      </div>
-    </div>
-  );
-}
-
-function freeleech(tags: any) {
-  if (tags.includes("FREELEECH")) {
-    return (
-      <>
-        <span
-          style={{
-            color: "#4d4d4d",
-            backgroundColor: "#FFDF00",
-            fontWeight: "500",
-            border: "3px solid #FFDF00",
-            borderRadius: "2px",
-            margin: "0 10px",
-          }}
-        >
-          FREELEECH
-        </span>
-      </>
-    );
+declare module "@mui/material/AppBar" {
+  interface AppBarPropsColorOverrides {
+    navbar: true;
   }
 }
 
-export function LoggedIn() {
-  const [torrentList, setTorrentList] = useState<any>("");
-  const handleKeyDown = (event: any) => {
-    if (event.key === "Enter") {
-      torrentSearch(event.target.value).then((res: any) => {
-        setTorrentList(res);
-      });
-    }
+const pages = ["Home", "Downloads", "Logs"];
+const settings = ["Profile", "Logout"];
+
+export function ResponsiveAppBar() {
+  const [anchorElNav, setAnchorElNav] = useState<null | HTMLElement>(null);
+  const [anchorElUser, setAnchorElUser] = useState<null | HTMLElement>(null);
+
+  const handleOpenNavMenu = (event: React.MouseEvent<HTMLElement>) => {
+    setAnchorElNav(event.currentTarget);
+  };
+  const handleOpenUserMenu = (event: React.MouseEvent<HTMLElement>) => {
+    setAnchorElUser(event.currentTarget);
+  };
+
+  const handleCloseNavMenu = () => {
+    setAnchorElNav(null);
+  };
+
+  const handleCloseUserMenu = () => {
+    setAnchorElUser(null);
   };
 
   return (
     <>
-      <div className="search-bar">
-        <div className="main">
-          <div className="search">
-            <TextField
-              id="outlined-basic"
-              variant="outlined"
-              placeholder="Search movie or show"
-              fullWidth
-              onKeyDown={handleKeyDown}
-              label="Search"
-              sx={{
-                border: "1px solid #c17f34",
-              }}
-            />
-          </div>
-        </div>
-      </div>
-      {torrentList ? (
-        <div className="data">
-          <div id="table">
-            <TableContainer
-              component={Paper}
-              sx={{
-                backgroundColor: "transparent",
-                border: "1px solid #30363d",
-              }}
+      <AppBar
+        color="navbar"
+        sx={{ borderBottom: "1px solid", borderColor: "border.main"}}
+        position="static"
+      >
+        <Container maxWidth="xl">
+          <Toolbar disableGutters>
+            <Button
+              href="/"
+              sx={{ display: { xs: "none", md: "flex" }, minHeight: 1 }}
+              size="large"
             >
-              <Table sx={{ minWidth: 700 }} aria-label="customized table">
-                <TableHead sx={{ backgroundColor: "#161b22" }}>
-                  <TableRow>
-                    <StyledTableCell align="center">
-                      Torrent Name
-                    </StyledTableCell>
-                    <StyledTableCell align="center"></StyledTableCell>
-                    <StyledTableCell align="center">Size</StyledTableCell>
-                    <StyledTableCell align="center">Seeders</StyledTableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {torrentList.torrentList.map((row: any) => (
-                    <TableRow key={row.fid}>
-                      <StyledTableCell component="th" scope="row">
-                        <div>
-                          {row.name}
-                          {freeleech(row.tags)}
-                        </div>
-                        <div style={{ color: "#978f8f", fontSize: "12px" }}>
-                          Added: {row.addedTimestamp} | Completed:{" "}
-                          {row.completed}
-                        </div>
-                      </StyledTableCell>
-                      <StyledTableCell
-                        align="center"
-                        component="th"
-                        scope="row"
-                      >
-                        <Button
-                          onClick={() => torrentPost(row)}
-                          sx={{
-                            "&:hover": { backgroundColor: "inherit" },
-                            ".MuiTouchRipple-root span": {
-                              backgroundColor: "inherit",
-                            },
-                          }}
-                        >
-                          <ArrowCircleDownIcon
-                            fontSize="medium"
-                            sx={{ verticalAlign: "bottom", color: "green" }}
-                          />
-                        </Button>
-                      </StyledTableCell>
-                      <StyledTableCell align="right" component="th" scope="row">
-                        {formatBytes(row.size)}
-                      </StyledTableCell>
-                      <StyledTableCell
-                        align="center"
-                        component="th"
-                        scope="row"
-                      >
-                        {row.seeders}
-                      </StyledTableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </div>
-        </div>
-      ) : (
-        <div />
-      )}
+              <Avatar
+                variant="square"
+                alt="AP"
+                src="/AP_trans.png"
+                sx={{ mr: 3 }}
+              />
+              <Typography
+                variant="h6"
+                noWrap
+                component="a"
+                sx={{
+                  mr: 1,
+                  display: { xs: "none", md: "flex" },
+
+                  fontWeight: 700,
+                  textDecoration: "none",
+                }}
+              >
+                Autoplex
+              </Typography>
+            </Button>
+
+            <Box sx={{ flexGrow: 1, display: { xs: "flex", md: "none" } }}>
+              <IconButton
+                size="large"
+                aria-label="account of current user"
+                aria-controls="menu-appbar"
+                aria-haspopup="true"
+                onClick={handleOpenNavMenu}
+                color="inherit"
+              >
+                <MenuIcon />
+              </IconButton>
+              <Menu
+                id="menu-appbar"
+                anchorEl={anchorElNav}
+                anchorOrigin={{
+                  vertical: "bottom",
+                  horizontal: "left",
+                }}
+                keepMounted
+                transformOrigin={{
+                  vertical: "top",
+                  horizontal: "left",
+                }}
+                open={Boolean(anchorElNav)}
+                onClose={handleCloseNavMenu}
+                sx={{
+                  display: { xs: "block", md: "none" },
+                }}
+              >
+                {pages.map((page) => (
+                  <MenuItem
+                    key={page}
+                    sx={{ color: "black" }}
+                    onClick={handleCloseNavMenu}
+                  >
+                    <Typography textAlign="center">{page}</Typography>
+                  </MenuItem>
+                ))}
+              </Menu>
+            </Box>
+            <Container
+              sx={{ flexGrow: 2, display: { xs: "flex", md: "none" } }}
+            >
+              <Button sx={{ m: "auto", textAlign: "center" }}>
+                <Avatar
+                  variant="square"
+                  alt="AP"
+                  src="/AP_trans.png"
+                  sx={{ mr: 2 }}
+                />
+                <Typography
+                  variant="h6"
+                  noWrap
+                  component="a"
+                  sx={{
+                    mr: 1,
+                    display: { xs: "flex", md: "none" },
+                    flexGrow: 1,
+                    fontWeight: 700,
+                    textDecoration: "none",
+                  }}
+                >
+                  Autoplex
+                </Typography>
+              </Button>
+            </Container>
+            <Box sx={{ flexGrow: 1, display: { xs: "none", md: "flex" } }}>
+              {pages.map((page) => (
+                <Button
+                  key={page}
+                  onClick={handleCloseNavMenu}
+                  sx={{ my: 2, color: "white", display: "block" }}
+                >
+                  {page}
+                </Button>
+              ))}
+            </Box>
+            <Box sx={{ flexGrow: 0 }}>
+              <Tooltip title="Open settings">
+                <IconButton onClick={handleOpenUserMenu} sx={{ p: 0 }}>
+                  <Avatar alt="Thomas" src="/static/images/avatar/2.jpg" />
+                </IconButton>
+              </Tooltip>
+              <Menu
+                sx={{ mt: "45px" }}
+                id="menu-appbar"
+                anchorEl={anchorElUser}
+                anchorOrigin={{
+                  vertical: "top",
+                  horizontal: "right",
+                }}
+                keepMounted
+                transformOrigin={{
+                  vertical: "top",
+                  horizontal: "right",
+                }}
+                open={Boolean(anchorElUser)}
+                onClose={handleCloseUserMenu}
+              >
+                {settings.map((setting) => (
+                  <MenuItem key={setting} onClick={handleCloseUserMenu} sx={{ color: "black" }}>
+                    <Typography textAlign="center">{setting}</Typography>
+                  </MenuItem>
+                ))}
+              </Menu>
+            </Box>
+          </Toolbar>
+        </Container>
+      </AppBar>
+      <Container maxWidth="xl">
+        <Typography>Hello</Typography>
+      </Container>
     </>
   );
 }
 
-export function Home() {
-  const context: Dict = useOutletContext();
-
-  return (
-    <>
-      {context.loading ? (
-        context.isLoggedIn ? (
-          <LoggedIn />
-        ) : context.url ? (
-          <NotLoggedIn url={context.url} />
-        ) : (
-          <div />
-        )
-      ) : (
-        <div />
-      )}
-    </>
-  );
+export function Home(){
+    return(
+        <ResponsiveAppBar />
+    )
 }

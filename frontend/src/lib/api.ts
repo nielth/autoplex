@@ -1,9 +1,10 @@
 import axios from "axios";
-import { PAYLOAD } from "../components/payload";
-import { getCookie } from "../components/getCookies";
-import { setWithExpiry } from "../components/localStorExpire";
-import { v4 as uuidv4 } from "uuid";
+import { v4 as uuidv4 } from 'uuid';
 import qs from "qs";
+
+import { PAYLOAD } from "../utils/payload";
+import { getCookie } from "../utils/getCookies";
+import { setWithExpiry } from "../utils/localStorExpire";
 
 export async function login(url_auth_code: string) {
   await axios

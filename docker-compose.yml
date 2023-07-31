@@ -20,18 +20,18 @@ services:
   app-dev:
     build:
       context: ./frontend
-      dockerfile: development.Dockerfile
+      dockerfile: dev.Dockerfile
     container_name: node-dev
     volumes:
       - ./frontend:/app
     restart: always
     ports:
       - 3000:3000
-  # app-prod:
-  #   build:
+  # nginx:
+  #   build: 
   #     context: ./frontend
-  #     dockerfile: production.Dockerfile
-  #   container_name: node-prod
-  #   restart: always
+  #     dockerfile: prod.Dockerfile
+  #   container_name: nginx
   #   ports:
-  #     - 3000:3000
+  #     - 8080:80
+  #   restart: always

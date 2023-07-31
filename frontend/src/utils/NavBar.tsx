@@ -1,8 +1,8 @@
 import { Box, AppBar, Button, Avatar, Toolbar } from "@mui/material";
 import { Outlet, Link } from "react-router-dom";
-import { logout, oauthPlexLink, funcLoggedIn } from "../api/auth";
+import { logout, oauthPlexLink, funcLoggedIn } from "../lib/api";
 import { useEffect, useState } from "react";
-import { getWithExpiry } from "../components/localStorExpire";
+import { getWithExpiry } from "../utils/localStorExpire";
 
 const arr = {
   Logs: "/logs",
@@ -51,8 +51,8 @@ export function NavBar() {
       >
         <AppBar position="static" elevation={0} sx={{ bgcolor: "inherit" }}>
           <Toolbar sx={{ height: 70 }}>
-            <Link to="/">
-              <Button sx={{ minHeight: 1 }} size="large">
+            
+              <Button href="/" sx={{ minHeight: 1 }} size="large">
                 <Avatar
                   variant="square"
                   alt="AP"
@@ -61,7 +61,7 @@ export function NavBar() {
                 />
                 autoplex
               </Button>
-            </Link>
+
             <Box sx={{ ml: "auto", mr: 0, height: "inherit" }}>
               {Object.entries(arr).map(([key, value]) => (
                 <Link to={value}>
