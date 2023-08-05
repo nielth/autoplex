@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   AppBar,
   Avatar,
@@ -13,6 +13,8 @@ import {
   Typography,
 } from "@mui/material";
 import MenuIcon from "@mui/icons-material/Menu";
+import { funcLoggedIn } from "../lib/api";
+import { Navigate, redirect } from "react-router-dom";
 
 declare module "@mui/material/AppBar" {
   interface AppBarPropsColorOverrides {
@@ -46,7 +48,7 @@ export function ResponsiveAppBar() {
     <>
       <AppBar
         color="navbar"
-        sx={{ borderBottom: "1px solid", borderColor: "border.main"}}
+        sx={{ borderBottom: "1px solid", borderColor: "border.main" }}
         position="static"
       >
         <Container maxWidth="xl">
@@ -178,7 +180,11 @@ export function ResponsiveAppBar() {
                 onClose={handleCloseUserMenu}
               >
                 {settings.map((setting) => (
-                  <MenuItem key={setting} onClick={handleCloseUserMenu} sx={{ color: "black" }}>
+                  <MenuItem
+                    key={setting}
+                    onClick={handleCloseUserMenu}
+                    sx={{ color: "black" }}
+                  >
                     <Typography textAlign="center">{setting}</Typography>
                   </MenuItem>
                 ))}
@@ -194,8 +200,31 @@ export function ResponsiveAppBar() {
   );
 }
 
-export function Home(){
-    return(
+export function Home() {
+  const [loading, setLoading] = useState(true);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  useEffect(() => {
+    setLoading(true)
+    funcLoggedIn().then((resp) => {
+      if (resp.data.logged_in_as) {
+        console.log(resp.data.logged_in_as)
+        setIsLoggedIn(true);
+      } else {
+      }
+      setLoading(false);
+    });
+  }, []);
+
+  return (
+    <>
+      {loading ? (
+        <div />
+      ) : isLoggedIn ? (
         <ResponsiveAppBar />
-    )
+      ) : (
+        <Navigate to={"/login"} replace={true} />
+      )}
+    </>
+  );
 }

@@ -31,7 +31,7 @@ services:
   #   build: 
   #     context: ./frontend
   #     dockerfile: prod.Dockerfile
-  #   container_name: nginx
+  #   container_name: app-prod
   #   ports:
   #     - 8080:80
   #   restart: always

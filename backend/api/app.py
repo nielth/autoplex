@@ -53,6 +53,23 @@ app.config["JWT_SECRET_KEY"] = "super-secret"  # Change this!
 
 jwt = JWTManager(app)
 
+
+def req(url):
+    try:
+        r = requests.get(
+            url, timeout=1, verify=True)
+        r.raise_for_status()
+    except requests.exceptions.HTTPError as errh:
+        print("HTTP Error")
+        print(errh.args[0])
+    except requests.exceptions.ReadTimeout as errrt:
+        print("Time out")
+    except requests.exceptions.ConnectionError as conerr:
+        print("Connection error")
+    except requests.exceptions.RequestException as errex:
+        print("Exception request")
+    return r
+
 # Using an `after_request` callback, we refresh any token that is within 30
 # minutes of expiring. Change the timedeltas to match the needs of your application.
 
@@ -79,18 +96,6 @@ def get_identity_if_logedin():
         pass
 
 
-@app.route("/hello", methods=["GET"])
-def hello():
-    current_user = get_jwt_identity()
-    # check if user is loged in
-    if current_user:
-        print("True")
-        return jsonify(logged_in_as=current_user), 200
-    else:
-        print("False")
-        return ""
-
-
 # Protect a route with jwt_required, which will kick out requests
 # without a valid JWT present.
 @app.route("/protected", methods=["GET", "POST"])
@@ -99,6 +104,7 @@ def protected():
     try:
         verify_jwt_in_request()
         current_user = get_jwt_identity()
+        print(current_user)
         return jsonify(logged_in_as=current_user), 200
     except:
         return ""
@@ -111,17 +117,20 @@ def logout_with_cookies():
     unset_jwt_cookies(response)
     return response
 
+
 @app.route("/search", methods=["POST"])
 @jwt_required()
 def search_torrent():
     data = request.json
     session = requests.session()
     cookies = json.loads(Path("cookies.json").read_text())
-    cookies = requests.utils.cookiejar_from_dict(cookies) 
-    session.cookies.update(cookies) 
-    torrent_data = session.get(f"https://www.torrentleech.org/torrents/browse/list/categories/37,43,14,12,47,15,29,26,32,27/query/{data['search']}/orderby/seeders/order/desc")
+    cookies = requests.utils.cookiejar_from_dict(cookies)
+    session.cookies.update(cookies)
+    torrent_data = session.get(
+        f"https://www.torrentleech.org/torrents/browse/list/categories/37,43,14,12,47,15,29,26,32,27/query/{data['search']}/orderby/seeders/order/desc")
     response = jsonify(torrent_data.json())
     return response
+
 
 @app.route("/download", methods=["POST"])
 @jwt_required()
@@ -130,56 +139,40 @@ def retrieve_torrent():
     torrent_link = f"https://www.torrentleech.org/download/{data['fid']}/{data['filename']}"
     session = requests.session()
     cookies = json.loads(Path("cookies.json").read_text())
-    cookies = requests.utils.cookiejar_from_dict(cookies) 
-    session.cookies.update(cookies) 
+    cookies = requests.utils.cookiejar_from_dict(cookies)
+    session.cookies.update(cookies)
     response = session.get(torrent_link, stream=True)
     qbtTorrentDownload(response.raw)
     response = jsonify({"msg": "torrent received"})
     return response
-
-def req(url):
-    try:
-        r = requests.get(
-            url, timeout=1, verify=True)
-        r.raise_for_status()
-    except requests.exceptions.HTTPError as errh:
-        print("HTTP Error")
-        print(errh.args[0])
-    except requests.exceptions.ReadTimeout as errrt:
-        print("Time out")
-    except requests.exceptions.ConnectionError as conerr:
-        print("Connection error")
-    except requests.exceptions.RequestException as errex:
-        print("Exception request")
-    return r
 
 
 @app.route("/authToken", methods=["POST"])
 def authToken():
     data = request.json
     if not "authToken" in data:
-        return ""
+        return "No authToken", 401
 
     user_req = req(plex_auth + data['authToken'])
 
     if user_req.status_code == 200:
         user_dump = xmltodict.parse(user_req.content)
     else:
-        return ""
+        return f"could not connect to: {plex_auth}", 401
     if user_dump['user']['@id'] and user_dump['user']['@username']:
         user = user_dump['user']['@username']
         uid = user_dump['user']['@id']
     elif user_dump['user']['@id']:
         uid = user_dump['user']['@id']
     else:
-        return ""
+        return "Could not find user on server", 401
 
     server_req = req(
-        "http://193.29.107.103:43577/accounts/?X-Plex-Token=nWWbRwG4matE1jXjBimL")
+        "http://178.232.41.76:32444/accounts/?X-Plex-Token=nWWbRwG4matE1jXjBimL")
     if server_req.status_code == 200:
         server_dump = xmltodict.parse(server_req.content)
     else:
-        return ""
+        return "Could not connect to http://178.232.41.76:32444", 401
 
     for server_user in server_dump['MediaContainer']['Account']:
         if uid == server_user['@id'] or user == server_user['@name']:
