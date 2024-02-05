@@ -2,8 +2,16 @@ FROM python:3-alpine
 
 WORKDIR /api
 
+RUN apk add --no-cache tzdata
+ENV TZ=Europe/Oslo
+
+ENV MYSQL_HOST=$MYSQL_HOST
+ENV MYSQL_USER=$MYSQL_USER
+ENV MYSQL_PASSWORD=$MYSQL_PASSWORD
+ENV MYSQL_DATABASE=$MYSQL_DATABASE
+
 COPY ./api .
 
-RUN pip3 install -r requirements.txt
+RUN pip install -r requirements.txt
 
-CMD [ "python3", "-u", "app.py" ]
+CMD [ "python", "-u", "api.py" ]
