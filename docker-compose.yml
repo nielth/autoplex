@@ -1,37 +1,49 @@
 version: "3"
+
 services:
-  api:
+  flask-api:
     build: ./backend
-    container_name: flask-api
     environment:
-      - QBT_USER=${QBT_USER}
-      - QBT_PASS=${QBT_PASS}
+      - MYSQL_HOST=${MYSQL_HOST}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+    container_name: flask-api
     volumes:
       - ./backend/api:/api
-    ports:
-      - 5000:5000
+    # ports:
+    #   - 5000:5000
     restart: always
-  torrent-api:
-    build: ./torrent-api
-    container_name: torrent-api
-    ports:
-      - 5050:8080
-    restart: always
-  app-dev:
-    build:
-      context: ./frontend
-      dockerfile: dev.Dockerfile
+  mysql:
+    platform: linux/amd64
+    container_name: mysql-database
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+    # ports:
+    #   - 3306:3306
+  node-dev:
+    image: node:18-alpine
     container_name: node-dev
+    working_dir: "/app"
+    depends_on:
+      - flask-api
     volumes:
       - ./frontend:/app
     restart: always
-    ports:
-      - 3000:3000
-  # nginx:
-  #   build: 
-  #     context: ./frontend
-  #     dockerfile: prod.Dockerfile
-  #   container_name: app-prod
+    command: sh -c "yarn && yarn start"
   #   ports:
-  #     - 8080:80
-  #   restart: always
+  #     - 3000:3000
+  node-prod:
+    build:
+      context: ./
+      dockerfile: Dockerfile
+    depends_on:
+      - flask-api
+    container_name: node-prod
+    restart: always
+    ports:
+      - 8081:80
