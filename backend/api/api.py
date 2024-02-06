@@ -41,7 +41,7 @@ CODES_URL = "https://plex.tv/api/v2/pins.json?strong=true"
 AUTH_URL = "https://app.plex.tv/auth#!?{}"
 TOKEN_URL = "https://plex.tv/api/v2/pins/{}"
 ACCOUNT_URL = "https://plex.tv/users/account/?X-Plex-Token={}"
-SERVER_URL = "http://nielth.com:32444/accounts/?X-Plex-Token="
+SERVER_URL = "http://nielth.com:32444/accounts/?X-Plex-Token=9-2mk1MYy6BRgcGoG6SS"
 
 PAYLOAD = {
     "X-Plex-Product": "Plex Auth App (Autoplex)",
@@ -181,9 +181,8 @@ async def call(token: str):
     for account in server_resp.findall("Account"):
         server_name = account.get("name")
         server_id = account.get("id")
-        print(username, server_name)
         if server_name in (username, email) or server_id == uid:
-            return True
+            return True, username
 
     return False
 
@@ -193,8 +192,11 @@ async def callback():
     identifier = request.cookies.get("identifier")
     client_identifier = request.cookies.get("client_identifier")
     token = await test_2(identifier=identifier, client_identifier=client_identifier)
-    test = await call(token=token)
-    return jsonify({"test": test})
+    test, username = await call(token=token)
+    response = jsonify(logged_in_as=username, logged_in=test)
+    access_token = create_access_token(identity=username)
+    set_access_cookies(response, access_token)
+    return response
 
 
 def req(url):

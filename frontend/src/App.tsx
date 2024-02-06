@@ -11,6 +11,7 @@ import axios from "axios";
 import Layout from "./pages/Layout";
 import LoginPage from "./pages/Login";
 import Callback from "./pages/Callback";
+import Home from "./pages/Home";
 
 export default function App() {
   return (
@@ -25,7 +26,9 @@ export default function App() {
                   <Layout />
                 </RequireAuth>
               }
-            />
+            >
+              <Route index element={<Home />} />
+            </Route>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/callback" element={<Callback />} />
           </Routes>
