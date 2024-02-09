@@ -8,6 +8,8 @@ services:
       - MYSQL_USER=${MYSQL_USER}
       - MYSQL_PASSWORD=${MYSQL_PASSWORD}
       - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - QBT_USER=${QBT_USER}
+      - QBT_PASS=${QBT_PASS}
     container_name: flask-api
     volumes:
       - ./backend/api:/api
