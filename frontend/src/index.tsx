@@ -9,19 +9,16 @@ const theme = createTheme({
     MuiCssBaseline: {
       styleOverrides: {
         body: {
-          backgroundColor: "#010409",
+          backgroundColor: "#0d1117",
+          color: "#fff",
         },
       },
     },
-    MuiButtonBase: {
+    MuiAppBar: {
       styleOverrides: {
         root: {
-          backgroundColor: "#e5a00d",
-          "&:hover": {
-            backgroundColor: "inherit",
-            color: "#e5a00d",
-            border: "1px solid #30363d",
-          },
+          backgroundColor: "#010409",
+          borderBottom: "1px solid #30363d",
         },
       },
     },
@@ -34,7 +31,7 @@ const root = ReactDOM.createRoot(
 root.render(
   <React.StrictMode>
     <ThemeProvider theme={theme}>
-      <CssBaseline />
+      <CssBaseline enableColorScheme />
       <App />
     </ThemeProvider>
   </React.StrictMode>

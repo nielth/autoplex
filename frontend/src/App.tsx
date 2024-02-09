@@ -40,12 +40,7 @@ export default function App() {
 
 interface AuthContextType {
   user: any;
-  setUser: any;
-  signin: (
-    user: string,
-    password: string,
-    callback: (success: boolean) => void
-  ) => void;
+  signin: (callback: (success: number) => void) => void;
   signout: (callback: VoidFunction) => void;
 }
 
@@ -76,24 +71,18 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
     })();
   }, []);
 
-  let signin = (
-    user: string,
-    password: string,
-    callback: (success: boolean) => void
-  ) => {
+  let signin = (callback: (success: number) => void) => {
     axios
-      .post("/api/login", {
-        username: user,
-        password: password,
-      })
-      .then((resp) => {
+      .get("/api/callback")
+      .then((resp: any) => {
         if (resp.status === 200) {
-          setUser(user);
-          callback(true);
+          setUser(resp.data.logged_in_as);
+          callback(0);
         }
       })
-      .catch(() => {
-        callback(false);
+      .catch((error) => {
+        console.log(error.status);
+        callback(error.status);
       });
   };
 
@@ -104,7 +93,7 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
         "Content-Type": "application/json",
       },
     };
-    axios.post("/api/logout", "", config).then((resp) => {
+    axios.get("/api/logout", config).then((resp) => {
       if (resp.status === 200) {
         setUser(null);
         callback();
@@ -112,7 +101,7 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
-  let value = { user, setUser, signin, signout };
+  let value = { user, signin, signout };
 
   return (
     <>

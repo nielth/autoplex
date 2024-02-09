@@ -279,3 +279,5 @@ $RECYCLE.BIN/
 # .pnp.*
 
 # End of https://www.toptal.com/developers/gitignore/api/macos,python,yarn,react,windows,linux
+
+cookies.json

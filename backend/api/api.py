@@ -55,119 +55,70 @@ PAYLOAD = {
 }
 
 
-class PlexAuth:
-    def __init__(
-        self,
-        payload,
-        session=None,
-        headers=None,
-        base_url: str = None,
-        identifier: str = None,
-        client_identifier=str(uuid4()),
-    ):
-        """Create PlexAuth instance."""
-        self.client_identifier = client_identifier
-        self._code = None
-        self._headers = headers
-        self._identifier = identifier
-        self._payload = payload
-        self._base_url = base_url
-        self._payload["X-Plex-Client-Identifier"] = self.client_identifier
+async def initiate_auth(
+    forward_url: str,
+    client_identifier=str(uuid4()),
+):
+    payload = PAYLOAD
+    payload["X-Plex-Client-Identifier"] = client_identifier
 
-        self._local_session = False
-        self._session = session
-        if session is None:
-            self._session = aiohttp.ClientSession()
-            self._local_session = True
+    async with aiohttp.ClientSession().post(
+        CODES_URL, data=payload, headers=None
+    ) as resp:
+        response = await resp.json()
+        code = response["code"]
+        identifier = response["id"]
+    parameters = {
+        "clientID": client_identifier,
+        "code": code,
+    }
+    if forward_url:
+        parameters["forwardUrl"] = forward_url
 
-    async def initiate_auth(self):
-        """Request codes needed to create an auth URL. Starts external timeout."""
-        async with self._session.post(
-            CODES_URL, data=self._payload, headers=self._headers
-        ) as resp:
-            response = await resp.json()
-            self._code = response["code"]
-            self._identifier = response["id"]
+    url = AUTH_URL.format(urllib.parse.urlencode(parameters))
+    return url, identifier, client_identifier
 
-    def auth_url(self, forward_url=None):
-        """Return an auth URL for the user to follow."""
-        parameters = {
-            "clientID": self.client_identifier,
-            "code": self._code,
-            "forwardUrl": "http://localhost:8081/callback",
-        }
-        if forward_url:
-            parameters["forwardUrl"] = forward_url
 
-        url = AUTH_URL.format(urllib.parse.urlencode(parameters))
-        return url, self._identifier, self.client_identifier
-
-    async def request_auth_token(self):
-        """Request an auth token from Plex."""
-        payload = dict(self._payload)
-        payload["Accept"] = "application/json"
-        async with self._session.get(
-            TOKEN_URL.format(self._identifier), headers=payload
-        ) as resp:
-            response = await resp.json()
-            token = response["authToken"]
-            return token
-
-    async def token(self, timeout=60):
-        """Poll Plex endpoint until a token is retrieved or times out."""
-        token = None
-        wait_until = datetime.now() + timedelta(seconds=timeout)
-        break_loop = False
-        while not break_loop:
-            await sleep(3)
-            token = await self.request_auth_token()
-            if token or wait_until < datetime.now():
-                break_loop = True
-
+async def request_auth_token(identifier: str, client_identifier: str):
+    """Request an auth token from Plex."""
+    payload = dict(PAYLOAD)
+    payload["X-Plex-Client-Identifier"] = client_identifier
+    payload["Accept"] = "application/json"
+    async with aiohttp.ClientSession().get(
+        TOKEN_URL.format(identifier), headers=payload
+    ) as resp:
+        response = await resp.json()
+        token = response["authToken"]
         return token
 
-    async def close(self):
-        """Close open client session."""
-        if self._local_session:
-            await self._session.close()
 
-    async def __aenter__(self):
-        """Async enter."""
-        return self
+async def retrieve_token(identifier: str, client_identifier: str, timeout=60):
+    """Poll Plex endpoint until a token is retrieved or times out."""
+    token = None
+    wait_until = datetime.now() + timedelta(seconds=timeout)
+    break_loop = False
+    while not break_loop:
+        await sleep(3)
+        token = await request_auth_token(identifier, client_identifier)
+        if token or wait_until < datetime.now():
+            break_loop = True
 
-    async def __aexit__(self, *exc_info):
-        """Async exit."""
-        await self.close()
-
-
-async def test(base_url):
-    async with PlexAuth(payload=PAYLOAD, base_url=base_url) as plexauth:
-        await plexauth.initiate_auth()
-        return plexauth.auth_url()
+    return token
 
 
 @app.route("/api/authToken", methods=["GET"])
 async def authToken():
-    data = await test(request.url)
+    data = await initiate_auth("http://localhost:8081/callback")
     response = make_response(jsonify({"url": data[0]}))
     response.set_cookie("identifier", str(data[1]))
     response.set_cookie("client_identifier", str(data[2]))
     return response
 
 
-async def test_2(identifier: str, client_identifier: str):
-    async with PlexAuth(
-        payload=PAYLOAD, identifier=identifier, client_identifier=client_identifier
-    ) as plexauth:
-        token = await plexauth.token()
-        return token
-
-
 # 422 return code means too many requests
 async def call(token: str):
     async with aiohttp.ClientSession() as session:
         async with session.get(ACCOUNT_URL.format(token)) as resp:
-            print(resp.status)
             resp_text = await resp.text()
             root = ET.fromstring(resp_text)
             username = root.get("username")
@@ -182,18 +133,22 @@ async def call(token: str):
         server_name = account.get("name")
         server_id = account.get("id")
         if server_name in (username, email) or server_id == uid:
-            return True, username
+            return username
 
-    return False
+    return None
 
 
 @app.route("/api/callback", methods=["GET"])
 async def callback():
     identifier = request.cookies.get("identifier")
     client_identifier = request.cookies.get("client_identifier")
-    token = await test_2(identifier=identifier, client_identifier=client_identifier)
-    test, username = await call(token=token)
-    response = jsonify(logged_in_as=username, logged_in=test)
+    token = await retrieve_token(
+        identifier=identifier, client_identifier=client_identifier
+    )
+    username = await call(token=token)
+    if not username:
+        return "", 403
+    response = jsonify(logged_in_as=username)
     access_token = create_access_token(identity=username)
     set_access_cookies(response, access_token)
     return response
@@ -245,16 +200,17 @@ def protected():
     return jsonify(logged_in_as=current_user), 200
 
 
-@app.route("/api/logout", methods=["POST"])
+@app.route("/api/logout", methods=["GET"])
 @jwt_required()
 def logout_with_cookies():
+    verify_jwt_in_request()
     response = jsonify({"msg": "logout successful"})
     unset_jwt_cookies(response)
     return response
 
 
 @app.route("/api/search", methods=["POST"])
-@jwt_required()
+# @jwt_required()
 def search_torrent():
     data = request.json
     session = requests.session()
