@@ -1,7 +1,6 @@
 import { Box, CircularProgress, Container, Typography } from "@mui/material";
-import axios from "axios";
 import { useEffect, useState } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../App";
 
 export default function Callback() {
@@ -10,22 +9,13 @@ export default function Callback() {
   let auth = useAuth();
 
   useEffect(() => {
-    axios
-      .get("/api/callback")
-      .then(
-        (resp: {
-          status: number;
-          data: { logged_in_as: string; logged_in: boolean };
-        }) => {
-          if (resp.data.logged_in === true) {
-            auth.setUser(resp.data.logged_in_as);
-          }
-          navigate("/");
-        }
-      )
-      .catch((error: { status: number }) => {
-        setError(error.status);
-      });
+    auth.signin((resp) => {
+      if (resp === 0) {
+        navigate("/");
+      } else {
+        setError(resp);
+      }
+    });
   }, []);
   return (
     <>
@@ -36,7 +26,7 @@ export default function Callback() {
       ) : null}
 
       <Box component={Container} mt={25} color={"white"}>
-        {error === 401 ? (
+        {error === 403 ? (
           <>
             {((): any => {
               setTimeout(() => {
