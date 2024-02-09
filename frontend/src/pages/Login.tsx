@@ -10,7 +10,6 @@ export default function LoginPage() {
   useEffect(() => {
     (async () => {
       const localUrl = await getWithExpiry("authUrl");
-      console.log(localUrl);
       if (localUrl === null) {
         axios.get("/api/authToken").then((resp) => {
           if (resp.status === 200) {
@@ -63,6 +62,12 @@ export default function LoginPage() {
                 <Button
                   sx={{
                     color: "black",
+                    backgroundColor: "#e5a00d",
+                    "&:hover": {
+                      backgroundColor: "inherit",
+                      color: "#e5a00d",
+                      border: "1px solid #30363d",
+                    },
                   }}
                   onClick={() => {
                     localStorage.removeItem("authUrl");
