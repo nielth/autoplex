@@ -4,7 +4,6 @@ import Box from "@mui/material/Box";
 import Toolbar from "@mui/material/Toolbar";
 import Container from "@mui/material/Container";
 import Button from "@mui/material/Button";
-import axios from "axios";
 import { useAuth } from "../App";
 
 function ResponsiveAppBar() {
@@ -21,9 +20,7 @@ function ResponsiveAppBar() {
               disableFocusRipple
               disableRipple
               disableTouchRipple
-              onClick={() => {
-                navigate("/");
-              }}
+              href="/"
             >
               <Box component={"img"} src="/AP_trans.png" width={"61px"} />
             </Button>
@@ -54,7 +51,7 @@ export default function Layout() {
   return (
     <>
       <ResponsiveAppBar />
-      <Container>
+      <Container maxWidth="xl" >
         <Outlet />
       </Container>
     </>
