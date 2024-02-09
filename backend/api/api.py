@@ -108,7 +108,7 @@ async def retrieve_token(identifier: str, client_identifier: str, timeout=60):
 
 @app.route("/api/authToken", methods=["GET"])
 async def authToken():
-    data = await initiate_auth("http://localhost:8081/callback")
+    data = await initiate_auth("http://192.168.10.128:8081/callback")
     response = make_response(jsonify({"url": data[0]}))
     response.set_cookie("identifier", str(data[1]))
     response.set_cookie("client_identifier", str(data[2]))
@@ -210,16 +210,29 @@ def logout_with_cookies():
 
 
 @app.route("/api/search", methods=["POST"])
-# @jwt_required()
+@jwt_required()
 def search_torrent():
     data = request.json
-    session = requests.session()
-    cookies = json.loads(Path("cookies.json").read_text())
-    cookies = requests.utils.cookiejar_from_dict(cookies)
-    session.cookies.update(cookies)
+    session = requests.Session()
+
+    # Load cookies from file
+    cookies_path = Path("cookies.json")
+    if cookies_path.exists():
+        cookies = json.loads(cookies_path.read_text())
+        cookies = requests.utils.cookiejar_from_dict(cookies)
+        session.cookies.update(cookies)
+
+    # Perform the GET request
     torrent_data = session.get(
         f"https://www.torrentleech.org/torrents/browse/list/categories/37,43,14,12,47,15,29,26,32,27/query/{data['search']}/orderby/seeders/order/desc"
     )
+
+    # Check and update cookies if new ones are received
+    new_cookies = session.cookies.get_dict()
+    if new_cookies:
+        cookies_path.write_text(json.dumps(new_cookies, indent=4))
+
+    # Return response
     response = jsonify(torrent_data.json())
     return response
 
@@ -235,10 +248,12 @@ def retrieve_torrent():
     cookies = json.loads(Path("cookies.json").read_text())
     cookies = requests.utils.cookiejar_from_dict(cookies)
     session.cookies.update(cookies)
-    response = session.get(torrent_link, stream=True)
-    qbtTorrentDownload(response.raw)
-    response = jsonify({"msg": "torrent received"})
-    return response
+    response = session.get(torrent_link)
+    if response.headers["Content-Type"] == "application/x-bittorrent":
+        qbtTorrentDownload(response.content)
+        return jsonify({"msg": True})
+
+    return jsonify({"msg": False})
 
 
 if __name__ == "__main__":
