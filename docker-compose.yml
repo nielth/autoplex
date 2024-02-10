@@ -30,4 +30,4 @@ services:
     container_name: node-prod
     restart: always
     ports:
-      - 8080:80
+      - 8085:80
