@@ -36,13 +36,14 @@ export default function LoginPage() {
               backgroundSize: "cover",
               color: "transparent",
               backgroundClip: "text",
-              fontWeight: "900",
-              fontSize: "10vw",
+              fontWeight: "bold",
+              fontSize: { xs: "15vw", lg: "10vw" },
               position: "absolute",
               mt: 15,
               left: 0,
               right: 0,
               zIndex: -999,
+              fontFamily: "Times New Roman",
             }}
           >
             AUTOPLEX
@@ -53,7 +54,7 @@ export default function LoginPage() {
               justifyContent={"center"}
               // border={"2px solid #30363d"}
               borderRadius={"6px"}
-              height={"100vh"}
+              mt={"500px"}
               width={"400px"}
               alignItems={"center"}
               // bgcolor={"#0d1117"}

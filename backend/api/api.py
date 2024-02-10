@@ -1,5 +1,6 @@
 import requests
 import json
+import os
 import aiohttp
 import urllib.parse
 import xml.etree.ElementTree as ET
@@ -29,7 +30,9 @@ app = Flask(__name__)
 
 CORS(app, supports_credentials=True)
 
-app.config["JWT_SECRET_KEY"] = "ecc0a726-7c69-4873-bd95-ebf8f0357ad1"
+JWT_SECRET = os.getenv("JWT_SECRET")
+
+app.config["JWT_SECRET_KEY"] = JWT_SECRET
 jwt = JWTManager(app)
 
 app.config["JWT_TOKEN_LOCATION"] = ["cookies"]
@@ -108,7 +111,7 @@ async def retrieve_token(identifier: str, client_identifier: str, timeout=60):
 
 @app.route("/api/authToken", methods=["GET"])
 async def authToken():
-    data = await initiate_auth("http://192.168.10.128:8081/callback")
+    data = await initiate_auth("http://localhost:8080/callback")
     response = make_response(jsonify({"url": data[0]}))
     response.set_cookie("identifier", str(data[1]))
     response.set_cookie("client_identifier", str(data[2]))
@@ -209,10 +212,9 @@ def logout_with_cookies():
     return response
 
 
-@app.route("/api/search", methods=["POST"])
+@app.route("/api/search/<string:search>/<string:page>", methods=["GET"])
 @jwt_required()
-def search_torrent():
-    data = request.json
+def search_torrent(search: str, page: str = 0):
     session = requests.Session()
 
     # Load cookies from file
@@ -224,7 +226,7 @@ def search_torrent():
 
     # Perform the GET request
     torrent_data = session.get(
-        f"https://www.torrentleech.org/torrents/browse/list/categories/37,43,14,12,47,15,29,26,32,27/query/{data['search']}/orderby/seeders/order/desc"
+        f"https://www.torrentleech.org/torrents/browse/list/categories/37,43,14,12,47,15,29,26,32,27/query/{search}/orderby/seeders/order/desc/page/{page}"
     )
 
     # Check and update cookies if new ones are received
@@ -257,4 +259,5 @@ def retrieve_torrent():
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    # app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(host="0.0.0.0", port=5000, debug=False)

@@ -25,21 +25,47 @@ function ResponsiveAppBar() {
               <Box component={"img"} src="/AP_trans.png" width={"61px"} />
             </Button>
           </Box>
+          <Box display={"flex"}>
+            <Box>
+              <Button
+                key={"home"}
+                sx={{ my: 2, color: "white", display: "block" }}
+                href="/"
+              >
+                Home
+              </Button>
+            </Box>
+            <Box>
+              <Button
+                key={"rss"}
+                sx={{ my: 2, color: "white", display: "block" }}
+                onClick={() => {
+                  navigate("/rss");
+                }}
+                disabled
+              >
+                RSS
+              </Button>
+            </Box>
+          </Box>
           <Box
             justifyContent={"flex-end"}
-            sx={{ flexGrow: 1, display: "flex" }}
+            sx={{ display: "flex" }}
+            width={"100%"}
           >
-            <Button
-              key={"logout"}
-              sx={{ my: 2, color: "white", display: "block" }}
-              onClick={() => {
-                auth.signout(() => {
-                  navigate("/");
-                });
-              }}
-            >
-              Logout
-            </Button>
+            <Box>
+              <Button
+                key={"logout"}
+                sx={{ my: 2, color: "white", display: "block" }}
+                onClick={() => {
+                  auth.signout(() => {
+                    navigate("/");
+                  });
+                }}
+              >
+                Logout
+              </Button>
+            </Box>
           </Box>
         </Toolbar>
       </Container>
@@ -51,7 +77,7 @@ export default function Layout() {
   return (
     <>
       <ResponsiveAppBar />
-      <Container maxWidth="xl" >
+      <Container maxWidth="xl" sx={{ py: 5, textAlign: "center" }}>
         <Outlet />
       </Container>
     </>
