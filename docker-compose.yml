@@ -4,29 +4,13 @@ services:
   flask-api:
     build: ./backend
     environment:
-      - MYSQL_HOST=${MYSQL_HOST}
-      - MYSQL_USER=${MYSQL_USER}
-      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
-      - MYSQL_DATABASE=${MYSQL_DATABASE}
       - QBT_USER=${QBT_USER}
       - QBT_PASS=${QBT_PASS}
+      - JWT_SECRET=${JWT_SECRET}
     container_name: flask-api
     volumes:
       - ./backend/api:/api
-    # ports:
-    #   - 5000:5000
     restart: always
-  mysql:
-    platform: linux/amd64
-    container_name: mysql-database
-    image: mysql:8.0
-    environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
-      MYSQL_DATABASE: ${MYSQL_DATABASE}
-      MYSQL_USER: ${MYSQL_USER}
-    # ports:
-    #   - 3306:3306
   node-dev:
     image: node:18-alpine
     container_name: node-dev
@@ -37,8 +21,6 @@ services:
       - ./frontend:/app
     restart: always
     command: sh -c "yarn && yarn start"
-  #   ports:
-  #     - 3000:3000
   node-prod:
     build:
       context: ./

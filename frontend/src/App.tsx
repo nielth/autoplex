@@ -12,6 +12,8 @@ import Layout from "./pages/Layout";
 import LoginPage from "./pages/Login";
 import Callback from "./pages/Callback";
 import Home from "./pages/Home";
+import Rss from "./pages/rss/Rss";
+import RssId from "./pages/rss/RssId";
 
 export default function App() {
   return (
@@ -28,6 +30,8 @@ export default function App() {
               }
             >
               <Route index element={<Home />} />
+              <Route path="/rss" element={<Rss />} />
+              <Route path="/rss/:rssId" element={<RssId />} />
             </Route>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/callback" element={<Callback />} />
