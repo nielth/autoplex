@@ -46,7 +46,7 @@ interface HeadCell {
   id: keyof Data;
   label: React.ReactNode;
   numeric: boolean;
-  align: string;
+  align: any;
   sort: boolean;
 }
 
