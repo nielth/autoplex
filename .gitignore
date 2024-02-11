@@ -282,3 +282,4 @@ $RECYCLE.BIN/
 
 cookies.json
 .env
+/nginx/ssl

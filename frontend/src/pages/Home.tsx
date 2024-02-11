@@ -28,6 +28,9 @@ import ArrowDropUpOutlinedIcon from "@mui/icons-material/ArrowDropUpOutlined";
 import ArrowDropDownOutlinedIcon from "@mui/icons-material/ArrowDropDownOutlined";
 import CloseIcon from "@mui/icons-material/Close";
 
+const DOMAIN = process.env.REACT_APP_FLASK_LOCATION;
+
+
 interface Data {
   download: string;
   fid: string;
@@ -48,6 +51,7 @@ interface HeadCell {
   numeric: boolean;
   align: any;
   sort: boolean;
+  width?: string;
 }
 
 const headCells: readonly HeadCell[] = [
@@ -57,6 +61,7 @@ const headCells: readonly HeadCell[] = [
     align: "left",
     sort: false,
     label: "Torrent Name",
+    width: "930px"
   },
   { id: "download", numeric: true, align: "center", sort: false, label: "" },
   {

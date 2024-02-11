@@ -1,6 +1,7 @@
 version: "3"
 
 services:
+
   flask-api:
     build: ./backend
     environment:
@@ -21,13 +22,22 @@ services:
   #     - ./frontend:/app
   #   restart: always
   #   command: sh -c "yarn && yarn start"
+
   node-prod:
     build:
       context: ./
       dockerfile: Dockerfile
     depends_on:
       - flask-api
+    volumes:
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot/:ro
     container_name: node-prod
     restart: always
     ports:
       - 8085:80
+      - 8086:443
+  certbot:
+    image: certbot/certbot:latest
+    volumes:
+      - ./certbot/www/:/var/www/certbot/:rw

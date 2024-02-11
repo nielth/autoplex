@@ -111,7 +111,7 @@ async def retrieve_token(identifier: str, client_identifier: str, timeout=60):
 
 @app.route("/api/authToken", methods=["GET"])
 async def authToken():
-    data = await initiate_auth("http://localhost:8080/callback")
+    data = await initiate_auth("https://autoplex.nielth.com/callback")
     response = make_response(jsonify({"url": data[0]}))
     response.set_cookie("identifier", str(data[1]))
     response.set_cookie("client_identifier", str(data[2]))
@@ -128,7 +128,6 @@ async def call(token: str):
             email = root.get("email")
             uid = root.get("id")
         async with session.get(SERVER_URL) as server_resp:
-            print(resp.status)
             root = ET.fromstring(await server_resp.text())
             server_resp = root
 
