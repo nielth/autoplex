@@ -172,7 +172,7 @@ function EnhancedTable({ values }: any) {
   const [orderBy, setOrderBy] = useState<keyof Data>("seeders");
   const rowsPerPage = 35;
 
-  const DOMAIN = process.env.REACT_APP_FLASK_LOCATION;
+  const DOMAIN = process.env.REACT_APP_FLASK_LOCATION || "";
 
   let rows: Data[] = [];
 
@@ -341,7 +341,7 @@ export default function Home() {
   const [searchResp, setSearchResp] = useState<object>();
   const [open, setOpen] = useState(false);
   const [page, setPage] = useState(-999);
-  const DOMAIN = process.env.REACT_APP_FLASK_LOCATION;
+  const DOMAIN = process.env.REACT_APP_FLASK_LOCATION || "";
 
   const [searchParams, setSearchParams] = useSearchParams();
 

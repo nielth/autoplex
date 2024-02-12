@@ -53,7 +53,7 @@ let AuthContext = createContext<AuthContextType>(null!);
 function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const DOMAIN = process.env.REACT_APP_FLASK_LOCATION;
+  const DOMAIN = process.env.REACT_APP_FLASK_LOCATION || "";
 
   useEffect(() => {
     (async () => {
