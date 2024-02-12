@@ -31,7 +31,7 @@ app = Flask(__name__)
 CORS(app, supports_credentials=True)
 
 JWT_SECRET = os.getenv("JWT_SECRET")
-OAUTH_FORWARD_URL = os.getenv("OAUTH_FORWARD_URL", "https://autoplex.nielth.com/callback")
+OAUTH_FORWARD_URL = os.getenv("OAUTH_FORWARD_URL")
 
 app.config["JWT_SECRET_KEY"] = JWT_SECRET
 jwt = JWTManager(app)
@@ -112,7 +112,7 @@ async def retrieve_token(identifier: str, client_identifier: str, timeout=60):
 
 @app.route("/api/authToken", methods=["GET"])
 async def authToken():
-    data = await initiate_auth(forward_url=OAUTH_FORWARD_URL)
+    data = await initiate_auth(forward_url=(OAUTH_FORWARD_URL if OAUTH_FORWARD_URL != "" else "https://autoplex.nielth.com/callback"))
     response = make_response(jsonify({"url": data[0]}))
     response.set_cookie("identifier", str(data[1]))
     response.set_cookie("client_identifier", str(data[2]))
