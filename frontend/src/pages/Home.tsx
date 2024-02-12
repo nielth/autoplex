@@ -28,9 +28,6 @@ import ArrowDropUpOutlinedIcon from "@mui/icons-material/ArrowDropUpOutlined";
 import ArrowDropDownOutlinedIcon from "@mui/icons-material/ArrowDropDownOutlined";
 import CloseIcon from "@mui/icons-material/Close";
 
-const DOMAIN = process.env.REACT_APP_FLASK_LOCATION;
-
-
 interface Data {
   download: string;
   fid: string;
@@ -41,6 +38,7 @@ interface Data {
   completed: number;
   seeders: number;
   leechers: number;
+  tags: string[];
 }
 
 type Order = "asc" | "desc";
@@ -52,6 +50,8 @@ interface HeadCell {
   align: any;
   sort: boolean;
   width?: string;
+  minWidth?: string;
+  color?: string;
 }
 
 const headCells: readonly HeadCell[] = [
@@ -61,7 +61,7 @@ const headCells: readonly HeadCell[] = [
     align: "left",
     sort: false,
     label: "Torrent Name",
-    width: "930px"
+    width: "930px",
   },
   { id: "download", numeric: true, align: "center", sort: false, label: "" },
   {
@@ -70,6 +70,7 @@ const headCells: readonly HeadCell[] = [
     align: "center",
     sort: false,
     label: <AccessTimeIcon fontSize="small" />,
+    minWidth: "180px",
   },
   {
     id: "size",
@@ -77,6 +78,7 @@ const headCells: readonly HeadCell[] = [
     align: "center",
     sort: false,
     label: <DescriptionIcon fontSize="small" />,
+    minWidth: "105px",
   },
   {
     id: "completed",
@@ -91,6 +93,7 @@ const headCells: readonly HeadCell[] = [
     align: "center",
     sort: false,
     label: <ArrowDropUpOutlinedIcon />,
+    color: "green",
   },
   {
     id: "leechers",
@@ -98,6 +101,7 @@ const headCells: readonly HeadCell[] = [
     align: "center",
     sort: false,
     label: <ArrowDropDownOutlinedIcon />,
+    color: "red",
   },
 ];
 
@@ -126,6 +130,8 @@ function EnhancedTableHead(props: EnhancedTableProps) {
             key={headCell.id}
             align={headCell.align}
             sortDirection={orderBy === headCell.id ? order : false}
+            width={headCell.width}
+            sx={{ minWidth: headCell.minWidth, color: headCell.color }}
           >
             {headCell.sort ? (
               <TableSortLabel
@@ -166,6 +172,8 @@ function EnhancedTable({ values }: any) {
   const [orderBy, setOrderBy] = useState<keyof Data>("seeders");
   const rowsPerPage = 35;
 
+  const DOMAIN = process.env.REACT_APP_FLASK_LOCATION;
+
   let rows: Data[] = [];
 
   if (values.searchResp !== undefined) {
@@ -179,6 +187,7 @@ function EnhancedTable({ values }: any) {
       completed: torrent.completed,
       seeders: torrent.seeders,
       leechers: torrent.leechers,
+      tags: torrent.tags,
     }));
   }
 
@@ -241,7 +250,26 @@ function EnhancedTable({ values }: any) {
                           scope="row"
                           sx={{ fontSize: "16px", fontWeight: "bold" }}
                         >
-                          {row.name}
+                          <>
+                            <Box display={"flex"} gap={1} alignItems={"center"}>
+                              <Box>{row.name}</Box>
+                              {row.tags.includes("FREELEECH") ? (
+                                <>
+                                  <Box>
+                                    <Box
+                                      bgcolor={"#FFDF00"}
+                                      color={"#4d4d4d"}
+                                      borderRadius={"2px"}
+                                      padding={"2px 4px"}
+                                      fontSize={"11px"}
+                                    >
+                                      FREELEECH
+                                    </Box>
+                                  </Box>
+                                </>
+                              ) : null}
+                            </Box>
+                          </>
                         </TableCell>
                         <TableCell align="center">
                           <Button
@@ -256,7 +284,7 @@ function EnhancedTable({ values }: any) {
                               };
                               axios
                                 .post(
-                                  `/api/download`,
+                                  `${DOMAIN}/api/download`,
                                   { fid: row.fid, filename: row.filename },
                                   config
                                 )
@@ -313,6 +341,7 @@ export default function Home() {
   const [searchResp, setSearchResp] = useState<object>();
   const [open, setOpen] = useState(false);
   const [page, setPage] = useState(-999);
+  const DOMAIN = process.env.REACT_APP_FLASK_LOCATION;
 
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -326,7 +355,7 @@ export default function Home() {
     };
     axios
       .get(
-        `/api/search/${searchParams.get("search")}/${
+        `${DOMAIN}/api/search/${searchParams.get("search")}/${
           Number(searchParams.get("p")) + 1
         }`,
         config

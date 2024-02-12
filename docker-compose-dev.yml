@@ -8,7 +8,10 @@ services:
       - QBT_USER=${QBT_USER}
       - QBT_PASS=${QBT_PASS}
       - JWT_SECRET=${JWT_SECRET}
+      - OAUTH_FORWARD_URL=${OAUTH_FORWARD_URL}
     container_name: flask-api
+    ports:
+      - 5000:5000
     volumes:
       - ./backend/api:/api
     restart: always
@@ -23,7 +26,7 @@ services:
       - ./frontend:/app
     restart: always
     environment:
-      - REACT_APP_FLASK_LOCATION: http://localhost:8090
+      - REACT_APP_FLASK_LOCATION=${REACT_APP_FLASK_LOCATION}
     command: sh -c "yarn && yarn start"
     ports:
-      - 8090:5000
+      - 8090:3000

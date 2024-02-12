@@ -2,6 +2,7 @@ xmltodict
 python-qbittorrent
 aiohttp
 asyncio
+bencodepy
 
 
 uuid
