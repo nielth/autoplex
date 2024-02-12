@@ -31,6 +31,7 @@ app = Flask(__name__)
 CORS(app, supports_credentials=True)
 
 JWT_SECRET = os.getenv("JWT_SECRET")
+OAUTH_FORWARD_URL = os.getenv("OAUTH_FORWARD_URL", "https://autoplex.nielth.com/callback")
 
 app.config["JWT_SECRET_KEY"] = JWT_SECRET
 jwt = JWTManager(app)
@@ -111,7 +112,7 @@ async def retrieve_token(identifier: str, client_identifier: str, timeout=60):
 
 @app.route("/api/authToken", methods=["GET"])
 async def authToken():
-    data = await initiate_auth("https://autoplex.nielth.com/callback")
+    data = await initiate_auth(forward_url=OAUTH_FORWARD_URL)
     response = make_response(jsonify({"url": data[0]}))
     response.set_cookie("identifier", str(data[1]))
     response.set_cookie("client_identifier", str(data[2]))
@@ -259,4 +260,4 @@ def retrieve_torrent():
 
 if __name__ == "__main__":
     # app.run(host="0.0.0.0", port=5000, debug=True)
-    app.run(host="0.0.0.0", port=5000, debug=False)
+    app.run(host="0.0.0.0", port=5000, debug=(False if not os.getenv("OAUTH_FORWARD_URL") else True))

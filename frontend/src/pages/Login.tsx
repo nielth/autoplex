@@ -6,19 +6,22 @@ import { getWithExpiry, setWithExpiry } from "../scripts/localStorageExpire";
 export default function LoginPage() {
   const [url, setUrl] = useState<string>("");
   const [error, setError] = useState<boolean>(false);
+  const DOMAIN = process.env.REACT_APP_FLASK_LOCATION;
 
   useEffect(() => {
     (async () => {
       const localUrl = await getWithExpiry("authUrl");
       if (localUrl === null) {
-        axios.get("/api/authToken").then((resp) => {
-          if (resp.status === 200) {
-            setWithExpiry("authUrl", resp.data.url, 1800 * 1000);
-            setUrl(resp.data.url);
-          } else {
-            setError(true);
-          }
-        });
+        axios
+          .get(`${DOMAIN}/api/authToken`, { withCredentials: true })
+          .then((resp) => {
+            if (resp.status === 200) {
+              setWithExpiry("authUrl", resp.data.url, 1800 * 1000);
+              setUrl(resp.data.url);
+            } else {
+              setError(true);
+            }
+          });
       } else {
         setUrl(localUrl);
       }

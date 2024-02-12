@@ -53,6 +53,7 @@ let AuthContext = createContext<AuthContextType>(null!);
 function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const DOMAIN = process.env.REACT_APP_FLASK_LOCATION;
 
   useEffect(() => {
     (async () => {
@@ -63,7 +64,7 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
             "Content-Type": "application/json",
           },
         };
-        const response = await axios.get("/api/protected", config);
+        const response = await axios.get(`${DOMAIN}/api/protected`, config);
         if (response.status === 200) {
           setUser(response.data.logged_in_as);
         }
@@ -77,7 +78,7 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
 
   let signin = (callback: (success: number) => void) => {
     axios
-      .get("/api/callback")
+      .get(`${DOMAIN}/api/callback`, { withCredentials: true })
       .then((resp: any) => {
         if (resp.status === 200) {
           setUser(resp.data.logged_in_as);
@@ -97,7 +98,7 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
         "Content-Type": "application/json",
       },
     };
-    axios.get("/api/logout", config).then((resp) => {
+    axios.get(`${DOMAIN}/api/logout`, config).then((resp) => {
       if (resp.status === 200) {
         setUser(null);
         callback();
