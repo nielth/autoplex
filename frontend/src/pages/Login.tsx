@@ -6,7 +6,7 @@ import { getWithExpiry, setWithExpiry } from "../scripts/localStorageExpire";
 export default function LoginPage() {
   const [url, setUrl] = useState<string>("");
   const [error, setError] = useState<boolean>(false);
-  const DOMAIN = process.env.REACT_APP_FLASK_LOCATION;
+  const DOMAIN = process.env.REACT_APP_FLASK_LOCATION || "";
 
   useEffect(() => {
     (async () => {
