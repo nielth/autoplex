@@ -17,6 +17,7 @@ import {
   IconButton,
   TablePagination,
   TableSortLabel,
+  Tooltip,
 } from "@mui/material";
 import { useSearchParams } from "react-router-dom";
 import { visuallyHidden } from "@mui/utils";
@@ -69,7 +70,11 @@ const headCells: readonly HeadCell[] = [
     numeric: false,
     align: "center",
     sort: false,
-    label: <AccessTimeIcon fontSize="small" />,
+    label: (
+      <Tooltip title="Added Timestamp">
+        <AccessTimeIcon fontSize="small" />
+      </Tooltip>
+    ),
     minWidth: "180px",
   },
   {
@@ -77,7 +82,11 @@ const headCells: readonly HeadCell[] = [
     numeric: true,
     align: "center",
     sort: false,
-    label: <DescriptionIcon fontSize="small" />,
+    label: (
+      <Tooltip title="Size">
+        <DescriptionIcon fontSize="small" />
+      </Tooltip>
+    ),
     minWidth: "105px",
   },
   {
@@ -85,14 +94,22 @@ const headCells: readonly HeadCell[] = [
     numeric: true,
     align: "center",
     sort: false,
-    label: <DownloadIcon fontSize="small" />,
+    label: (
+      <Tooltip title="Time Downloaded">
+        <DownloadIcon fontSize="small" />
+      </Tooltip>
+    ),
   },
   {
     id: "seeders",
     numeric: true,
     align: "center",
     sort: false,
-    label: <ArrowDropUpOutlinedIcon />,
+    label: (
+      <Tooltip title="Seeders">
+        <ArrowDropUpOutlinedIcon />
+      </Tooltip>
+    ),
     color: "green",
   },
   {
@@ -100,7 +117,11 @@ const headCells: readonly HeadCell[] = [
     numeric: true,
     align: "center",
     sort: false,
-    label: <ArrowDropDownOutlinedIcon />,
+    label: (
+      <Tooltip title="Leecers">
+        <ArrowDropDownOutlinedIcon />
+      </Tooltip>
+    ),
     color: "red",
   },
 ];
