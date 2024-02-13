@@ -4,9 +4,9 @@ services:
   flask-api:
     build: ./backend
     environment:
-      - QBT_USER=${QBT_USER}
-      - QBT_PASS=${QBT_PASS}
-      - JWT_SECRET=${JWT_SECRET}
+      - FLASK_ENV=production
+    env_file:
+      - .env
     container_name: flask-api
     volumes:
       - ./backend/api:/api
