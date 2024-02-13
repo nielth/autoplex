@@ -6,6 +6,7 @@ from qbittorrent import Client
 
 USER = os.getenv("QBT_USER")
 PASSWORD = os.getenv("QBT_PASS")
+QBT_URL = os.getenv("QBT_URL")
 
 
 def get_info_hash_v1(torrent_file):
@@ -16,7 +17,7 @@ def get_info_hash_v1(torrent_file):
 
 
 def authenticate():
-    qb = Client("https://qbt.internal.nielth.com/", verify=False)
+    qb = Client(QBT_URL, verify=False)
     qb.login(USER, PASSWORD)
     return qb
 
