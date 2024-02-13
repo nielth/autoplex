@@ -1,15 +1,12 @@
 version: "3"
 
 services:
-
   flask-api:
     build: ./backend
-    environment:
-      - QBT_USER=${QBT_USER}
-      - QBT_PASS=${QBT_PASS}
-      - JWT_SECRET=${JWT_SECRET}
-      - OAUTH_FORWARD_URL=${OAUTH_FORWARD_URL}
+    env_file:
+      - dev.env
     container_name: flask-api
+    command: flask --app api.py run --host=0.0.0.0 --reload --debugger
     ports:
       - 5000:5000
     volumes:
@@ -25,8 +22,8 @@ services:
     volumes:
       - ./frontend:/app
     restart: always
-    environment:
-      - REACT_APP_FLASK_LOCATION=${REACT_APP_FLASK_LOCATION}
     command: sh -c "yarn && yarn start"
+    env_file:
+      - dev.env
     ports:
       - 8090:3000
