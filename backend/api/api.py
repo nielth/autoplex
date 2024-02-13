@@ -33,6 +33,8 @@ CORS(app, supports_credentials=True)
 JWT_SECRET = os.getenv("JWT_SECRET")
 OAUTH_FORWARD_URL = os.getenv("OAUTH_FORWARD_URL")
 
+print((OAUTH_FORWARD_URL if OAUTH_FORWARD_URL != "" else "https://autoplex.nielth.com/callback")) 
+
 app.config["JWT_SECRET_KEY"] = JWT_SECRET
 jwt = JWTManager(app)
 
