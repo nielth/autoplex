@@ -15,7 +15,7 @@ services:
 
   node-prod:
     build:
-      context: ./
+      context: ./frontend
       dockerfile: Dockerfile
     depends_on:
       - flask-api
