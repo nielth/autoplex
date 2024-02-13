@@ -32,20 +32,26 @@ CORS(app, supports_credentials=True)
 
 JWT_SECRET = os.getenv("JWT_SECRET")
 OAUTH_FORWARD_URL = os.getenv("OAUTH_FORWARD_URL")
+PLEX_URL = os.getenv("PLEX_URL")
 
 app.config["JWT_SECRET_KEY"] = JWT_SECRET
 jwt = JWTManager(app)
 
 app.config["JWT_TOKEN_LOCATION"] = ["cookies"]
-app.config["JWT_COOKIE_SECURE"] = False
-app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(hours=5)
 
+if os.getenv("FLASK_ENV") == "development":
+    app.config["JWT_COOKIE_SECURE"] = False
+else:
+    app.config["JWT_COOKIE_SECURE"] = True
+
+
+app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(hours=5)
 
 CODES_URL = "https://plex.tv/api/v2/pins.json?strong=true"
 AUTH_URL = "https://app.plex.tv/auth#!?{}"
 TOKEN_URL = "https://plex.tv/api/v2/pins/{}"
 ACCOUNT_URL = "https://plex.tv/users/account/?X-Plex-Token={}"
-SERVER_URL = "http://nielth.com:32444/accounts/?X-Plex-Token=9-2mk1MYy6BRgcGoG6SS"
+SERVER_URL = f"{PLEX_URL}/accounts/?X-Plex-Token=9-2mk1MYy6BRgcGoG6SS"
 
 PAYLOAD = {
     "X-Plex-Product": "Plex Auth App (Autoplex)",
@@ -59,6 +65,25 @@ PAYLOAD = {
 }
 
 
+# Using an `after_request` callback, we refresh any token that is within 60 min
+# minutes of expiring. Change the timedeltas to match the needs of application.
+@app.after_request
+def refresh_expiring_jwts(response):
+    try:
+        exp_timestamp = get_jwt()["exp"]
+        now = datetime.now(tz=ZoneInfo("Europe/Oslo"))
+        # print(exp_timestamp)
+        target_timestamp = datetime.timestamp(now + timedelta(minutes=60))
+        # target_timestamp = datetime.timestamp(now)
+        if target_timestamp > exp_timestamp:
+            access_token = create_access_token(identity=get_jwt_identity())
+            set_access_cookies(response, access_token)
+        return response
+    except (RuntimeError, KeyError):
+        # Case where there is not a valid JWT. Just return the original response
+        return response
+
+
 async def initiate_auth(
     forward_url: str,
     client_identifier=str(uuid4()),
@@ -66,21 +91,20 @@ async def initiate_auth(
     payload = PAYLOAD
     payload["X-Plex-Client-Identifier"] = client_identifier
 
-    async with aiohttp.ClientSession().post(
-        CODES_URL, data=payload, headers=None
-    ) as resp:
-        response = await resp.json()
-        code = response["code"]
-        identifier = response["id"]
-    parameters = {
-        "clientID": client_identifier,
-        "code": code,
-    }
-    if forward_url:
-        parameters["forwardUrl"] = forward_url
+    async with aiohttp.ClientSession() as session:
+        async with session.post(CODES_URL, data=payload, headers=None) as resp:
+            response = await resp.json()
+            code = response["code"]
+            identifier = response["id"]
+        parameters = {
+            "clientID": client_identifier,
+            "code": code,
+        }
+        if forward_url:
+            parameters["forwardUrl"] = forward_url
 
-    url = AUTH_URL.format(urllib.parse.urlencode(parameters))
-    return url, identifier, client_identifier
+        url = AUTH_URL.format(urllib.parse.urlencode(parameters))
+        return url, identifier, client_identifier
 
 
 async def request_auth_token(identifier: str, client_identifier: str):
@@ -88,12 +112,11 @@ async def request_auth_token(identifier: str, client_identifier: str):
     payload = dict(PAYLOAD)
     payload["X-Plex-Client-Identifier"] = client_identifier
     payload["Accept"] = "application/json"
-    async with aiohttp.ClientSession().get(
-        TOKEN_URL.format(identifier), headers=payload
-    ) as resp:
-        response = await resp.json()
-        token = response["authToken"]
-        return token
+    async with aiohttp.ClientSession() as session:
+        async with session.get(TOKEN_URL.format(identifier), headers=payload) as resp:
+            response = await resp.json()
+            token = response["authToken"]
+            return token
 
 
 async def retrieve_token(identifier: str, client_identifier: str, timeout=60):
@@ -112,13 +135,7 @@ async def retrieve_token(identifier: str, client_identifier: str, timeout=60):
 
 @app.route("/api/authToken", methods=["GET"])
 async def authToken():
-    data = await initiate_auth(
-        forward_url=(
-            OAUTH_FORWARD_URL
-            if OAUTH_FORWARD_URL != ""
-            else "https://autoplex.nielth.com/callback"
-        )
-    )
+    data = await initiate_auth(forward_url=f'{OAUTH_FORWARD_URL}/callback')
     response = make_response(jsonify({"url": data[0]}))
     response.set_cookie("identifier", str(data[1]))
     response.set_cookie("client_identifier", str(data[2]))
@@ -161,41 +178,6 @@ async def callback():
     access_token = create_access_token(identity=username)
     set_access_cookies(response, access_token)
     return response
-
-
-def req(url):
-    try:
-        r = requests.get(url, timeout=1, verify=True)
-        r.raise_for_status()
-    except requests.exceptions.HTTPError as errh:
-        print("HTTP Error")
-        print(errh.args[0])
-    except requests.exceptions.ReadTimeout as errrt:
-        print("Time out")
-    except requests.exceptions.ConnectionError as conerr:
-        print("Connection error")
-    except requests.exceptions.RequestException as errex:
-        print("Exception request")
-    return r
-
-
-# Using an `after_request` callback, we refresh any token that is within 60 min
-# minutes of expiring. Change the timedeltas to match the needs of application.
-@app.after_request
-def refresh_expiring_jwts(response):
-    try:
-        exp_timestamp = get_jwt()["exp"]
-        now = datetime.now(tz=ZoneInfo("Europe/Oslo"))
-        # print(exp_timestamp)
-        target_timestamp = datetime.timestamp(now + timedelta(minutes=60))
-        # target_timestamp = datetime.timestamp(now)
-        if target_timestamp > exp_timestamp:
-            access_token = create_access_token(identity=get_jwt_identity())
-            set_access_cookies(response, access_token)
-        return response
-    except (RuntimeError, KeyError):
-        # Case where there is not a valid JWT. Just return the original response
-        return response
 
 
 # Protect a route with jwt_required, which will kick out requests

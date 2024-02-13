@@ -5,11 +5,6 @@ WORKDIR /api
 RUN apk add --no-cache tzdata
 ENV TZ=Europe/Oslo
 
-ENV JWT_SECRET=$JWT_SECRET
-ENV QBT_USER=$QBT_USER
-ENV QBT_PASS=$QBT_PASS
-ENV OAUTH_FORWARD_URL=${OAUTH_FORWARD_URL}
-
 COPY ./api .
 
 RUN pip install -r requirements.txt
