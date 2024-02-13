@@ -13,5 +13,4 @@ ENV OAUTH_FORWARD_URL=${OAUTH_FORWARD_URL}
 COPY ./api .
 
 RUN pip install -r requirements.txt
-
-CMD [ "python", "-u", "api.py" ]
+CMD ["gunicorn", "-b", "0.0.0.0:5000", "api:app"]
