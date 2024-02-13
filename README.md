@@ -1,11 +1,16 @@
-## For Prod
+## Prerequisites
+
+`backend/api` requires `cookies.json` from torrentleech.
+
+## For Prod (no trailing slash)
 
 `.env`
 ```
 QBT_USER=<qbt_username>
 QBT_PASS=<qbt_pass>
-JWT_SECRET=<uuid4 secret>
-OAUTH_FORWARD_URL=<flask_api_url>/callback
+JWT_SECRET=<uuid4_random_secret>
+OAUTH_FORWARD_URL=https://autoplex.example.com
+PLEX_URL=http://plex.example.com:32400
 ```
 
 ```
