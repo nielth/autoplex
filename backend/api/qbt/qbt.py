@@ -22,9 +22,9 @@ def authenticate():
     return qb
 
 
-def qbtTorrentDownload(torrent_file):
+def qbtTorrentDownload(torrent_file, category):
     qb = authenticate()
-    dl_path = "/downloads/sdb/tvseries"
+    dl_path = f"/downloads/sdb/{category}"
     qb.download_from_file(torrent_file, savepath=dl_path)
     torrent_hash = get_info_hash_v1(torrent_file)
     qb.toggle_sequential_download(torrent_hash)
