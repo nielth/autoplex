@@ -6,7 +6,7 @@ services:
     environment:
       - FLASK_ENV=development
     env_file:
-      - dev.env
+      - .env
     container_name: flask-api
     command: flask --app api.py run --host=0.0.0.0 --reload --debugger
     ports:
@@ -26,6 +26,6 @@ services:
     restart: always
     command: sh -c "yarn && yarn start"
     env_file:
-      - dev.env
+      - .env
     ports:
-      - 8090:3000
+      - 3000:3000
