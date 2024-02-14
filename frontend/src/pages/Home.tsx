@@ -40,6 +40,7 @@ interface Data {
   seeders: number;
   leechers: number;
   tags: string[];
+  categoryID: number;
 }
 
 type Order = "asc" | "desc";
@@ -306,7 +307,7 @@ function EnhancedTable({ values }: any) {
                               axios
                                 .post(
                                   `${DOMAIN}/api/download`,
-                                  { fid: row.fid, filename: row.filename },
+                                  { fid: row.fid, filename: row.filename, categoryID: row.categoryID },
                                   config
                                 )
                                 .then(() => {
@@ -376,8 +377,7 @@ export default function Home() {
     };
     axios
       .get(
-        `${DOMAIN}/api/search/${searchParams.get("search")}/${
-          Number(searchParams.get("p")) + 1
+        `${DOMAIN}/api/search/${searchParams.get("search")}/${Number(searchParams.get("p")) + 1
         }`,
         config
       )
