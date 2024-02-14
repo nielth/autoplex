@@ -210,6 +210,7 @@ function EnhancedTable({ values }: any) {
       seeders: torrent.seeders,
       leechers: torrent.leechers,
       tags: torrent.tags,
+      categoryID: torrent.categoryID,
     }));
   }
 
@@ -273,6 +274,9 @@ function EnhancedTable({ values }: any) {
                           sx={{ fontSize: "16px", fontWeight: "bold" }}
                         >
                           <>
+                            <>
+                              {console.log(row)}
+                            </>
                             <Box display={"flex"} gap={1} alignItems={"center"}>
                               <Box>{row.name}</Box>
                               {row.tags.includes("FREELEECH") ? (

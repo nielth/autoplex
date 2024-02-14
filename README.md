@@ -25,4 +25,14 @@ docker compose -f docker-compose.yml up --build
 ```
 docker compose -f docker-compose-dev.yml up --build
 ```
+`.env`
+```
+QBT_USER=admin
+QBT_PASS=adminadmin
+JWT_SECRET=developing_secret
+OAUTH_FORWARD_URL=http://localhost:3000
+REACT_APP_FLASK_LOCATION=http://localhost:5050
+PLEX_URL=http://nielth.com:32444
+PLEX_TOKEN=<token>
+```
 
