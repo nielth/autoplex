@@ -241,7 +241,7 @@ def retrieve_torrent():
     response = session.get(torrent_link)
 
     if data["categoryID"] in (8, 9, 11, 37, 43, 14, 12, 13, 47, 15, 29):
-        category = "movie"
+        category = "movies"
     elif data["categoryID"] in (26, 32, 27):
         category = "tvseries"
 
