@@ -412,7 +412,7 @@ export default function Home() {
     if (pa !== undefined) {
       setPage(Number(pa));
     }
-  }, []);
+  }, [searchParams.get("search"), searchParams.get("p")]);
 
   useEffect(() => {
     if (finalSearch !== "") {
