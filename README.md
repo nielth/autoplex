@@ -22,9 +22,16 @@ docker compose -f docker-compose.yml up --build
 
 ## For Dev
 
-```
+```sh
 docker compose -f docker-compose-dev.yml up --build
 ```
+
+For running react directly on machine
+```sh
+docker compose -f docker-compose-dev.yml up flask-api --build
+yarn && REACT_APP_FLASK_LOCATION=http://localhost:5050 yarn start
+```
+
 `.env`
 ```
 QBT_USER=admin
