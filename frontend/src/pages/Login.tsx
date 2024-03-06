@@ -2,13 +2,21 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import { Box, Button, Container, Typography } from "@mui/material";
 import { getWithExpiry, setWithExpiry } from "../scripts/localStorageExpire";
+import { useAuth } from "../App";
+import { useNavigate } from "react-router-dom";
 
 export default function LoginPage() {
   const [url, setUrl] = useState<string>("");
   const [error, setError] = useState<boolean>(false);
   const DOMAIN = process.env.REACT_APP_FLASK_LOCATION || "";
+  let auth = useAuth();
+  const navigate = useNavigate();
 
   useEffect(() => {
+    if (auth.user) {
+      navigate("/")
+    }
+
     (async () => {
       const localUrl = await getWithExpiry("authUrl");
       if (localUrl === null) {
@@ -60,7 +68,7 @@ export default function LoginPage() {
               mt={"500px"}
               width={"400px"}
               alignItems={"center"}
-              // bgcolor={"#0d1117"}
+            // bgcolor={"#0d1117"}
             >
               <Box>
                 <Button

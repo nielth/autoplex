@@ -8,8 +8,6 @@ services:
     env_file:
       - .env
     container_name: flask-api
-    volumes:
-      - ./backend/api:/api
     restart: always
 
   node-prod:
