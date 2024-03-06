@@ -1,12 +1,11 @@
-xmltodict
 python-qbittorrent
 aiohttp
 asyncio
 bencodepy
 gunicorn
 uuid
-flask[async]
 Flask
+flask[async]
 Werkzeug
 flask-jwt-extended
 flask-cors

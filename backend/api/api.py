@@ -35,7 +35,11 @@ OAUTH_FORWARD_URL = os.getenv("OAUTH_FORWARD_URL")
 PLEX_URL = os.getenv("PLEX_URL")
 PLEX_TOKEN = os.getenv("PLEX_TOKEN")
 
-app.config["JWT_SECRET_KEY"] = JWT_SECRET
+app.config["JWT_SECRET_KEY"] = (
+    os.urandom(16)
+    if not os.getenv("FLASK_ENV") == "development"
+    else "secret_key_for_dev"
+)
 jwt = JWTManager(app)
 
 app.config["JWT_TOKEN_LOCATION"] = ["cookies"]
@@ -46,7 +50,7 @@ else:
     app.config["JWT_COOKIE_SECURE"] = True
 
 
-app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(hours=5)
+app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(hours=24*14)
 
 CODES_URL = "https://plex.tv/api/v2/pins.json?strong=true"
 AUTH_URL = "https://app.plex.tv/auth#!?{}"

@@ -76,7 +76,7 @@ export default function RssId() {
               title={
                 <Fragment>
                   <Box textAlign={"left"}>
-                    <Typography>Download coming episodes</Typography>
+                    <Typography>Coming episodes</Typography>
                     <Typography>(not complete series)</Typography>
                   </Box>
                 </Fragment>
