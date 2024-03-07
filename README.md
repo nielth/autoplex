@@ -8,12 +8,11 @@
 ```
 QBT_USER=<qbt_username>
 QBT_PASS=<qbt_pass>
-JWT_SECRET=<uuid4_random_secret>
+QBT_URL=https://qbt.example.com
 OAUTH_FORWARD_URL=https://autoplex.example.com
 PLEX_URL=http://plex.example.com:32400
 PLEX_TOKEN=<token>
 NGINX_HOST=nginx.example.com
-QBT_URL=https://qbt.example.com
 ```
 
 ```
@@ -36,10 +35,10 @@ yarn && REACT_APP_FLASK_LOCATION=http://localhost:5050 yarn start
 ```
 QBT_USER=admin
 QBT_PASS=adminadmin
-JWT_SECRET=developing_secret
+QBT_URL=https://qbt.internal.example.com
+PLEX_TOKEN=ReUu67UsyPXueMfAercj
 OAUTH_FORWARD_URL=http://localhost:3000
 REACT_APP_FLASK_LOCATION=http://localhost:5050
-PLEX_URL=http://nielth.com:32444
-PLEX_TOKEN=<token>
+PLEX_URL=http://external.example.com:32444
 ```
 

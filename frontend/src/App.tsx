@@ -98,12 +98,21 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
         "Content-Type": "application/json",
       },
     };
-    axios.get(`${DOMAIN}/api/logout`, config).then((resp) => {
-      if (resp.status === 200) {
-        setUser(null);
+    axios
+      .get(`${DOMAIN}/api/logout`, config)
+      .then((resp) => {
+        if (resp.status === 200) {
+          setUser(null);
+        }
+      })
+      .catch((error) => {
+        if (error.response.status === 401) {
+          setUser(null);
+        }
+      })
+      .finally(() => {
         callback();
-      }
-    });
+      });
   };
 
   let value = { user, signin, signout };
@@ -126,6 +135,8 @@ export function useAuth() {
 function RequireAuth({ children }: { children: JSX.Element }) {
   let auth = useAuth();
   let location = useLocation();
+
+  useEffect(() => {}, [auth.user]);
 
   if (!auth.user) {
     return <Navigate to="/login" state={{ from: location }} replace />;

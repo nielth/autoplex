@@ -30,7 +30,6 @@ app = Flask(__name__)
 
 CORS(app, supports_credentials=True)
 
-JWT_SECRET = os.getenv("JWT_SECRET")
 OAUTH_FORWARD_URL = os.getenv("OAUTH_FORWARD_URL")
 PLEX_URL = os.getenv("PLEX_URL")
 PLEX_TOKEN = os.getenv("PLEX_TOKEN")
@@ -50,7 +49,7 @@ else:
     app.config["JWT_COOKIE_SECURE"] = True
 
 
-app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(hours=24*14)
+app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(hours=24 * 14)
 
 CODES_URL = "https://plex.tv/api/v2/pins.json?strong=true"
 AUTH_URL = "https://app.plex.tv/auth#!?{}"
