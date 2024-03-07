@@ -58,9 +58,7 @@ function ResponsiveAppBar() {
                 key={"logout"}
                 sx={{ my: 2, color: "white", display: "block" }}
                 onClick={() => {
-                  auth.signout(() => {
-                    navigate("/");
-                  });
+                  auth.signout(() => {});
                 }}
               >
                 Logout

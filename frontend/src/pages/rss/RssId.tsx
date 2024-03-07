@@ -62,7 +62,7 @@ export default function RssId() {
   return (
     <>
       <Box display={"flex"} gap={3}>
-        <Box component={"img"} height={300} src={json.image.original} />
+        <Box component={"img"} height={300} zIndex={-999} src={json.image.original} />
         <Box display={"flex"} flexDirection={"column"}>
           <Typography textAlign={"left"} variant="h4">
             {json.name}

@@ -18,6 +18,7 @@ import {
   TablePagination,
   TableSortLabel,
   Tooltip,
+  duration,
 } from "@mui/material";
 import { useSearchParams } from "react-router-dom";
 import { visuallyHidden } from "@mui/utils";
@@ -28,6 +29,7 @@ import DescriptionIcon from "@mui/icons-material/Description";
 import ArrowDropUpOutlinedIcon from "@mui/icons-material/ArrowDropUpOutlined";
 import ArrowDropDownOutlinedIcon from "@mui/icons-material/ArrowDropDownOutlined";
 import CloseIcon from "@mui/icons-material/Close";
+import { useAuth } from "../App";
 
 interface Data {
   download: string;
@@ -137,6 +139,66 @@ interface EnhancedTableProps {
   rowCount: number;
 }
 
+function CollapseInteract({
+  value,
+  failed,
+}: {
+  value: boolean;
+  failed: boolean;
+}) {
+  const [open, setOpen] = useState(value);
+
+  useEffect(() => {
+    setOpen(value);
+
+    if (value) {
+      const timer = setTimeout(() => {
+        setOpen(false);
+      }, 5000);
+
+      // Clear the timer if the component unmounts or if the value changes
+      return () => clearTimeout(timer);
+    }
+  }, [value]);
+
+  return (
+    <Collapse
+      in={open}
+      sx={{
+        margin: "auto",
+        position: "fixed",
+        width: "400px",
+        left: "0",
+        right: "0",
+        top: "10px",
+      }}
+    >
+      <Alert
+        severity={!failed ? "success" : "error"}
+        action={
+          <IconButton
+            aria-label="close"
+            color="inherit"
+            size="small"
+            onClick={() => {
+              setOpen(false);
+            }}
+          >
+            <CloseIcon fontSize="inherit" />
+          </IconButton>
+        }
+        sx={{ mb: 2 }}
+      >
+        {!failed ? (
+          <>Successfully Added!</>
+        ) : (
+          <>Could Not Start Download, contant admin!</>
+        )}
+      </Alert>
+    </Collapse>
+  );
+}
+
 function EnhancedTableHead(props: EnhancedTableProps) {
   const { order, orderBy, onRequestSort } = props;
   const createSortHandler =
@@ -189,17 +251,48 @@ function EnhancedTableHead(props: EnhancedTableProps) {
   );
 }
 
-function EnhancedTable({ values }: any) {
+interface Test {
+  torrentList: Object[];
+  numFound: number;
+}
+
+function search(searchParams: any) {
+  const DOMAIN = process.env.REACT_APP_FLASK_LOCATION || "";
+
+  const config = {
+    withCredentials: true,
+    headers: {
+      "Content-Type": "application/json",
+      "X-CSRF-TOKEN": getCookie("csrf_access_token"),
+    },
+  };
+  return axios.get(
+    `${DOMAIN}/api/search/${searchParams.get("search")}/${
+      Number(searchParams.get("p")) + 1
+    }`,
+    config
+  );
+}
+
+export default function Home() {
+  const [finalSearch, setFinalSearch] = useState("");
+  const [searchResp, setSearchResp] = useState<Test>();
+  const [page, setPage] = useState(0);
+  const [failedDownload, setFailedDownload] = useState<boolean>(false);
+  const [_, setSearchTerm] = useState("");
   const [order, setOrder] = useState<Order>("desc");
   const [orderBy, setOrderBy] = useState<keyof Data>("seeders");
+  const [CollapseInteractOpen, CollapseInteractSetOpen] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+  let auth = useAuth();
   const rowsPerPage = 35;
 
   const DOMAIN = process.env.REACT_APP_FLASK_LOCATION || "";
 
   let rows: Data[] = [];
 
-  if (values.searchResp !== undefined) {
-    rows = values.searchResp.torrentList.map((torrent: any) => ({
+  if (searchResp !== undefined) {
+    rows = searchResp.torrentList.map((torrent: any) => ({
       download: "",
       fid: torrent.fid,
       filename: torrent.filename,
@@ -216,19 +309,19 @@ function EnhancedTable({ values }: any) {
 
   const addSearchParameter = (newParamKey: any, newParamValue: any) => {
     // Create a copy of the current search parameters
-    const params = new URLSearchParams(values.searchParams);
+    const params = new URLSearchParams(searchParams);
 
     // Add or update the search parameter
     params.set(newParamKey, newParamValue);
 
     // Set the modified search parameters back to the URL
-    values.setSearchParams(params);
+    setSearchParams(params);
   };
 
   const handleChangeRowsPerPage = (
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
-    values.setPage(0);
+    setPage(0);
   };
 
   const handleRequestSort = (
@@ -242,157 +335,14 @@ function EnhancedTable({ values }: any) {
 
   const handleChangePage = (event: unknown, newPage: number) => {
     addSearchParameter("p", newPage);
-    values.setPage(newPage);
+    setPage(newPage);
+    window.scrollTo(0, 0);
   };
 
   let paginatedData;
   if (rows) {
     paginatedData = rows.slice(0, 0 + rowsPerPage);
   }
-
-  return (
-    <>
-      <Box sx={{ width: "100%" }}>
-        <TableContainer>
-          <Table sx={{ minWidth: 750 }} aria-labelledby="tableTitle">
-            <EnhancedTableHead
-              order={order}
-              orderBy={orderBy}
-              onRequestSort={handleRequestSort}
-              rowCount={rows.length}
-            />
-
-            {values.searchResp !== undefined ? (
-              <TableBody>
-                {paginatedData &&
-                  paginatedData.map((row) => {
-                    return (
-                      <TableRow hover tabIndex={-1} key={Number(row.fid)}>
-                        <TableCell
-                          component="th"
-                          scope="row"
-                          sx={{ fontSize: "16px", fontWeight: "bold" }}
-                        >
-                          <>
-                            <>
-                              {console.log(row)}
-                            </>
-                            <Box display={"flex"} gap={1} alignItems={"center"}>
-                              <Box>{row.name}</Box>
-                              {row.tags.includes("FREELEECH") ? (
-                                <>
-                                  <Box>
-                                    <Box
-                                      bgcolor={"#FFDF00"}
-                                      color={"#4d4d4d"}
-                                      borderRadius={"2px"}
-                                      padding={"2px 4px"}
-                                      fontSize={"11px"}
-                                    >
-                                      FREELEECH
-                                    </Box>
-                                  </Box>
-                                </>
-                              ) : null}
-                            </Box>
-                          </>
-                        </TableCell>
-                        <TableCell align="center">
-                          <Button
-                            onClick={() => {
-                              const config = {
-                                withCredentials: true,
-                                headers: {
-                                  "Content-Type": "application/json",
-                                  "X-CSRF-TOKEN":
-                                    getCookie("csrf_access_token"),
-                                },
-                              };
-                              axios
-                                .post(
-                                  `${DOMAIN}/api/download`,
-                                  { fid: row.fid, filename: row.filename, categoryID: row.categoryID },
-                                  config
-                                )
-                                .then(() => {
-                                  values.setOpen(true);
-                                  setTimeout(() => {
-                                    values.setOpen(false);
-                                  }, 5000);
-                                });
-                            }}
-                          >
-                            <DownloadIcon />
-                          </Button>
-                        </TableCell>
-                        <TableCell sx={{ color: "#978f8f" }} align="center">
-                          {row.addedTimestamp}
-                        </TableCell>
-                        <TableCell sx={{ color: "#978f8f" }} align="center">
-                          {formatBytes(row.size as number)}
-                        </TableCell>
-                        <TableCell sx={{ color: "#978f8f" }} align="center">
-                          {row.completed}
-                        </TableCell>
-                        <TableCell sx={{ color: "#978f8f" }} align="center">
-                          {row.seeders}
-                        </TableCell>
-                        <TableCell sx={{ color: "#978f8f" }} align="center">
-                          {row.leechers}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-              </TableBody>
-            ) : null}
-          </Table>
-        </TableContainer>
-        <TablePagination
-          rowsPerPageOptions={[]}
-          component="div"
-          count={values.searchResp ? values.searchResp.numFound : 0}
-          rowsPerPage={rowsPerPage}
-          page={values.page ? values.page : 0}
-          onPageChange={handleChangePage}
-          onRowsPerPageChange={handleChangeRowsPerPage}
-        />
-      </Box>
-    </>
-  );
-}
-
-export default function Home() {
-  const [searchTerm, setSearchTerm] = useState("");
-  const [finalSearch, setFinalSearch] = useState("");
-  const [searchResp, setSearchResp] = useState<object>();
-  const [open, setOpen] = useState(false);
-  const [page, setPage] = useState(-999);
-  const DOMAIN = process.env.REACT_APP_FLASK_LOCATION || "";
-
-  const [searchParams, setSearchParams] = useSearchParams();
-
-  function search() {
-    const config = {
-      withCredentials: true,
-      headers: {
-        "Content-Type": "application/json",
-        "X-CSRF-TOKEN": getCookie("csrf_access_token"),
-      },
-    };
-    axios
-      .get(
-        `${DOMAIN}/api/search/${searchParams.get("search")}/${Number(searchParams.get("p")) + 1
-        }`,
-        config
-      )
-      .then((search) => {
-        setSearchResp(search.data);
-      });
-  }
-
-  const handleChange = (event: any) => {
-    setSearchTerm(event.target.value);
-  };
 
   const handleSearch = (event: any) => {
     if (event.key === "Enter") {
@@ -402,11 +352,24 @@ export default function Home() {
     }
   };
 
+  const handleChange = (event: any) => {
+    setSearchTerm(event.target.value);
+  };
+
+  useEffect(() => {
+    if (finalSearch !== "") {
+      search(searchParams).then((search) => {
+        setSearchResp(search.data);
+      });
+    }
+  }, [finalSearch, page]);
+
+  useEffect(() => {}, [CollapseInteractOpen]);
+
   useEffect(() => {
     const query = searchParams.get("search");
     const pa = searchParams.get("p");
     if (query) {
-      setSearchTerm(query);
       setFinalSearch(query as string);
     }
     if (pa !== undefined) {
@@ -414,52 +377,9 @@ export default function Home() {
     }
   }, [searchParams.get("search"), searchParams.get("p")]);
 
-  useEffect(() => {
-    if (finalSearch !== "") {
-      search();
-    }
-  }, [finalSearch, page]);
-
-  const values = {
-    searchParams,
-    setSearchParams,
-    open,
-    setOpen,
-    page,
-    setPage,
-    searchResp,
-  };
-
   return (
     <>
-      <Collapse
-        in={open}
-        sx={{
-          position: "absolute",
-          width: "400px",
-          left: "0",
-          right: "0",
-          top: "10px",
-        }}
-      >
-        <Alert
-          action={
-            <IconButton
-              aria-label="close"
-              color="inherit"
-              size="small"
-              onClick={() => {
-                setOpen(false);
-              }}
-            >
-              <CloseIcon fontSize="inherit" />
-            </IconButton>
-          }
-          sx={{ mb: 2 }}
-        >
-          Successfully Added!
-        </Alert>
-      </Collapse>
+      <CollapseInteract value={CollapseInteractOpen} failed={failedDownload} />
       <Box>
         <TextField
           label="Search"
@@ -470,7 +390,125 @@ export default function Home() {
           sx={{ width: "50%" }}
         />
       </Box>
-      <EnhancedTable values={values} />
+      <Box>
+        <Box sx={{ width: "100%" }}>
+          <TableContainer>
+            <Table sx={{ minWidth: 750 }} aria-labelledby="tableTitle">
+              <EnhancedTableHead
+                order={order}
+                orderBy={orderBy}
+                onRequestSort={handleRequestSort}
+                rowCount={rows.length}
+              />
+
+              {searchResp !== undefined ? (
+                <TableBody>
+                  {paginatedData &&
+                    paginatedData.map((row) => {
+                      return (
+                        <TableRow hover tabIndex={-1} key={Number(row.fid)}>
+                          <TableCell
+                            component="th"
+                            scope="row"
+                            sx={{ fontSize: "16px", fontWeight: "bold" }}
+                          >
+                            <>
+                              <Box
+                                display={"flex"}
+                                gap={1}
+                                alignItems={"center"}
+                              >
+                                <Box>{row.name}</Box>
+                                {row.tags.includes("FREELEECH") ? (
+                                  <>
+                                    <Box>
+                                      <Box
+                                        bgcolor={"#FFDF00"}
+                                        color={"#4d4d4d"}
+                                        borderRadius={"2px"}
+                                        padding={"2px 4px"}
+                                        fontSize={"11px"}
+                                      >
+                                        FREELEECH
+                                      </Box>
+                                    </Box>
+                                  </>
+                                ) : null}
+                              </Box>
+                            </>
+                          </TableCell>
+                          <TableCell align="center">
+                            <Button
+                              onClick={() => {
+                                const config = {
+                                  withCredentials: true,
+                                  headers: {
+                                    "Content-Type": "application/json",
+                                    "X-CSRF-TOKEN":
+                                      getCookie("csrf_access_token"),
+                                  },
+                                };
+                                CollapseInteractSetOpen(false);
+                                setFailedDownload(false);
+                                axios
+                                  .post(
+                                    `${DOMAIN}/api/download`,
+                                    {
+                                      fid: row.fid,
+                                      filename: row.filename,
+                                      categoryID: row.categoryID,
+                                    },
+                                    config
+                                  )
+                                  .then(() => {})
+                                  .catch((resp) => {
+                                    if (resp.response.status === 401) {
+                                      console.log(2);
+                                      auth.signout(() => {});
+                                    }
+                                    setFailedDownload(true);
+                                  })
+                                  .finally(() => {
+                                    CollapseInteractSetOpen(true);
+                                  });
+                              }}
+                            >
+                              <DownloadIcon />
+                            </Button>
+                          </TableCell>
+                          <TableCell sx={{ color: "#978f8f" }} align="center">
+                            {row.addedTimestamp}
+                          </TableCell>
+                          <TableCell sx={{ color: "#978f8f" }} align="center">
+                            {formatBytes(row.size as number)}
+                          </TableCell>
+                          <TableCell sx={{ color: "#978f8f" }} align="center">
+                            {row.completed}
+                          </TableCell>
+                          <TableCell sx={{ color: "#978f8f" }} align="center">
+                            {row.seeders}
+                          </TableCell>
+                          <TableCell sx={{ color: "#978f8f" }} align="center">
+                            {row.leechers}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                </TableBody>
+              ) : null}
+            </Table>
+          </TableContainer>
+          <TablePagination
+            rowsPerPageOptions={[]}
+            component="div"
+            count={searchResp ? searchResp.numFound : 0}
+            rowsPerPage={rowsPerPage}
+            page={page ? page : 0}
+            onPageChange={handleChangePage}
+            onRowsPerPageChange={handleChangeRowsPerPage}
+          />
+        </Box>
+      </Box>
     </>
   );
 }

@@ -167,7 +167,7 @@ export default function Rss() {
     <>
       <Box textAlign={"center"}>
         <TextField
-          label="Auto Download"
+          label="Search Show"
           variant="outlined"
           onChange={handleChange}
           onKeyDown={handleSearch}
@@ -177,11 +177,32 @@ export default function Rss() {
       </Box>
       <Box display={"flex"} flexDirection={"column"} gap={1} pt={5}>
         {json.map((row) => (
-          <Box>
-            <Box component={Button} display={"flex"} flexDirection={"column"} onClick={(() => {
-                navigate(`/rss/${row.show.id}`)
-            })}>
-              <Typography>{row.show.name}</Typography>
+          <Box display={"flex"} flexDirection={"row"}>
+            <Box
+              component={Button}
+              onClick={() => {
+                navigate(`/rss/${row.show.id}`);
+              }}
+              width={500}
+              justifyContent={"left"}
+              gap={1}
+            >
+              <Box
+                component="img"
+                zIndex={-999}
+                sx={{
+                  width: 80,
+                }}
+                alt={row.show.name}
+                src={
+                  row.show.image?.medium
+                    ? row.show.image.medium
+                    : "/no_image_found.jpg"
+                }
+              />
+              <Box>
+                <Typography>{row.show.name}</Typography>
+              </Box>
             </Box>
           </Box>
         ))}
