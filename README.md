@@ -33,10 +33,10 @@ yarn && REACT_APP_FLASK_LOCATION=http://localhost:5050 yarn start
 
 `.env`
 ```
-QBT_USER=admin
-QBT_PASS=adminadmin
+QBT_USER=<user>
+QBT_PASS=<pass>
 QBT_URL=https://qbt.internal.example.com
-PLEX_TOKEN=ReUu67UsyPXueMfAercj
+PLEX_TOKEN=<token>
 OAUTH_FORWARD_URL=http://localhost:3000
 REACT_APP_FLASK_LOCATION=http://localhost:5050
 PLEX_URL=http://external.example.com:32444
