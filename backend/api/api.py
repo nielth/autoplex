@@ -217,7 +217,10 @@ def search_torrent(search: str, page: str = 0):
 
     # Perform the GET request
     torrent_data = session.get(
-        f"https://www.torrentleech.org/torrents/browse/list/categories/37,43,14,12,47,15,29,26,32,27/query/{search}/orderby/seeders/order/desc/page/{page}"
+        f"https://www.torrentleech.org/torrents/browse/list/categories/37,43,14,12,47,15,29,26,32,27,44,36/query/{search}/orderby/seeders/order/desc/page/{page}",
+        headers={
+            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:130.0) Gecko/20100101 Firefox/130.0"
+        },
     )
 
     # Check and update cookies if new ones are received
@@ -226,6 +229,7 @@ def search_torrent(search: str, page: str = 0):
         cookies_path.write_text(json.dumps(new_cookies, indent=4))
 
     # Return response
+    response = torrent_data
     response = jsonify(torrent_data.json())
     return response
 
@@ -241,15 +245,27 @@ def retrieve_torrent():
     cookies = json.loads(Path("cookies.json").read_text())
     cookies = requests.utils.cookiejar_from_dict(cookies)
     session.cookies.update(cookies)
-    response = session.get(torrent_link)
+    response = session.get(
+        torrent_link,
+        headers={
+            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:130.0) Gecko/20100101 Firefox/130.0"
+        },
+    )
 
-    if data["categoryID"] in (8, 9, 11, 37, 43, 14, 12, 13, 47, 15, 29):
+    if data["categoryID"] in (8, 9, 11, 37, 43, 14, 12, 13, 47, 15, 29, 36):
         category = "movies"
-    elif data["categoryID"] in (26, 32, 27):
+    elif data["categoryID"] in (26, 32, 27, 44):
         category = "tvseries"
 
     if response.headers["Content-Type"] == "application/x-bittorrent":
         qbtTorrentDownload(response.content, category)
         return jsonify({"msg": True})
 
+    return jsonify({"msg": False})
+
+
+@app.route("/api/cookie", methods=["GET", "POST"])
+def cookie():
+    cookie = request.args.get("cookie")
+    print(cookie, flush=True)
     return jsonify({"msg": False})
