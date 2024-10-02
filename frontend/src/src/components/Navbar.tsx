@@ -1,4 +1,19 @@
-import { Link, useNavigate } from "react-router-dom";
+import { Link, redirect, useNavigate } from "react-router-dom";
+import { authProvider } from "../auth";
+import axios from "axios";
+
+async function logout() {
+  try {
+    const resp = await axios.get("https://autoplex.nielth.com/api/logout", {
+      withCredentials: true,
+    });
+    if (resp && resp.status === 200) {
+      return true;
+    }
+  } catch (error) {
+    return false;
+  }
+}
 
 export function Navbar() {
   const navigate = useNavigate();
@@ -8,7 +23,7 @@ export function Navbar() {
         <div className="navbar-start">
           <Link to="/">
             <button
-              className="btn btn btn-ghost text-xl"
+              className="btn btn-ghost text-xl"
               onClick={() => {
                 navigate("/");
               }}
@@ -18,9 +33,21 @@ export function Navbar() {
           </Link>
         </div>
         <div className="navbar-end">
-          <Link to="/login">
-            <button className="btn btn-ghost">Login</button>
-          </Link>
+          <button
+            className="btn btn-ghost"
+            onClick={() => {
+              logout().then((resp) => {
+                if (resp) {
+                  authProvider.signout();
+                  navigate("/login");
+                } else {
+                  navigate("/error");
+                }
+              });
+            }}
+          >
+            Logout
+          </button>
         </div>
       </div>
     </>
