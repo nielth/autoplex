@@ -4,18 +4,17 @@ import { createBrowserRouter, RouterProvider } from "react-router-dom";
 
 import "./main.css";
 
-import Root, { rootLoader } from "./routes/root.tsx";
 import ErrorPage from "./error-page.tsx";
 import { Login } from "./routes/Login.tsx";
 import Callback from "./routes/Callback.tsx";
-import { Home } from "./routes/Home.tsx";
+import { Home, homeLoader } from "./routes/Home.tsx";
+import Root from "./routes/root.tsx";
 
 const router = createBrowserRouter([
   {
     path: "/",
     element: <Root />,
     errorElement: <ErrorPage />,
-    loader: rootLoader,
     children: [
       {
         index: true,
