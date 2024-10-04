@@ -34,6 +34,7 @@ PLEX_URL = os.getenv("PLEX_URL")
 PLEX_TOKEN = os.getenv("PLEX_TOKEN")
 TL_USER = os.getenv("TL_USER")
 TL_PASS = os.getenv("TL_PASS")
+U_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
 
 app.config["JWT_SECRET_KEY"] = (
     os.urandom(16)
@@ -208,6 +209,7 @@ def tl_search(search, page):
     response = ""
     for _ in range(2):
         session = requests.Session()
+        global U_AGENT
 
         # Load cookies from file
         cookies_path = Path("cookies.json")
@@ -215,15 +217,12 @@ def tl_search(search, page):
             cookies = json.loads(cookies_path.read_text())
             cookies = requests.utils.cookiejar_from_dict(cookies)
             session.cookies.update(cookies)
-        
-
-        ua = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
 
         # Perform the GET request
         response = session.get(
             f"https://www.torrentleech.org/torrents/browse/list/categories/37,43,14,12,47,15,29,26,32,27,44,36/query/{search}/orderby/seeders/order/desc/page/{page}",
             headers={
-                "User-Agent": ua
+                "User-Agent": U_AGENT 
             },
         )
 
@@ -242,8 +241,8 @@ def tl_search(search, page):
             if response1.status_code == 200:
                 resp_json = response1.json()
                 cookies = resp_json["solution"]["cookies"]
-                ua = resp_json["solution"]["userAgent"]
-                print("login:", ua, cookies)
+                U_AGENT = resp_json["solution"]["userAgent"]
+                print("login:", U_AGENT, cookies)
                 for cookie in cookies:
                     session.cookies.set(cookie["name"], cookie["value"])
 
@@ -253,7 +252,7 @@ def tl_search(search, page):
             }
 
             login_url = 'https://www.torrentleech.org/user/account/login/'
-            response2 = session.post(login_url, data=login_data, headers={"User-Agent": ua })
+            response2 = session.post(login_url, data=login_data, headers={"User-Agent": U_AGENT })
 
             print(response2.status_code)
 
@@ -290,7 +289,7 @@ def retrieve_torrent():
     response = session.get(
         torrent_link,
         headers={
-            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:130.0) Gecko/20100101 Firefox/130.0"
+            "User-Agent": U_AGENT
         },
     )
 
