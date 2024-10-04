@@ -1,5 +1,4 @@
-version: "3"
-
+---
 services:
   flask-api:
     build: ./backend
@@ -27,3 +26,13 @@ services:
       - .env
     ports:
       - 3000:3000
+
+  flaresolverr:
+    image: 21hsmw/flaresolverr:nodriver
+    container_name: flaresolverr
+    expose:
+      - 8191
+    environment:
+      - LOG_LEVEL=info
+    restart: always
+

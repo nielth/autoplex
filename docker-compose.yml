@@ -1,4 +1,6 @@
+---
 services:
+
   flask-api:
     build: ./backend
     environment:
@@ -7,7 +9,7 @@ services:
       - .env
     container_name: flask-api
     restart: always
-
+      
   node-prod:
     build:
       context: ./frontend
@@ -21,3 +23,13 @@ services:
     ports:
       - 8085:80
       - 8086:443
+
+  flaresolverr:
+    image: 21hsmw/flaresolverr:nodriver
+    container_name: flaresolverr
+    expose:
+      - 8191
+    environment:
+      - LOG_LEVEL=info
+    restart: always
+

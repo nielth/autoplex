@@ -3,6 +3,8 @@ FROM python:3-alpine
 WORKDIR /api
 
 RUN apk add --no-cache tzdata
+# Set unbuffered output for print statements
+ENV PYTHONUNBUFFERED=1
 ENV TZ=Europe/Oslo
 
 COPY ./api .
