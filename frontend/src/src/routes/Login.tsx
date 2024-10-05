@@ -10,7 +10,7 @@ export function Login() {
       const localUrl = await getWithExpiry("authUrl");
       if (localUrl === null) {
         axios
-          .get(`https://autoplex.nielth.com/api/authToken`, {
+          .get(`http://localhost:5050/api/authToken`, {
             withCredentials: true,
           })
           .then((resp) => {

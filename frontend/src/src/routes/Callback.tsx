@@ -9,7 +9,7 @@ export default function Callback() {
 
   useEffect(() => {
     axios
-      .get("https://autoplex.nielth.com/api/callback", {
+      .get("http://localhost:5050/api/callback", {
         withCredentials: true,
       })
       .then((resp: any) => {

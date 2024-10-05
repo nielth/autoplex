@@ -1,6 +1,5 @@
-import { Outlet, redirect, useNavigate } from "react-router-dom";
+import { Outlet, useNavigate } from "react-router-dom";
 import axios from "axios";
-import type { LoaderFunctionArgs } from "react-router-dom";
 
 import { Navbar } from "../components/Navbar";
 import { authProvider } from "../auth";
@@ -12,7 +11,7 @@ export default function Root() {
 
   useEffect(() => {
     axios
-      .get("https://autoplex.nielth.com/api/protected", {
+      .get("http://localhost:5050/api/protected", {
         withCredentials: true,
       })
       .then((resp: any) => {
@@ -33,9 +32,9 @@ export default function Root() {
   }, []);
   return (
     <>
+          <Navbar />
       {!loading ? (
         <>
-          <Navbar />
           <div id="detail" className="pt-8 container mx-auto">
             <Outlet />
           </div>
