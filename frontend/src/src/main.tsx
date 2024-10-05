@@ -7,7 +7,7 @@ import "./main.css";
 import ErrorPage from "./error-page.tsx";
 import { Login } from "./routes/Login.tsx";
 import Callback from "./routes/Callback.tsx";
-import { Home, homeLoader } from "./routes/Home.tsx";
+import { Home } from "./routes/Home.tsx";
 import Root from "./routes/root.tsx";
 
 const router = createBrowserRouter([
