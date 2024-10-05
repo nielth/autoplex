@@ -11,7 +11,6 @@ export function Home() {
   const handleSearch = (event: any) => {
     if (event.key === "Enter" || event.type === "click") {
       setSearchParams(`search=${search}&p=0`);
-
       axios
         .get(
           `https://autoplex.nielth.com/api/search/${search}/${
