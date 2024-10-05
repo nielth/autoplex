@@ -32,10 +32,10 @@ export default function Root() {
   }, []);
   return (
     <>
-          <Navbar />
+      <Navbar />
       {!loading ? (
         <>
-          <div id="detail" className="pt-8 container mx-auto">
+          <div id="detail" className="py-8 lg:container mx-auto">
             <Outlet />
           </div>
         </>
