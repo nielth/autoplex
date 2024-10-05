@@ -4,7 +4,7 @@ import axios from "axios";
 
 async function logout() {
   try {
-    const resp = await axios.get("https://autoplex.nielth.com/api/logout", {
+    const resp = await axios.get("http://localhost:5050/api/logout", {
       withCredentials: true,
     });
     if (resp && resp.status === 200) {

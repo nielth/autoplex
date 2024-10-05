@@ -13,7 +13,7 @@ export function Home() {
       setSearchParams(`search=${search}&p=0`);
       axios
         .get(
-          `https://autoplex.nielth.com/api/search/${search}/${
+          `http://localhost:5050/api/search/${search}/${
             Number(page) + 1
           }`,
           {
