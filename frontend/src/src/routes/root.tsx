@@ -25,6 +25,7 @@ export default function Root() {
       .catch((err: any) => {
         if (err.response && err.response.status === 401) {
           authProvider.signout();
+          navigate("/login");
         } else if (err.response) {
           navigate("/error");
         }
