@@ -8,14 +8,16 @@ import {
   SizeIcon,
   TimestampIcon,
 } from "./Icons";
+import { getApiDomain } from "../scripts/getApiDomain";
 
 function torrent_download(data: {
   fid: string;
   filename: string;
   categoryID: string;
 }) {
+  const domain = getApiDomain();
   axios.post(
-    "http://localhost:5050/api/download",
+    `${domain}/api/download`,
     {
       fid: data.fid,
       filename: data.filename,
