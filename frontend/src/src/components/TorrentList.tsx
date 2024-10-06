@@ -1,3 +1,4 @@
+import axios from "axios";
 import { formatBytes } from "../scripts/formatBytes";
 import {
   ButtonDownloadIcon,
@@ -7,6 +8,22 @@ import {
   SizeIcon,
   TimestampIcon,
 } from "./Icons";
+
+function torrent_download(data: {
+  fid: string;
+  filename: string;
+  categoryID: string;
+}) {
+  axios.post(
+    "http://localhost:5050/api/download",
+    {
+      fid: data.fid,
+      filename: data.filename,
+      categoryID: data.categoryID,
+    },
+    { withCredentials: true }
+  );
+}
 
 export function TorrentList({ data }: { data: TorrentData }) {
   return (
@@ -65,7 +82,16 @@ export function TorrentList({ data }: { data: TorrentData }) {
                 ) : null}
               </div>
             </div>
-            <button className="btn btn-ghost text-[#e5a00d]">
+            <button
+              className="btn btn-ghost text-[#e5a00d]"
+              onClick={() => {
+                torrent_download({
+                  fid: torrent.fid,
+                  filename: torrent.filename,
+                  categoryID: String(torrent.categoryID),
+                });
+              }}
+            >
               <ButtonDownloadIcon height={"20"} width={"20"} />
             </button>
           </div>
