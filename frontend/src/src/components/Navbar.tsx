@@ -1,10 +1,12 @@
 import { Link, redirect, useNavigate } from "react-router-dom";
 import { authProvider } from "../auth";
 import axios from "axios";
+import { getApiDomain } from "../scripts/getApiDomain";
 
 async function logout() {
+  const domain = getApiDomain();
   try {
-    const resp = await axios.get("http://localhost:5050/api/logout", {
+    const resp = await axios.get(`${domain}/api/logout`, {
       withCredentials: true,
     });
     if (resp && resp.status === 200) {
