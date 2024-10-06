@@ -89,7 +89,7 @@ export function Home() {
   }, [searchParams]);
 
   useEffect(() => {
-    if (inputRef.current) {
+    if (inputRef.current && window.innerWidth >= 900) {
       inputRef.current.focus();
     }
   });
