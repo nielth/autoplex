@@ -65,26 +65,24 @@ export function TorrentList({ data }: { data: TorrentData }) {
   return (
     <>
       {alertStatus ? (
-        <div className="fixed left-1/2 md:top-5 bottom-5 md:h-0">
-          <div
-            role="alert"
-            className="alert alert-success min-w-max relative left-[-50%]"
+        <div
+          role="alert"
+          className="alert alert-success flex fixed max-md:bottom-5 md:top-5 text-sm w-max left-1/2 -translate-x-1/2"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="h-6 w-6 shrink-0 stroke-current"
+            fill="none"
+            viewBox="0 0 24 24"
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-6 w-6 shrink-0 stroke-current"
-              fill="none"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
-            <span>Your purchase has been confirmed!</span>
-          </div>
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
+          </svg>
+          <span>Download started!</span>
         </div>
       ) : null}
       <div className="divider my-2"></div>
@@ -155,7 +153,7 @@ export function TorrentList({ data }: { data: TorrentData }) {
                 );
               }}
             >
-              <ButtonDownloadIcon height={"20"} width={"20"} />
+              <ButtonDownloadIcon height={"25"} width={"25"} />
             </button>
           </div>
           <div className="divider my-2"></div>
