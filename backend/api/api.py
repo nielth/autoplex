@@ -27,7 +27,7 @@ from qbt.qbt import qbtTorrentDownload
 
 app = Flask(__name__)
 
-CORS(app, supports_credentials=True)
+# CORS(app, supports_credentials=True)
 
 OAUTH_FORWARD_URL = os.getenv("OAUTH_FORWARD_URL")
 PLEX_URL = os.getenv("PLEX_URL")
