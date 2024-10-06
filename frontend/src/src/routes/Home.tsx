@@ -11,7 +11,7 @@ async function search_torrent(
   setData: Function,
   setDataLoading: Function
 ) {
-  await setDataLoading(true);
+  setDataLoading(true);
   const answer = await axios
     .get(`http://localhost:5050/api/search/${search}/${page}`, {
       withCredentials: true,
@@ -30,7 +30,7 @@ async function search_torrent(
         navigate("/error");
       }
     });
-  await setDataLoading(false);
+  setDataLoading(false);
   return answer;
 }
 
@@ -91,10 +91,6 @@ export function Home() {
       inputRef.current.focus();
     }
   });
-
-  useEffect(() => {
-    console.log(data);
-  }, [data]);
 
   return (
     <>
