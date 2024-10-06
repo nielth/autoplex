@@ -17,7 +17,7 @@ async function torrent_download(
   data: {
     fid: string;
     filename: string;
-    categoryID: string;
+    categoryID: number;
   },
   navigate: Function,
   setAlertStatus: Function
@@ -146,7 +146,7 @@ export function TorrentList({ data }: { data: TorrentData }) {
                   {
                     fid: torrent.fid,
                     filename: torrent.filename,
-                    categoryID: String(torrent.categoryID),
+                    categoryID: Number(torrent.categoryID),
                   },
                   navigate,
                   setAlertStatus
