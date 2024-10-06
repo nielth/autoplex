@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { TorrentList } from "../components/TorrentList";
 import axios from "axios";
 import { authProvider } from "../auth";
+import { getApiDomain } from "../scripts/getApiDomain";
 
 async function search_torrent(
   search: string,
@@ -12,8 +13,9 @@ async function search_torrent(
   setDataLoading: Function
 ) {
   setDataLoading(true);
+  const domain = await getApiDomain();
   const answer = await axios
-    .get(`http://localhost:5050/api/search/${search}/${page}`, {
+    .get(`${domain}/api/search/${search}/${page}`, {
       withCredentials: true,
     })
     .then((resp) => {

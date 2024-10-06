@@ -1,16 +1,18 @@
 import { useEffect, useState } from "react";
 import { getWithExpiry, setWithExpiry } from "../scripts/localStorage";
 import axios from "axios";
+import { getApiDomain } from "../scripts/getApiDomain";
 
 export function Login() {
   const [url, setUrl] = useState<string>("");
+  const domain = getApiDomain();
 
   useEffect(() => {
     (async () => {
       const localUrl = await getWithExpiry("authUrl");
       if (localUrl === null) {
         axios
-          .get(`http://localhost:5050/api/authToken`, {
+          .get(`${domain}/api/authToken`, {
             withCredentials: true,
           })
           .then((resp) => {
