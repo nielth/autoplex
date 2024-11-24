@@ -9,6 +9,7 @@ import { Login } from "./routes/Login.tsx";
 import Callback from "./routes/Callback.tsx";
 import { Home } from "./routes/Home.tsx";
 import Root from "./routes/root.tsx";
+import { TvMaze } from "./routes/TvMaze.tsx";
 
 const router = createBrowserRouter([
   {
@@ -19,6 +20,10 @@ const router = createBrowserRouter([
       {
         index: true,
         Component: Home,
+      },
+      {
+        path: "/tvmaze",
+        Component: TvMaze,
       },
     ],
   },

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { TorrentList } from "../components/TorrentList";
 import axios from "axios";
 import { authProvider } from "../auth";
@@ -44,9 +44,11 @@ export function Home() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+  const location = useLocation();
 
   async function pagination(next_or_prev: boolean, old_page: number) {
     setData(Object());
+
     if (
       next_or_prev == true &&
       old_page < Math.ceil(data.numFound / data.perPage)
@@ -59,6 +61,7 @@ export function Home() {
     }
   }
 
+  // If search is initiated with "Enter" or "click", search the text input
   const handleSearch = (event: any) => {
     if (event.key === "Enter" || event.type === "click") {
       setSearchParams(`search=${search}&p=1`);
@@ -67,6 +70,7 @@ export function Home() {
     }
   };
 
+  // Grabs search parameters every change, and search the corresponding data
   useEffect(() => {
     const sparmSearch = searchParams.get("search");
     const sparmPage = searchParams.get("p");
@@ -88,11 +92,16 @@ export function Home() {
     }
   }, [searchParams]);
 
+  // Auto focus text input on load (not mobile)
   useEffect(() => {
     if (inputRef.current && window.innerWidth >= 900) {
       inputRef.current.focus();
     }
-  });
+  }, []);
+
+  useEffect(() => {
+    setData(Object());
+  }, [location]);
 
   return (
     <>
@@ -127,6 +136,7 @@ export function Home() {
               ))}
             </div>
           ) : null}
+
           {data.torrentList ? (
             <div className="mx-auto">
               <TorrentList data={data} />
