@@ -35,6 +35,16 @@ func CallbackHandler(c *gin.Context) {
 }
 
 func ProtectedHandler(c *gin.Context) {
-	username, _ := c.Get("username")
-	c.JSON(200, gin.H{"message": username})
+	username := c.MustGet("username")
+	c.JSON(200, gin.H{"logged_in_as": username})
+}
+
+func TlSearchHandler(c *gin.Context) {
+	search := c.Params.ByName("search")
+	page := c.Params.ByName("page")
+	respJson := services.TlSearchRequest(search, page)
+	if respJson == "" {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create HTTP request"})
+	}
+	c.JSON(http.StatusOK, respJson)
 }

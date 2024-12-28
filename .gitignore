@@ -280,7 +280,7 @@ $RECYCLE.BIN/
 
 # End of https://www.toptal.com/developers/gitignore/api/macos,python,yarn,react,windows,linux
 
-cookies.json
+cookie.json
 .env
 frontend/nginx/ssl/*.crt
 frontend/nginx/ssl/*.key

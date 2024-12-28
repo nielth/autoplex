@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 )
 
 func AuthenticateMiddleware(c *gin.Context) {
@@ -19,11 +20,13 @@ func AuthenticateMiddleware(c *gin.Context) {
 	}
 
 	// Verify the token
-	if _, err := services.VerifyToken(tokenString); err != nil {
+	if token, err := services.VerifyToken(tokenString); err != nil {
 		fmt.Printf("Token verification failed: %v\\n", err)
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Token verification failed"})
 		c.Abort()
 		return
+	} else {
+		c.Set("username", token.Claims.(jwt.MapClaims)["username"])
 	}
 
 	// Continue with the next middleware or route handler

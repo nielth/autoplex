@@ -27,8 +27,8 @@ func init() {
 
 func CreateToken(username string) (string, error) {
 	claims := jwt.NewWithClaims(jwt.SigningMethodEdDSA, jwt.MapClaims{
-		"sub": username,
-		"exp": time.Now().Add(time.Hour * 24 * 7).Unix(),
+		"username": username,
+		// "exp":      time.Now().Add(time.Hour * 24 * 7).Unix(),
 		"iat": time.Now().Unix(),
 	})
 

@@ -13,9 +13,10 @@ func SetupRouter() *gin.Engine {
 	r.GET("/api/authToken", handlers.AuthTokenHandler)
 	r.GET("/api/callback", handlers.CallbackHandler)
 
-	protected := r.Group("/api/protected")
+	protected := r.Group("/api")
 	protected.Use(middlewares.AuthenticateMiddleware)
-	protected.GET("/", handlers.ProtectedHandler)
+	protected.GET("/protected", handlers.ProtectedHandler)
+	protected.GET("/search/:search/:page", handlers.TlSearchHandler)
 
 	return r
 }
