@@ -17,6 +17,7 @@ func SetupRouter() *gin.Engine {
 	protected.Use(middlewares.AuthenticateMiddleware)
 	protected.GET("/protected", handlers.ProtectedHandler)
 	protected.GET("/search/:search/:page", handlers.TlSearchHandler)
+	protected.POST("/download", handlers.TlDownloadHandler)
 
 	return r
 }

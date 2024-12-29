@@ -33,18 +33,3 @@ func CallbackHandler(c *gin.Context) {
 	c.SetCookie("token", tokenString, 3600, "/", "localhost", false, true)
 	c.JSON(http.StatusOK, gin.H{"logged_in_as": username})
 }
-
-func ProtectedHandler(c *gin.Context) {
-	username := c.MustGet("username")
-	c.JSON(200, gin.H{"logged_in_as": username})
-}
-
-func TlSearchHandler(c *gin.Context) {
-	search := c.Params.ByName("search")
-	page := c.Params.ByName("page")
-	respJson := services.TlSearchRequest(search, page)
-	if respJson == "" {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create HTTP request"})
-	}
-	c.JSON(http.StatusOK, respJson)
-}

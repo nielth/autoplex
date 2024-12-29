@@ -14,3 +14,9 @@ type User struct {
 	Email    string `xml:"email,attr"`
 	ID       string `xml:"id,attr"`
 }
+
+type DownloadData struct {
+	Fid        string `json:"fid"`
+	Filename   string `json:"filename"`
+	CategoryID int    `json:"categoryID"`
+}

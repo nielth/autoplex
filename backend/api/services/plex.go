@@ -14,16 +14,16 @@ import (
 	"github.com/joho/godotenv"
 )
 
-var plexToken string = GetPlexToken()
+var plexToken, forwardUrl string = GetPlexToken()
 
-func GetPlexToken() string {
+func GetPlexToken() (string, string) {
 	err := godotenv.Load(".env")
 
 	if err != nil {
 		log.Fatalf("Error loading .env file")
 	}
 	fmt.Println(os.Getenv("PLEX_TOKEN"))
-	return os.Getenv("PLEX_TOKEN")
+	return os.Getenv("PLEX_TOKEN"), os.Getenv("FORWARD_URL")
 }
 
 func ReturnPlexAuthPayload(client_identifer string) map[string]string {
@@ -70,7 +70,7 @@ func InitAuth() (string, int, string) {
 	// We us our locally generated uuid4 as well as the returned plex code to create the url to authenticate the user
 	returnedPlexCode := result["code"].(string)
 	respID := int(result["id"].(float64))
-	authURL := fmt.Sprintf("https://app.plex.tv/auth#!?clientID=%s&code=%s", localUUID, returnedPlexCode)
+	authURL := fmt.Sprintf("https://app.plex.tv/auth#!?clientID=%s&code=%s&forwardUrl=%s", localUUID, returnedPlexCode, forwardUrl)
 
 	return authURL, respID, localUUID
 }
