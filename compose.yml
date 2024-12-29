@@ -4,6 +4,8 @@ services:
   go:
     build: ./backend
     container_name: backend-go
+    volumes:
+      - /mnt/sdc/:/sdc:ro
     expose: 
       - 8080
     restart: always

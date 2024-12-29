@@ -156,15 +156,17 @@ func DiskUsage() (map[string]uint64, error) {
 	var stat syscall.Statfs_t
 
 	path := os.Getenv("PATH_DISK")
+	if path == "" {
+		return nil, fmt.Errorf("PATH_DISK environment variable is not set")
+	}
 
 	err := syscall.Statfs(path, &stat)
 	if err != nil {
-		fmt.Printf("Error reading PATH: %v", err)
-		return nil, fmt.Errorf("Error reading PATH %v", err)
+		return nil, fmt.Errorf("Error reading PATH: %v", err)
 	}
 
 	total := stat.Blocks * uint64(stat.Bsize)
-	free := stat.Bfree * uint64(stat.Bsize)
+	free := stat.Bavail * uint64(stat.Bsize)
 	used := total - free
 
 	return map[string]uint64{"total": total, "free": free, "used": used}, nil
