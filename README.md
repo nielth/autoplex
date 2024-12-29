@@ -22,8 +22,7 @@ docker compose -f docker-compose.yml up --build
 ## For Dev
 
 ```sh
-docker compose -f docker-compose-dev.yml up --build
-bun install && VITE_FLASK_LOCATION=http://localhost:5050 bun dev
+bun install && VITE_GO_BACKEND_LOCATION=http://localhost:80808080  bun dev
 ```
 
 `.env`

@@ -11,20 +11,7 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
-	"github.com/joho/godotenv"
 )
-
-var plexToken, forwardUrl string = GetPlexToken()
-
-func GetPlexToken() (string, string) {
-	err := godotenv.Load(".env")
-
-	if err != nil {
-		log.Fatalf("Error loading .env file")
-	}
-	fmt.Println(os.Getenv("PLEX_TOKEN"))
-	return os.Getenv("PLEX_TOKEN"), os.Getenv("FORWARD_URL")
-}
 
 func ReturnPlexAuthPayload(client_identifer string) map[string]string {
 	header := map[string]string{
@@ -50,6 +37,7 @@ func InitAuth() (string, int, string) {
 	localUUID := uuid.New().String()
 	header := ReturnPlexAuthPayload(localUUID)
 	client := http.Client{}
+	forwardUrl := os.Getenv("FORWARD_URL")
 
 	// Request a temporary response ID from plex for oauth authentication where a uuid4 is used to to verify this transaction
 	req, _ := http.NewRequest("POST", "https://plex.tv/api/v2/pins.json?strong=true", nil)
@@ -80,6 +68,7 @@ func RequestAuthToken(respID string, clientID string) (string, bool) {
 	// Link to get authToken from user oauth transaction
 	header := ReturnPlexAuthPayload(clientID)
 	tokenUrl := fmt.Sprintf("https://plex.tv/api/v2/pins/%s", respID)
+	plexToken := os.Getenv("PLEX_TOKEN")
 
 	client := http.Client{}
 

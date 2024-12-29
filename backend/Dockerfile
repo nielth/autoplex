@@ -1,13 +1,17 @@
-FROM python:3-alpine
+FROM golang:1.23 AS build-stage
+WORKDIR /app
 
-WORKDIR /api
+COPY ./api/ ./
+RUN go mod download
 
-RUN apk add --no-cache tzdata
-# Set unbuffered output for print statements
-ENV PYTHONUNBUFFERED=1
-ENV TZ=Europe/Oslo
+RUN CGO_ENABLED=0 GOOS=linux go build -o /api
 
-COPY ./api .
+FROM alpine AS final
 
-RUN pip install -r requirements.txt
-CMD ["gunicorn", "-b", "0.0.0.0:5000", "api:app"]
+WORKDIR /
+
+COPY --from=build-stage /api /api
+
+USER nonroot:nonroot
+
+ENTRYPOINT ["/api"]

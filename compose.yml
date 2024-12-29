@@ -1,13 +1,10 @@
 ---
 services:
 
-  flask-api:
+  go:
     build: ./backend
-    environment:
-      - FLASK_ENV=production
-    env_file:
-      - .env
-    container_name: flask-api
+    container_name: backend-go
+    expose: 8080
     restart: always
 
   node-prod:
