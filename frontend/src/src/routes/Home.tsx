@@ -40,7 +40,7 @@ export function Home() {
   const [search, setSearch] = useState<string>("");
   const [data, setData] = useState<TorrentData>(Object);
   const [page, setPage] = useState<number>(1);
-  const [dataLoading, setDataLoading] = useState<Boolean>(false);
+  const [dataLoading, setDataLoading] = useState<boolean>(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();

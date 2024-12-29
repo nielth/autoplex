@@ -22,7 +22,7 @@ docker compose -f docker-compose.yml up --build
 ## For Dev
 
 ```sh
-bun install && VITE_GO_BACKEND_LOCATION=http://localhost:80808080  bun dev
+bun install && VITE_GO_BACKEND_LOCATION=http://localhost:8080  bun dev
 ```
 
 `.env`

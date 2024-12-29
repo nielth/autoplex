@@ -26,9 +26,18 @@ func TlSearchHandler(c *gin.Context) {
 func TlDownloadHandler(c *gin.Context) {
 	var data models.DownloadData
 	if err := c.ShouldBindJSON(&data); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal error"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err})
 	}
 
 	services.TlDownloadRequest(data)
+}
+
+func DiskUsageHandler(c *gin.Context) {
+	diskUsage, err := services.DiskUsage()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err})
+	}
+
+	c.JSON(http.StatusOK, diskUsage)
 
 }

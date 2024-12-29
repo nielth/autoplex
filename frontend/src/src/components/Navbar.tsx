@@ -1,7 +1,8 @@
-import { Link, redirect, useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { authProvider } from "../auth";
 import axios from "axios";
 import { getApiDomain } from "../scripts/getApiDomain";
+import { DiskUsage } from "./DiskUsage";
 
 async function logout() {
   const domain = getApiDomain();
@@ -34,6 +35,7 @@ export function Navbar() {
             </button>
           </Link>
         </div>
+        <DiskUsage />
         <div className="navbar-end">
           <button
             className="btn btn-ghost"

@@ -10,6 +10,7 @@ import (
 	"os"
 	"slices"
 	"sync"
+	"syscall"
 )
 
 func fetchAndParseXML(url string, result interface{}, wg *sync.WaitGroup, errCh chan<- error) {
@@ -149,4 +150,22 @@ func TlDownloadRequest(data models.DownloadData) (*string, error) {
 
 	return nil, nil
 
+}
+
+func DiskUsage() (map[string]uint64, error) {
+	var stat syscall.Statfs_t
+
+	path := os.Getenv("PATH_DISK")
+
+	err := syscall.Statfs(path, &stat)
+	if err != nil {
+		fmt.Printf("Error reading PATH: %v", err)
+		return nil, fmt.Errorf("Error reading PATH %v", err)
+	}
+
+	total := stat.Blocks * uint64(stat.Bsize)
+	free := stat.Bfree * uint64(stat.Bsize)
+	used := total - free
+
+	return map[string]uint64{"total": total, "free": free, "used": used}, nil
 }
