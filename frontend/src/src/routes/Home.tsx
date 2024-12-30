@@ -128,7 +128,7 @@ export function Home() {
         <div className="pt-8">
           {dataLoading ? (
             <div>
-              {[...Array(35).keys()].map(() => (
+              {[...Array(35).keys()].map((key) => (
                 <div>
                   <div className="divider my-2" />
                   <div className="skeleton h-12 w-full"></div>
