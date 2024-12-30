@@ -82,7 +82,7 @@ export function ButtonDownloadIcon(props: { width: string; height: string }) {
       width={props.width}
       height={props.height}
       fill="currentColor"
-      class="bi bi-arrow-down-circle"
+      className="bi bi-arrow-down-circle"
       viewBox="0 0 16 16"
     >
       <path
