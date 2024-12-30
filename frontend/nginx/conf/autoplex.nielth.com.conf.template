@@ -18,14 +18,11 @@ server {
     listen 443 ssl;
     server_name ${NGINX_HOST} www.${NGINX_HOST};
 
-    ssl_certificate /etc/nginx/ssl/autoplex.nielth.com.crt; 
-    ssl_certificate_key /etc/nginx/ssl/autoplex.nielth.com.key;
+    ssl_certificate /etc/nginx/ssl/fullchain.pem;
+    ssl_certificate_key /etc/nginx/ssl/privkey.pem;
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_prefer_server_ciphers on;
     ssl_stapling on;
-
-    server_tokens off;
-
 
     # Root directory for static files
     location / {

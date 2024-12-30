@@ -282,5 +282,4 @@ $RECYCLE.BIN/
 
 cookie.json
 .env
-frontend/nginx/ssl/*.crt
-frontend/nginx/ssl/*.key
+frontend/nginx/ssl/*.pem
