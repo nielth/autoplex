@@ -4,6 +4,7 @@ COPY ./src .
 
 RUN bun install 
 RUN bun vite build
+RUN rm -f /etc/nginx/conf.d/default.conf
 
 FROM nginx:alpine
 COPY --from=builder /app/dist /var/www/myapp

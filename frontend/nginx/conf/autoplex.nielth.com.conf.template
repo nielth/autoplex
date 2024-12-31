@@ -1,22 +1,6 @@
 server {
-    listen 80;
-    listen [::]:80;
-    server_name ${NGINX_HOST} www.${NGINX_HOST};
-
-    location /.well-known/acme-challenge/ {
-        root /var/www/certbot;
-    }
-
-    server_tokens off;
-
-    location / {
-        return 301 https://${NGINX_HOST}$request_uri;
-    }
-}
-
-server {
     listen 443 ssl;
-    server_name ${NGINX_HOST} www.${NGINX_HOST};
+    server_name ${NGINX_HOST};
 
     ssl_certificate /etc/nginx/ssl/fullchain.pem;
     ssl_certificate_key /etc/nginx/ssl/privkey.pem;
