@@ -2,23 +2,22 @@ import axios from "axios"
 import { getApiDomain } from "../scripts/getApiDomain";
 import { useEffect, useState } from "react";
 import { formatBytes } from "../scripts/formatBytes";
+import { authProvider } from "../auth";
 
-interface DiskUsageObject {
-  total: number,
-  free: number,
-  used: number
-}
 
 export function DiskUsage() {
   const [disk, setDisk] = useState<DiskUsageObject>()
-  const domain = getApiDomain();
+  const auth = authProvider
 
   useEffect(() => {
-    axios.get(`${domain}/api/disk`, { withCredentials: true }).then((resp) => {
-      setDisk(resp.data)
-    })
+    const domain = getApiDomain();
+    if (auth.isAuthenticated) {
+      axios.get(`${domain}/api/disk`, { withCredentials: true }).then((resp) => {
+        setDisk(resp.data)
+      })
+    }
+  }, [auth.isAuthenticated]);
 
-  }, [])
   return (<>
     {disk ?
       <div className="tooltip tooltip-bottom flex gap-4" data-tip="Storage left">
