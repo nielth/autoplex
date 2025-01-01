@@ -53,7 +53,7 @@ func qbtLoginHandler() (*string, error) {
 	return &cookie[0], nil
 }
 
-func QbtDownload(data *[]byte, category int) (*string, error) {
+func QbtDownload(data *[]byte, category string) (*string, error) {
 	cookie, err := qbtLoginHandler()
 	if err != nil {
 		fmt.Println(err)
@@ -74,7 +74,11 @@ func QbtDownload(data *[]byte, category int) (*string, error) {
 		return nil, err
 	}
 
-	if err := writer.WriteField("savepath", "/downloads/sdc/movies"); err != nil {
+	if err := writer.WriteField("savepath", "/downloads/sdc/"+category); err != nil {
+		return nil, err
+	}
+
+	if err := writer.WriteField("sequentialDownload", "true"); err != nil {
 		return nil, err
 	}
 

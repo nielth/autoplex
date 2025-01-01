@@ -134,12 +134,12 @@ func TlDownloadRequest(data models.DownloadData) (*string, error) {
 		return nil, err
 	}
 
-	var category int
+	var category string
 
 	if slices.Contains(movie_range, data.CategoryID) {
-		category = data.CategoryID
+		category = "movies"
 	} else if slices.Contains(tv_range, data.CategoryID) {
-		category = data.CategoryID
+		category = "tvseries"
 	}
 
 	_, err = QbtDownload(&torrent_data, category)
