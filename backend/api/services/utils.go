@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"slices"
+	"strings"
 	"sync"
 	"syscall"
 )
@@ -117,8 +118,32 @@ func TlSearchRequest(search string, page string) (map[string]interface{}, error)
 		return nil, err
 	}
 
-	return respJson, nil
+	if torrents, exists := respJson["torrentList"].([]interface{}); exists {
+		filteredTorrents := []interface{}{}
+		for _, t := range torrents {
+			torrent := t.(map[string]interface{})
+			tags, tagExists := torrent["tags"].([]interface{})
+			if tagExists {
+				containsDolbyVision := false
+				for _, tag := range tags {
+					tagStr, ok := tag.(string)
+					if ok && strings.Contains(strings.ToLower(tagStr), "dolby vision") {
+						containsDolbyVision = true
+						break
+					}
+				}
+				if !containsDolbyVision {
+					filteredTorrents = append(filteredTorrents, torrent)
+				}
+			} else {
+				// Add torrents without tags
+				filteredTorrents = append(filteredTorrents, torrent)
+			}
+		}
+		respJson["torrentList"] = filteredTorrents
+	}
 
+	return respJson, nil
 }
 
 func TlDownloadRequest(data models.DownloadData) (*string, error) {
@@ -149,7 +174,6 @@ func TlDownloadRequest(data models.DownloadData) (*string, error) {
 	}
 
 	return nil, nil
-
 }
 
 func DiskUsage() (map[string]uint64, error) {
