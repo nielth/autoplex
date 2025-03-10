@@ -32,12 +32,18 @@ func TlDownloadHandler(c *gin.Context) {
 	services.TlDownloadRequest(data)
 }
 
-func DiskUsageHandler(c *gin.Context) {
+func BackendInfo(c *gin.Context) {
 	diskUsage, err := services.DiskUsage()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err})
 	}
+	qbtDownloadingList, err := services.QbtGetDownloadingList()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err})
+	}
 
-	c.JSON(http.StatusOK, diskUsage)
+	resp := map[string]any{"diskUsage": diskUsage, "qbtDownloadingList": &qbtDownloadingList}
+
+	c.JSON(http.StatusOK, resp)
 
 }

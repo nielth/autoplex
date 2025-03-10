@@ -14,7 +14,7 @@ import (
 	"syscall"
 )
 
-func fetchAndParseXML(url string, result interface{}, wg *sync.WaitGroup, errCh chan<- error) {
+func fetchAndParseXML(url string, result any, wg *sync.WaitGroup, errCh chan<- error) {
 	defer wg.Done()
 
 	resp, err := http.Get(url)
@@ -102,12 +102,12 @@ func tlGetRequest(url string, ua *string) ([]byte, error) {
 	return body, nil
 }
 
-func TlSearchRequest(search string, page string) (map[string]interface{}, error) {
+func TlSearchRequest(search string, page string) (map[string]any, error) {
 	url := "https://www.torrentleech.org/torrents/browse/list/categories/37,43,14,12,47,15,29,26,32,27,44,36/query/" + search + "/orderby/seeders/order/desc/page/" + page
 
 	body, err := tlGetRequest(url, nil)
 
-	var respJson map[string]interface{}
+	var respJson map[string]any
 	if err := json.Unmarshal(body, &respJson); err != nil {
 		fmt.Printf("Cannot read JSON from request: %v\n", err)
 		return nil, fmt.Errorf("Cannot read JSON from request")
@@ -118,11 +118,11 @@ func TlSearchRequest(search string, page string) (map[string]interface{}, error)
 		return nil, err
 	}
 
-	if torrents, exists := respJson["torrentList"].([]interface{}); exists {
-		filteredTorrents := []interface{}{}
+	if torrents, exists := respJson["torrentList"].([]any); exists {
+		filteredTorrents := []any{}
 		for _, t := range torrents {
-			torrent := t.(map[string]interface{})
-			tags, tagExists := torrent["tags"].([]interface{})
+			torrent := t.(map[string]any)
+			tags, tagExists := torrent["tags"].([]any)
 			if tagExists {
 				containsDolbyVision := false
 				for _, tag := range tags {
