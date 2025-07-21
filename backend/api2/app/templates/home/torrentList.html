@@ -1,0 +1,107 @@
+{{ define "home/torrentList.html" }}
+{{ if .message }}
+{{ .message }}
+{{ end }}
+{{ if .torrentList.TorrentList }}
+<div class="flex flex-col">
+    {{ range .torrentList.TorrentList }}
+    <div class="divider my-2"></div>
+    <div class="flex">
+        <div class="flex flex-col grow">
+            <div>{{ .Name }}</div>
+            <div class="flex gap-2 text-sm text-gray-400">
+                <div>
+                    <div class="flex items-center gap-1">
+                        <svg class="w-4 h-4"
+                             aria-hidden="true"
+                             xmlns="http://www.w3.org/2000/svg"
+                             width="24"
+                             height="24"
+                             fill="none"
+                             viewBox="0 0 24 24">
+                            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                        </svg>
+                        {{ .AddedTimestamp }}
+                    </div>
+                </div>
+                <div>
+                    <div class="flex items-center gap-1">
+                        <svg class="w-4 h-4"
+                             aria-hidden="true"
+                             xmlns="http://www.w3.org/2000/svg"
+                             width="24"
+                             height="24"
+                             fill="none"
+                             viewBox="0 0 24 24">
+                            <path stroke="currentColor" stroke-linejoin="round" stroke-width="2" d="M10 3v4a1 1 0 0 1-1 1H5m14-4v16a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V7.914a1 1 0 0 1 .293-.707l3.914-3.914A1 1 0 0 1 9.914 3H18a1 1 0 0 1 1 1Z" />
+                        </svg>
+                        {{ .FormattedSize }}
+                    </div>
+                </div>
+                <div>
+                    <div class="flex items-center gap-1">
+                        <svg class="w-4 h-4"
+                             aria-hidden="true"
+                             xmlns="http://www.w3.org/2000/svg"
+                             width="24"
+                             height="24"
+                             fill="none"
+                             viewBox="0 0 24 24">
+                            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 13V4M7 14H5a1 1 0 0 0-1 1v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4a1 1 0 0 0-1-1h-2m-1-5-4 5-4-5m9 8h.01" />
+                        </svg>
+                        {{ .Completed }}
+                    </div>
+                </div>
+                <div>
+                    <div class="flex items-center gap-1 text-green-600">
+                        <svg class="w-4 h-4"
+                             aria-hidden="true"
+                             xmlns="http://www.w3.org/2000/svg"
+                             width="24"
+                             height="24"
+                             fill="none"
+                             viewBox="0 0 24 24">
+                            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16.881 16H7.119a1 1 0 0 1-.772-1.636l4.881-5.927a1 1 0 0 1 1.544 0l4.88 5.927a1 1 0 0 1-.77 1.636Z" />
+                        </svg>
+                        {{ .Seeders }}
+                    </div>
+                </div>
+                <div>
+                    <div class="flex items-center gap-1 text-red-600">
+                        <svg class="w-4 h-4"
+                             aria-hidden="true"
+                             xmlns="http://www.w3.org/2000/svg"
+                             width="24"
+                             height="24"
+                             fill="none"
+                             viewBox="0 0 24 24">
+                            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7.119 8h9.762a1 1 0 0 1 .772 1.636l-4.881 5.927a1 1 0 0 1-1.544 0l-4.88-5.927A1 1 0 0 1 7.118 8Z" />
+                        </svg>
+                        {{ .Leechers }}
+                    </div>
+                </div>
+                <div>
+                    {{ if .IsFreeLeech }}
+                    <div class="flex items-center gap-1 bg-[#ffdf00] text-[#4d4d4d] rounded-sm px-1">FREELEECH</div>
+                    {{ end }}
+                </div>
+            </div>
+        </div>
+        <div>
+            <button class="btn btn-ghost btn-circle text-[#e5a00d]">
+                <svg xmlns="http://www.w3.org/2000/svg"
+                     width="25"
+                     height="25"
+                     fill="currentColor"
+                     class="bi bi-arrow-down-circle"
+                     viewBox="0 0 16 16">
+                    <path fill-rule="evenodd" d="M1 8a7 7 0 1 0 14 0A7 7 0 0 0 1 8m15 0A8 8 0 1 1 0 8a8 8 0 0 1 16 0M8.5 4.5a.5.5 0 0 0-1 0v5.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293z">
+                    </path>
+                </svg>
+            </button>
+        </div>
+    </div>
+    {{ end }}
+</div>
+{{ end }}
+{{ end }}

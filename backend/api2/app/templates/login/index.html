@@ -1,0 +1,18 @@
+{{ define "login/index.html" }}
+<!DOCTYPE html>
+<html lang="en" data-theme="mocha">
+    <head>
+        <title>Login</title>
+        {{ template "static/head.html" }}
+    </head>
+    <body>
+        <div class="flex flex-col gap-10 justify-center items-center text-center min-h-screen">
+            <h1 class="text-6xl sm:text-8xl uppercase font-bold">autoplex</h1>
+            <a class="btn" href="{{ .url }}">
+                <img class="w-5 h-5" src="/static/plextv-logo.svg" alt="Plex-login-logo" />
+                Login with Plex
+            </a>
+        </div>
+    </body>
+</html>
+{{ end }}

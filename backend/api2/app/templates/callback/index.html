@@ -1,0 +1,16 @@
+{{ define "callback/index.html" }}
+<!DOCTYPE html>
+<html lang="en" data-theme="mocha">
+    <head>
+        <title>Callback</title>
+        {{ template "static/head.html" }}
+    </head>
+    <body class="m-auto max-w-lg flex flex-col justify-center text-center"
+          hx-get="/callback/status"
+          hx-trigger="load">
+        <div>
+            <span class="loading loading-spinner"></span>
+        </div>
+    </body>
+</html>
+{{ end }}
