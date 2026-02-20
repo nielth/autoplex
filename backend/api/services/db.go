@@ -1,0 +1,182 @@
+package services
+
+import (
+	"context"
+	"database/sql"
+	"fmt"
+	"log"
+	"os"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/go-sql-driver/mysql"
+)
+
+var mysqlDB *sql.DB
+
+func InitMySQL() error {
+	host, err := requiredEnv("MYSQL_HOST")
+	if err != nil {
+		return err
+	}
+	dbName, err := requiredEnv("MYSQL_DATABASE")
+	if err != nil {
+		return err
+	}
+	user, err := requiredEnv("MYSQL_USER")
+	if err != nil {
+		return err
+	}
+	password, err := requiredEnv("MYSQL_PASSWORD")
+	if err != nil {
+		return err
+	}
+
+	port := strings.TrimSpace(os.Getenv("MYSQL_PORT"))
+	if port == "" {
+		port = "3306"
+	}
+
+	cfg := mysql.Config{
+		User:      user,
+		Passwd:    password,
+		Net:       "tcp",
+		Addr:      fmt.Sprintf("%s:%s", host, port),
+		DBName:    dbName,
+		ParseTime: true,
+		Collation: "utf8mb4_unicode_ci",
+		Params: map[string]string{
+			"charset": "utf8mb4",
+		},
+	}
+
+	db, err := sql.Open("mysql", cfg.FormatDSN())
+	if err != nil {
+		return fmt.Errorf("open mysql connection: %w", err)
+	}
+
+	db.SetConnMaxLifetime(5 * time.Minute)
+	db.SetMaxOpenConns(10)
+	db.SetMaxIdleConns(5)
+
+	retries := 10
+	if retriesRaw := strings.TrimSpace(os.Getenv("MYSQL_CONNECT_RETRIES")); retriesRaw != "" {
+		retriesParsed, parseErr := strconv.Atoi(retriesRaw)
+		if parseErr != nil || retriesParsed < 1 {
+			return fmt.Errorf("MYSQL_CONNECT_RETRIES must be a positive integer")
+		}
+		retries = retriesParsed
+	}
+
+	pingErr := pingWithRetry(db, retries)
+	if pingErr != nil {
+		return pingErr
+	}
+
+	if err := migrateAuditSchema(db); err != nil {
+		return err
+	}
+
+	mysqlDB = db
+	log.Println("mysql connected and audit schema is ready")
+	return nil
+}
+
+func pingWithRetry(db *sql.DB, retries int) error {
+	var lastErr error
+	for i := 1; i <= retries; i++ {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		lastErr = db.PingContext(ctx)
+		cancel()
+		if lastErr == nil {
+			return nil
+		}
+
+		if i < retries {
+			time.Sleep(2 * time.Second)
+		}
+	}
+
+	return fmt.Errorf("could not connect to mysql after %d attempts: %w", retries, lastErr)
+}
+
+func migrateAuditSchema(db *sql.DB) error {
+	statements := []string{
+		`CREATE TABLE IF NOT EXISTS users (
+			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+			username VARCHAR(255) NOT NULL,
+			email VARCHAR(255) NULL,
+			plex_user_id VARCHAR(128) NULL,
+			joined_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+			PRIMARY KEY (id),
+			UNIQUE KEY uq_users_username (username),
+			KEY idx_users_plex_user_id (plex_user_id),
+			KEY idx_users_joined_at (joined_at)
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+		`CREATE TABLE IF NOT EXISTS login_events (
+			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+			user_id BIGINT UNSIGNED NULL,
+			username VARCHAR(255) NULL,
+			success TINYINT(1) NOT NULL,
+			failure_reason VARCHAR(255) NULL,
+			ip_address VARCHAR(45) NULL,
+			user_agent VARCHAR(512) NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY (id),
+			KEY idx_login_events_user_id (user_id),
+			KEY idx_login_events_created_at (created_at),
+			CONSTRAINT fk_login_events_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+		`CREATE TABLE IF NOT EXISTS search_events (
+			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+			user_id BIGINT UNSIGNED NULL,
+			username VARCHAR(255) NULL,
+			query_text VARCHAR(1024) NOT NULL,
+			page VARCHAR(32) NULL,
+			success TINYINT(1) NOT NULL,
+			error_message TEXT NULL,
+			ip_address VARCHAR(45) NULL,
+			user_agent VARCHAR(512) NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY (id),
+			KEY idx_search_events_user_id (user_id),
+			KEY idx_search_events_created_at (created_at),
+			CONSTRAINT fk_search_events_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+		`CREATE TABLE IF NOT EXISTS download_events (
+			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+			user_id BIGINT UNSIGNED NULL,
+			username VARCHAR(255) NULL,
+			fid VARCHAR(128) NULL,
+			filename VARCHAR(512) NULL,
+			category_id INT NULL,
+			success TINYINT(1) NOT NULL,
+			error_message TEXT NULL,
+			ip_address VARCHAR(45) NULL,
+			user_agent VARCHAR(512) NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY (id),
+			KEY idx_download_events_user_id (user_id),
+			KEY idx_download_events_created_at (created_at),
+			CONSTRAINT fk_download_events_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+	}
+
+	for _, statement := range statements {
+		if _, err := db.Exec(statement); err != nil {
+			return fmt.Errorf("schema migration failed: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func dbConn() (*sql.DB, error) {
+	if mysqlDB == nil {
+		return nil, fmt.Errorf("mysql connection is not initialized")
+	}
+
+	return mysqlDB, nil
+}

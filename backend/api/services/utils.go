@@ -146,7 +146,7 @@ func TlSearchRequest(search string, page string) (map[string]any, error) {
 	return respJson, nil
 }
 
-func TlDownloadRequest(data models.DownloadData) (*string, error) {
+func TlDownloadRequest(data models.DownloadData) error {
 	url := "https://www.torrentleech.org/download/" + data.Fid + "/" + data.Filename
 	ua := "U_AGENT" // Without this, TL for some reason breaks
 	movie_range := []int{8, 9, 11, 37, 43, 14, 12, 13, 47, 15, 29, 36}
@@ -156,7 +156,7 @@ func TlDownloadRequest(data models.DownloadData) (*string, error) {
 
 	if err != nil {
 		fmt.Println(err)
-		return nil, err
+		return err
 	}
 
 	var category string
@@ -165,15 +165,17 @@ func TlDownloadRequest(data models.DownloadData) (*string, error) {
 		category = "movies"
 	} else if slices.Contains(tv_range, data.CategoryID) {
 		category = "tvseries"
+	} else {
+		return fmt.Errorf("unsupported category id %d", data.CategoryID)
 	}
 
 	_, err = QbtDownload(&torrent_data, category)
 
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return nil, nil
+	return nil
 }
 
 func DiskUsage() (map[string]uint64, error) {

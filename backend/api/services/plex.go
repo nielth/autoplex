@@ -78,19 +78,23 @@ func InitAuth() (string, int, string, error) {
 }
 
 // Function to check the oauth transaction, if true, check if user is linked to local Plex server
-func RequestAuthToken(respID string, clientID string) (string, bool) {
+func RequestAuthToken(respID string, clientID string) (*models.User, bool, error) {
+	respID = strings.TrimSpace(respID)
+	clientID = strings.TrimSpace(clientID)
+	if respID == "" || clientID == "" {
+		return nil, false, fmt.Errorf("missing auth callback cookies")
+	}
+
 	// Link to get authToken from user oauth transaction
 	header := ReturnPlexAuthPayload(clientID)
 	tokenUrl := fmt.Sprintf("https://plex.tv/api/v2/pins/%s", respID)
 	plexToken, err := requiredEnv("PLEX_TOKEN")
 	if err != nil {
-		fmt.Println(err)
-		return "", false
+		return nil, false, err
 	}
 	plexURL, err := requiredEnv("PLEX_URL")
 	if err != nil {
-		fmt.Println(err)
-		return "", false
+		return nil, false, err
 	}
 	plexURL = strings.TrimRight(plexURL, "/")
 
@@ -98,8 +102,7 @@ func RequestAuthToken(respID string, clientID string) (string, bool) {
 
 	req, err := http.NewRequest("GET", tokenUrl, nil)
 	if err != nil {
-		fmt.Println("Could not create request for Plex Auth Token")
-		return "", false
+		return nil, false, fmt.Errorf("could not create request for plex auth token: %w", err)
 	}
 
 	for key, value := range header {
@@ -108,23 +111,19 @@ func RequestAuthToken(respID string, clientID string) (string, bool) {
 
 	res, err := client.Do(req)
 	if err != nil {
-		fmt.Println("Could not retrieve Plex Auth Token")
-		return "", false
+		return nil, false, fmt.Errorf("could not retrieve plex auth token: %w", err)
 	}
+	defer res.Body.Close()
 
 	var result map[string]interface{}
 	err = json.NewDecoder(res.Body).Decode(&result)
 	if err != nil {
-		fmt.Println("Error decoding JSON response:", err)
-		return "", false
+		return nil, false, fmt.Errorf("error decoding plex auth response: %w", err)
 	}
-
-	defer res.Body.Close()
 
 	token, ok := result["authToken"].(string)
 	if !ok || token == "" {
-		fmt.Println("Could not receive 'authToken'")
-		return "", false
+		return nil, false, fmt.Errorf("could not receive authToken from plex")
 	}
 
 	// Link to get basic information about user oauth session to check if user is linked to plex
@@ -146,8 +145,14 @@ func RequestAuthToken(respID string, clientID string) (string, bool) {
 	wg.Wait()
 	close(errCh)
 
+	var firstErr error
 	for err := range errCh {
-		fmt.Printf("Error: %v\n", err)
+		if firstErr == nil {
+			firstErr = err
+		}
+	}
+	if firstErr != nil {
+		return nil, false, fmt.Errorf("failed to validate plex account")
 	}
 
 	var ids []string
@@ -158,8 +163,12 @@ func RequestAuthToken(respID string, clientID string) (string, bool) {
 		names = append(names, account.Name)
 	}
 
-	if slices.Contains(names, user.Username) || slices.Contains(ids, user.ID) {
-		return user.Username, true
+	if strings.TrimSpace(user.Username) == "" {
+		return nil, false, fmt.Errorf("could not read user profile from plex")
 	}
-	return "", false
+
+	if slices.Contains(names, user.Username) || slices.Contains(ids, user.ID) {
+		return &user, true, nil
+	}
+	return &user, false, fmt.Errorf("user is not linked to local plex server")
 }
