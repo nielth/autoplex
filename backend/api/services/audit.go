@@ -152,7 +152,7 @@ func LogSearchEvent(username string, query string, page string, success bool, er
 	return err
 }
 
-func LogDownloadEvent(username string, data models.DownloadData, success bool, errorMessage string, ipAddress string, userAgent string) error {
+func LogDownloadEvent(username string, data models.DownloadData, qbtHash string, success bool, errorMessage string, ipAddress string, userAgent string) error {
 	cleanUsername := strings.TrimSpace(username)
 	if cleanUsername == "" {
 		return fmt.Errorf("username is required")
@@ -173,13 +173,16 @@ func LogDownloadEvent(username string, data models.DownloadData, success bool, e
 
 	_, err = db.ExecContext(
 		ctx,
-		`INSERT INTO download_events (user_id, username, fid, filename, category_id, success, error_message, ip_address, user_agent)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO download_events (user_id, username, fid, filename, category_id, torrent_size, is_freeleech, qbt_hash, success, error_message, ip_address, user_agent)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		userID,
 		cleanUsername,
 		nullableString(data.Fid),
 		nullableString(data.Filename),
 		data.CategoryID,
+		nullableUint64(data.Size),
+		data.IsFreeleech,
+		nullableString(qbtHash),
 		success,
 		nullableString(errorMessage),
 		nullableString(ipAddress),
@@ -194,4 +197,11 @@ func nullableString(value string) any {
 		return nil
 	}
 	return clean
+}
+
+func nullableUint64(value uint64) any {
+	if value == 0 {
+		return nil
+	}
+	return value
 }

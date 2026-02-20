@@ -18,6 +18,8 @@ async function torrent_download(
     fid: string;
     filename: string;
     categoryID: number;
+    size: number;
+    isFreeleech: boolean;
   },
   navigate: Function,
   setAlertStatus: Function
@@ -31,6 +33,8 @@ async function torrent_download(
         fid: data.fid,
         filename: data.filename,
         categoryID: data.categoryID,
+        size: data.size,
+        isFreeleech: data.isFreeleech,
       },
       {
         withCredentials: true,
@@ -147,6 +151,8 @@ export function TorrentList({ data }: { data: TorrentData }) {
                     fid: torrent.fid,
                     filename: torrent.filename,
                     categoryID: Number(torrent.categoryID),
+                    size: Number(torrent.size),
+                    isFreeleech: torrent.tags.includes("FREELEECH"),
                   },
                   navigate,
                   setAlertStatus

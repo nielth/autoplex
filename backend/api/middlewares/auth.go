@@ -41,7 +41,16 @@ func AuthenticateMiddleware(c *gin.Context) {
 			return
 		}
 
+		isAdmin, adminErr := services.IsAdminUsername(username)
+		if adminErr != nil {
+			fmt.Printf("Admin lookup failed: %v\\n", adminErr)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not resolve user role"})
+			c.Abort()
+			return
+		}
+
 		c.Set("username", username)
+		c.Set("is_admin", isAdmin)
 	}
 
 	// Continue with the next middleware or route handler

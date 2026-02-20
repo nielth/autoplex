@@ -16,7 +16,39 @@ type User struct {
 }
 
 type DownloadData struct {
-	Fid        string `json:"fid"`
-	Filename   string `json:"filename"`
-	CategoryID int    `json:"categoryID"`
+	Fid         string `json:"fid"`
+	Filename    string `json:"filename"`
+	CategoryID  int    `json:"categoryID"`
+	Size        uint64 `json:"size"`
+	IsFreeleech bool   `json:"isFreeleech"`
+}
+
+type DownloadDeleteRequestInput struct {
+	Reason string `json:"reason"`
+}
+
+type DownloadEventRecord struct {
+	ID                uint64  `json:"id"`
+	UserID            *uint64 `json:"userID,omitempty"`
+	Username          string  `json:"username"`
+	Fid               string  `json:"fid"`
+	Filename          string  `json:"filename"`
+	CategoryID        int     `json:"categoryID"`
+	TorrentSize       uint64  `json:"torrentSize"`
+	IsFreeleech       bool    `json:"isFreeleech"`
+	CreatedAt         string  `json:"createdAt"`
+	DeletedAt         *string `json:"deletedAt,omitempty"`
+	DeletedByUsername *string `json:"deletedByUsername,omitempty"`
+	HasPendingDelete  bool    `json:"hasPendingDeleteRequest"`
+}
+
+type DownloadDeleteRequestRecord struct {
+	ID                  uint64 `json:"id"`
+	DownloadEventID     uint64 `json:"downloadEventID"`
+	RequestedByUsername string `json:"requestedByUsername"`
+	Status              string `json:"status"`
+	Reason              string `json:"reason"`
+	ApprovedByUsername  string `json:"approvedByUsername,omitempty"`
+	CreatedAt           string `json:"createdAt"`
+	ApprovedAt          string `json:"approvedAt,omitempty"`
 }

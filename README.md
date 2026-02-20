@@ -37,9 +37,17 @@ This project now writes these MySQL audit tables automatically at startup:
 
 ```text
 users
+admin_users
 login_events
 search_events
 download_events
+download_delete_requests
+```
+
+Grant admin manually by inserting the internal user id into `admin_users`:
+
+```sql
+INSERT INTO admin_users (user_id) VALUES (123);
 ```
 
 Set the same `MYSQL_*` values in both `.env.development` and `.env.production` if you want one shared database for all environments.

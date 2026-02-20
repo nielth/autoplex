@@ -115,6 +115,12 @@ func migrateAuditSchema(db *sql.DB) error {
 			KEY idx_users_plex_user_id (plex_user_id),
 			KEY idx_users_joined_at (joined_at)
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+		`CREATE TABLE IF NOT EXISTS admin_users (
+			user_id BIGINT UNSIGNED NOT NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY (user_id),
+			CONSTRAINT fk_admin_users_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 		`CREATE TABLE IF NOT EXISTS login_events (
 			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
 			user_id BIGINT UNSIGNED NULL,
@@ -152,15 +158,44 @@ func migrateAuditSchema(db *sql.DB) error {
 			fid VARCHAR(128) NULL,
 			filename VARCHAR(512) NULL,
 			category_id INT NULL,
+			torrent_size BIGINT UNSIGNED NULL,
+			is_freeleech TINYINT(1) NOT NULL DEFAULT 0,
+			qbt_hash VARCHAR(128) NULL,
 			success TINYINT(1) NOT NULL,
 			error_message TEXT NULL,
 			ip_address VARCHAR(45) NULL,
 			user_agent VARCHAR(512) NULL,
+			deleted_at DATETIME NULL,
+			deleted_by_user_id BIGINT UNSIGNED NULL,
+			deleted_by_username VARCHAR(255) NULL,
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			PRIMARY KEY (id),
 			KEY idx_download_events_user_id (user_id),
 			KEY idx_download_events_created_at (created_at),
-			CONSTRAINT fk_download_events_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+			KEY idx_download_events_qbt_hash (qbt_hash),
+			KEY idx_download_events_deleted_at (deleted_at),
+			CONSTRAINT fk_download_events_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
+			CONSTRAINT fk_download_events_deleted_by_user FOREIGN KEY (deleted_by_user_id) REFERENCES users(id) ON DELETE SET NULL
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+		`CREATE TABLE IF NOT EXISTS download_delete_requests (
+			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+			download_event_id BIGINT UNSIGNED NOT NULL,
+			requested_by_user_id BIGINT UNSIGNED NULL,
+			requested_by_username VARCHAR(255) NOT NULL,
+			status ENUM('pending', 'approved', 'rejected') NOT NULL DEFAULT 'pending',
+			request_note TEXT NULL,
+			approved_by_user_id BIGINT UNSIGNED NULL,
+			approved_by_username VARCHAR(255) NULL,
+			approved_at DATETIME NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+			PRIMARY KEY (id),
+			KEY idx_download_delete_requests_download_event_id (download_event_id),
+			KEY idx_download_delete_requests_status (status),
+			KEY idx_download_delete_requests_created_at (created_at),
+			CONSTRAINT fk_download_delete_requests_download_event FOREIGN KEY (download_event_id) REFERENCES download_events(id) ON DELETE CASCADE,
+			CONSTRAINT fk_download_delete_requests_requested_by_user FOREIGN KEY (requested_by_user_id) REFERENCES users(id) ON DELETE SET NULL,
+			CONSTRAINT fk_download_delete_requests_approved_by_user FOREIGN KEY (approved_by_user_id) REFERENCES users(id) ON DELETE SET NULL
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 	}
 
