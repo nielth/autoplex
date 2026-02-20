@@ -48,8 +48,7 @@ Set the same `MYSQL_*` values in both `.env.development` and `.env.production` i
 
 In production compose:
 
-- `MYSQL_HOST` is used as the fixed container IP for the MySQL service.
-- `MYSQL_DOCKER_SUBNET` defines the subnet that IP must belong to.
+- Set `MYSQL_HOST=mysql` so backend resolves the MySQL service by Docker DNS.
 - `MYSQL_ROOT_PASSWORD` is required by MySQL startup.
 
 For development on another machine:
@@ -60,7 +59,7 @@ For development on another machine:
 ## Production
 
 ```sh
-docker compose --env-file .env.production -f compose.yml up --build
+docker compose -f compose.yml up --build
 ```
 
 `compose.yml` reads `.env.production` for backend and frontend containers.
@@ -70,7 +69,7 @@ docker compose --env-file .env.production -f compose.yml up --build
 Start backend + support services with development env:
 
 ```sh
-docker compose --env-file .env.development -f compose.dev.yml up --build
+docker compose -f compose.dev.yml up --build
 ```
 
 `compose.dev.yml` is a standalone development stack and reads `.env.development`.
