@@ -372,16 +372,15 @@ func QbtPause(qbtHash string) error {
 		return err
 	}
 
-	formData := url.Values{}
-	formData.Set("hashes", cleanHash)
+	params := url.Values{}
+	params.Set("hashes", cleanHash)
 
-	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/api/v2/torrents/pause", qbtURL), strings.NewReader(formData.Encode()))
+	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/api/v2/torrents/pause?%s", qbtURL, params.Encode()), nil)
 	if err != nil {
 		return err
 	}
 
 	req.Header.Add("cookie", *cookie)
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	tr := &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}
 	client := &http.Client{Transport: tr}
