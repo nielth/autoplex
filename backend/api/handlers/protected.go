@@ -181,7 +181,7 @@ func BackendInfo(c *gin.Context) {
 		return
 	}
 
-	resp := map[string]any{"diskUsage": diskUsage, "qbtDownloadingList": &qbtDownloadingList}
+	resp := map[string]any{"diskUsage": diskUsage, "qbtDownloadingList": qbtDownloadingList}
 
 	c.JSON(http.StatusOK, resp)
 

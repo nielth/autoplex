@@ -36,10 +36,13 @@ type DownloadEventRecord struct {
 	CategoryID        int     `json:"categoryID"`
 	TorrentSize       uint64  `json:"torrentSize"`
 	IsFreeleech       bool    `json:"isFreeleech"`
+	QbtState          string  `json:"qbtState,omitempty"`
+	ProgressPercent   float64 `json:"progressPercent"`
 	CreatedAt         string  `json:"createdAt"`
 	DeletedAt         *string `json:"deletedAt,omitempty"`
 	DeletedByUsername *string `json:"deletedByUsername,omitempty"`
 	HasPendingDelete  bool    `json:"hasPendingDeleteRequest"`
+	QbtHash           string  `json:"-"`
 }
 
 type DownloadDeleteRequestRecord struct {

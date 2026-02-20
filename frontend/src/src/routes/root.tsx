@@ -19,7 +19,7 @@ export default function Root() {
       .then((resp: any) => {
         console.log(resp.status);
         if (resp.status === 200 && resp.data.logged_in_as) {
-          authProvider.signin(resp.data.logged_in_as);
+          authProvider.signin(resp.data.logged_in_as, resp.data.is_admin === true);
           setLoading(false);
         }
       })

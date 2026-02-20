@@ -24,16 +24,21 @@ export function Navbar() {
     <>
       <div className="navbar bg-base-300">
         <div className="navbar-start">
-          <Link to="/">
-            <button
-              className="btn btn-ghost text-xl"
-              onClick={() => {
-                navigate("/");
-              }}
-            >
-              Autoplex
-            </button>
-          </Link>
+          <div className="flex items-center">
+            <Link to="/">
+              <button
+                className="btn btn-ghost text-xl"
+                onClick={() => {
+                  navigate("/");
+                }}
+              >
+                Autoplex
+              </button>
+            </Link>
+            <Link to="/downloads" className="btn btn-ghost btn-sm">
+              Downloads
+            </Link>
+          </div>
         </div>
         <DiskUsage />
         <div className="navbar-end">

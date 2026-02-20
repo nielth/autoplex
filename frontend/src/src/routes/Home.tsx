@@ -4,6 +4,16 @@ import { TorrentList } from "../components/TorrentList";
 import axios from "axios";
 import { authProvider } from "../auth";
 import { getApiDomain } from "../scripts/getApiDomain";
+import { formatBytes } from "../scripts/formatBytes";
+
+interface ActiveDownload {
+  hash: string;
+  name: string;
+  progress: number;
+  size: number;
+  num_seeds: number;
+  num_leechs: number;
+}
 
 async function search_torrent(
   search: string,
@@ -41,10 +51,12 @@ export function Home() {
   const [data, setData] = useState<TorrentData>(Object);
   const [page, setPage] = useState<number>(1);
   const [dataLoading, setDataLoading] = useState<boolean>(false);
+  const [activeDownloads, setActiveDownloads] = useState<ActiveDownload[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const domain = getApiDomain();
 
   async function pagination(next_or_prev: boolean, old_page: number) {
     setData(Object());
@@ -110,8 +122,59 @@ export function Home() {
     setData(Object());
   }, [location]);
 
+  useEffect(() => {
+    const fetchActiveDownloads = () => {
+      axios
+        .get(`${domain}/api/disk`, { withCredentials: true })
+        .then((resp) => {
+          setActiveDownloads(resp.data.qbtDownloadingList ?? []);
+        })
+        .catch((error) => {
+          if (error.response?.status === 401) {
+            authProvider.signout();
+            navigate("/login");
+          }
+        });
+    };
+
+    fetchActiveDownloads();
+    const intervalId = window.setInterval(fetchActiveDownloads, 10000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [domain, navigate]);
+
   return (
     <>
+      {activeDownloads.length > 0 ? (
+        <div className="mb-8 rounded-xl border border-base-300 bg-base-200 p-4">
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide opacity-70">
+            Active Downloads
+          </h2>
+          <div className="space-y-3">
+            {activeDownloads.map((download) => {
+              const progressPercent = Math.round(download.progress * 10000) / 100;
+
+              return (
+                <div key={download.hash || download.name} className="space-y-1">
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                    <p className="font-medium">{download.name}</p>
+                    <p className="opacity-70">
+                      {formatBytes(download.size)} - {progressPercent}%
+                    </p>
+                  </div>
+                  <progress
+                    className="progress progress-info w-full"
+                    value={progressPercent}
+                    max={100}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
       <div className="flex justify-center gap-x-1">
         <input
           ref={inputRef}
@@ -135,8 +198,8 @@ export function Home() {
         <div className="pt-8">
           {dataLoading ? (
             <div>
-              {[...Array(35).keys()].map((key) => (
-                <div>
+              {[...Array(35).keys()].map((_, index) => (
+                <div key={index}>
                   <div className="divider my-2" />
                   <div className="skeleton h-12 w-full"></div>
                 </div>

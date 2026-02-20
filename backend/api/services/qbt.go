@@ -91,6 +91,7 @@ type QbtDownloadList struct {
 	Num_seeds    int     `json:"num_seeds"`
 	Progress     float64 `json:"progress"`
 	Size         int     `json:"size"`
+	State        string  `json:"state"`
 }
 
 func QbtGetDownloadingList() (*[]QbtDownloadList, error) {
@@ -126,6 +127,54 @@ func QbtGetDownloadingList() (*[]QbtDownloadList, error) {
 
 	return &qbtDownloadList, nil
 
+}
+
+func QbtGetAllTorrentsByHash() (map[string]QbtDownloadList, error) {
+	cookie, qbtURL, err := qbtLoginHandler()
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/api/v2/torrents/info?filter=all", qbtURL), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("cookie", *cookie)
+
+	tr := &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}
+	client := &http.Client{Transport: tr}
+	res, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		body, _ := io.ReadAll(res.Body)
+		return nil, fmt.Errorf("qbt torrents/info failed with status %d: %s", res.StatusCode, string(body))
+	}
+
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var torrents []QbtDownloadList
+	if err := json.Unmarshal(body, &torrents); err != nil {
+		return nil, err
+	}
+
+	torrentMap := make(map[string]QbtDownloadList, len(torrents))
+	for _, torrent := range torrents {
+		hash := strings.ToLower(strings.TrimSpace(torrent.Hash))
+		if hash == "" {
+			continue
+		}
+		torrentMap[hash] = torrent
+	}
+
+	return torrentMap, nil
 }
 
 func qbtTagFromFid(fid string) string {

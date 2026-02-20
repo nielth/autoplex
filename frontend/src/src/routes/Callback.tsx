@@ -16,7 +16,7 @@ export default function Callback() {
       })
       .then((resp: any) => {
         if (resp.status === 200 && resp.data.logged_in_as) {
-          authProvider.signin(resp.data.logged_in_as);
+          authProvider.signin(resp.data.logged_in_as, resp.data.is_admin === true);
         }
       })
       .finally(() => {

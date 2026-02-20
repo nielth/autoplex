@@ -51,6 +51,7 @@ func ListDownloadEvents(username string, isAdmin bool) ([]models.DownloadEventRe
 			COALESCE(d.category_id, 0),
 			COALESCE(d.torrent_size, 0),
 			d.is_freeleech,
+			COALESCE(d.qbt_hash, ''),
 			d.created_at,
 			d.deleted_at,
 			d.deleted_by_username,
@@ -62,6 +63,7 @@ func ListDownloadEvents(username string, isAdmin bool) ([]models.DownloadEventRe
 			) AS has_pending_delete_request
 		FROM download_events d
 		WHERE d.success = 1
+		  AND d.deleted_at IS NULL
 		  AND (? OR d.username = ?)
 		ORDER BY d.created_at DESC`,
 		isAdmin,
@@ -79,6 +81,7 @@ func ListDownloadEvents(username string, isAdmin bool) ([]models.DownloadEventRe
 			userID            sql.NullInt64
 			categoryID        sql.NullInt64
 			torrentSize       sql.NullInt64
+			qbtHash           string
 			createdAt         time.Time
 			deletedAt         sql.NullTime
 			deletedByUsername sql.NullString
@@ -93,6 +96,7 @@ func ListDownloadEvents(username string, isAdmin bool) ([]models.DownloadEventRe
 			&categoryID,
 			&torrentSize,
 			&record.IsFreeleech,
+			&qbtHash,
 			&createdAt,
 			&deletedAt,
 			&deletedByUsername,
@@ -114,6 +118,7 @@ func ListDownloadEvents(username string, isAdmin bool) ([]models.DownloadEventRe
 			record.TorrentSize = uint64(torrentSize.Int64)
 		}
 
+		record.QbtHash = strings.TrimSpace(qbtHash)
 		record.CreatedAt = createdAt.UTC().Format(time.RFC3339)
 
 		if deletedAt.Valid {
@@ -131,6 +136,33 @@ func ListDownloadEvents(username string, isAdmin bool) ([]models.DownloadEventRe
 
 	if err := rows.Err(); err != nil {
 		return nil, err
+	}
+
+	if len(downloads) == 0 {
+		return downloads, nil
+	}
+
+	torrentsByHash, err := QbtGetAllTorrentsByHash()
+	if err == nil {
+		for i := range downloads {
+			hash := strings.ToLower(strings.TrimSpace(downloads[i].QbtHash))
+			if hash == "" {
+				continue
+			}
+
+			if torrent, exists := torrentsByHash[hash]; exists {
+				downloads[i].QbtState = strings.TrimSpace(torrent.State)
+				downloads[i].ProgressPercent = torrent.Progress * 100
+				continue
+			}
+
+			if downloads[i].DeletedAt != nil {
+				downloads[i].ProgressPercent = 100
+				downloads[i].QbtState = "deleted"
+			} else {
+				downloads[i].QbtState = "missing"
+			}
+		}
 	}
 
 	return downloads, nil
