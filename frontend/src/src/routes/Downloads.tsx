@@ -102,14 +102,9 @@ export function Downloads() {
     setErrorMessage("");
 
     try {
-      let reason = "";
-      if (!isAdmin && !download.isFreeleech) {
-        reason = window.prompt("Reason for delete request (optional):", "") || "";
-      }
-
       const response = await axios.post(
         `${domain}/api/downloads/${download.id}/delete`,
-        { reason },
+        {},
         { withCredentials: true }
       );
 
@@ -200,8 +195,8 @@ export function Downloads() {
                 className="rounded-xl border border-base-300 bg-base-200 p-4"
               >
                 <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
-                  <div>
-                    <p className="font-semibold">{download.filename || download.fid}</p>
+                  <div className="min-w-0">
+                    <p className="font-semibold break-all">{download.filename || download.fid}</p>
                     <p className="text-xs opacity-70">
                       Added: {formatDate(download.createdAt)}
                       {isAdmin ? ` - User: ${download.username}` : ""}

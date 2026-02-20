@@ -158,8 +158,8 @@ export function Home() {
 
               return (
                 <div key={download.hash || download.name} className="space-y-1">
-                  <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-                    <p className="font-medium">{download.name}</p>
+                  <div className="flex flex-col gap-1 text-sm sm:flex-row sm:items-center sm:justify-between">
+                    <p className="font-medium break-all">{download.name}</p>
                     <p className="opacity-70">
                       {formatBytes(download.size)} - {progressPercent}%
                     </p>

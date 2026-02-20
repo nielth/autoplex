@@ -120,9 +120,9 @@ export function TorrentList({ data }: { data: TorrentData }) {
         return (
           <div key={torrent.fid}>
             <div className="flex gap-x-1">
-              <div className="grow">
-                <div className="flex items-center gap-x-2">
-                  <p className="md:text-base text-xs">
+              <div className="grow min-w-0">
+                <div className="flex items-center gap-x-2 min-w-0">
+                  <p className="md:text-base text-xs break-all">
                     {torrent.name}
                     {isDownloaded ? (
                       <span className="ml-2 text-xs text-green-600">(downloaded)</span>

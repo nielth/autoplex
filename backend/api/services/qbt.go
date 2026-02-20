@@ -360,3 +360,41 @@ func QbtDelete(qbtHash string) error {
 
 	return nil
 }
+
+func QbtPause(qbtHash string) error {
+	cleanHash := strings.TrimSpace(qbtHash)
+	if cleanHash == "" {
+		return fmt.Errorf("qbt hash is required")
+	}
+
+	cookie, qbtURL, err := qbtLoginHandler()
+	if err != nil {
+		return err
+	}
+
+	formData := url.Values{}
+	formData.Set("hashes", cleanHash)
+
+	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/api/v2/torrents/pause", qbtURL), strings.NewReader(formData.Encode()))
+	if err != nil {
+		return err
+	}
+
+	req.Header.Add("cookie", *cookie)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	tr := &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}
+	client := &http.Client{Transport: tr}
+	res, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		body, _ := io.ReadAll(res.Body)
+		return fmt.Errorf("qbt pause failed with status %d: %s", res.StatusCode, string(body))
+	}
+
+	return nil
+}

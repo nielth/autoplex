@@ -26,6 +26,16 @@ const (
 	DownloadDeleteActionRequested = "delete_requested"
 )
 
+func isActiveDownloadState(state string) bool {
+	clean := strings.ToLower(strings.TrimSpace(state))
+	switch clean {
+	case "downloading", "stalleddl", "forceddl", "metadl", "queueddl", "checkingdl":
+		return true
+	default:
+		return false
+	}
+}
+
 func IsFidAlreadyDownloaded(fid string) (bool, error) {
 	cleanFid := strings.TrimSpace(fid)
 	if cleanFid == "" {
@@ -435,6 +445,20 @@ func DeleteOrRequestDownload(downloadID uint64, username string, isAdmin bool, r
 		nullableString(reason),
 	); err != nil {
 		return "", err
+	}
+
+	if strings.TrimSpace(qbtHash.String) != "" {
+		torrentsByHash, lookupErr := QbtGetAllTorrentsByHash()
+		if lookupErr != nil {
+			return "", lookupErr
+		}
+
+		hash := strings.ToLower(strings.TrimSpace(qbtHash.String))
+		if torrent, exists := torrentsByHash[hash]; exists && isActiveDownloadState(torrent.State) {
+			if pauseErr := QbtPause(qbtHash.String); pauseErr != nil {
+				return "", pauseErr
+			}
+		}
 	}
 
 	if err := tx.Commit(); err != nil {
