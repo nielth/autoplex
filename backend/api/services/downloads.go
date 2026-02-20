@@ -26,6 +26,103 @@ const (
 	DownloadDeleteActionRequested = "delete_requested"
 )
 
+func IsFidAlreadyDownloaded(fid string) (bool, error) {
+	cleanFid := strings.TrimSpace(fid)
+	if cleanFid == "" {
+		return false, fmt.Errorf("fid is required")
+	}
+
+	db, err := dbConn()
+	if err != nil {
+		return false, err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var exists bool
+	if err := db.QueryRowContext(
+		ctx,
+		`SELECT EXISTS(
+			SELECT 1
+			FROM download_events
+			WHERE fid = ?
+			  AND success = 1
+			  AND deleted_at IS NULL
+		)`,
+		cleanFid,
+	).Scan(&exists); err != nil {
+		return false, err
+	}
+
+	return exists, nil
+}
+
+func MarkSearchResultsWithDownloaded(resp map[string]any) error {
+	db, err := dbConn()
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	rows, err := db.QueryContext(
+		ctx,
+		`SELECT fid
+		FROM download_events
+		WHERE fid IS NOT NULL
+		  AND fid <> ''
+		  AND success = 1
+		  AND deleted_at IS NULL`,
+	)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	downloadedFids := make(map[string]struct{})
+	for rows.Next() {
+		var fid string
+		if err := rows.Scan(&fid); err != nil {
+			return err
+		}
+
+		cleanFid := strings.TrimSpace(fid)
+		if cleanFid == "" {
+			continue
+		}
+		downloadedFids[cleanFid] = struct{}{}
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	torrents, ok := resp["torrentList"].([]any)
+	if !ok {
+		return nil
+	}
+
+	for _, raw := range torrents {
+		torrent, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		fidValue, hasFid := torrent["fid"]
+		if !hasFid {
+			torrent["isDownloaded"] = false
+			continue
+		}
+
+		fid := strings.TrimSpace(fmt.Sprintf("%v", fidValue))
+		_, isDownloaded := downloadedFids[fid]
+		torrent["isDownloaded"] = isDownloaded
+	}
+
+	return nil
+}
+
 func ListDownloadEvents(username string, isAdmin bool) ([]models.DownloadEventRecord, error) {
 	cleanUsername := strings.TrimSpace(username)
 	if cleanUsername == "" {

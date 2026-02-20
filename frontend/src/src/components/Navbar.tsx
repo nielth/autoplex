@@ -1,22 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
-import { authProvider } from "../auth";
-import axios from "axios";
-import { getApiDomain } from "../scripts/getApiDomain";
 import { DiskUsage } from "./DiskUsage";
-
-async function logout() {
-  const domain = getApiDomain();
-  try {
-    const resp = await axios.get(`${domain}/api/logout`, {
-      withCredentials: true,
-    });
-    if (resp && resp.status === 200) {
-      return true;
-    }
-  } catch (error) {
-    return false;
-  }
-}
 
 export function Navbar() {
   const navigate = useNavigate();
@@ -35,28 +18,13 @@ export function Navbar() {
                 Autoplex
               </button>
             </Link>
-            <Link to="/downloads" className="btn btn-ghost btn-sm">
-              Downloads
-            </Link>
           </div>
         </div>
         <DiskUsage />
         <div className="navbar-end">
-          <button
-            className="btn btn-ghost"
-            onClick={() => {
-              logout().then((resp) => {
-                if (resp) {
-                  authProvider.signout();
-                  navigate("/login");
-                } else {
-                  navigate("/error");
-                }
-              });
-            }}
-          >
-            Logout
-          </button>
+          <Link to="/downloads" className="btn btn-ghost">
+            Downloads
+          </Link>
         </div>
       </div>
     </>

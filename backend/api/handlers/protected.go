@@ -31,6 +31,10 @@ func TlSearchHandler(c *gin.Context) {
 		return
 	}
 
+	if markErr := services.MarkSearchResultsWithDownloaded(resp); markErr != nil {
+		log.Printf("failed to mark downloaded search results: %v", markErr)
+	}
+
 	if err := services.LogSearchEvent(username, search, page, true, "", c.ClientIP(), c.Request.UserAgent()); err != nil {
 		log.Printf("failed to write search event: %v", err)
 	}
@@ -46,6 +50,23 @@ func TlDownloadHandler(c *gin.Context) {
 			log.Printf("failed to write download event: %v", logErr)
 		}
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	isDownloaded, err := services.IsFidAlreadyDownloaded(data.Fid)
+	if err != nil {
+		if logErr := services.LogDownloadEvent(username, data, "", false, "failed duplicate download check", c.ClientIP(), c.Request.UserAgent()); logErr != nil {
+			log.Printf("failed to write download event: %v", logErr)
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to validate download request"})
+		return
+	}
+
+	if isDownloaded {
+		if logErr := services.LogDownloadEvent(username, data, "", false, "torrent already downloaded", c.ClientIP(), c.Request.UserAgent()); logErr != nil {
+			log.Printf("failed to write download event: %v", logErr)
+		}
+		c.JSON(http.StatusConflict, gin.H{"error": "torrent already downloaded"})
 		return
 	}
 

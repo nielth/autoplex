@@ -22,12 +22,13 @@ async function torrent_download(
     isFreeleech: boolean;
   },
   navigate: Function,
-  setAlertStatus: Function
+  setAlertStatus: Function,
+  onDownloaded: (fid: string) => void
 ) {
   const domain = getApiDomain();
   setAlertStatus(false);
-  axios
-    .post(
+  try {
+    await axios.post(
       `${domain}/api/download`,
       {
         fid: data.fid,
@@ -42,21 +43,44 @@ async function torrent_download(
           "X-CSRF-TOKEN": getCookie("csrf_access_token"),
         },
       }
-    )
-    .then((resp) => {
-      console.log(resp);
-      setAlertStatus(true);
-    })
-    .catch((error) => {
-      if (error.status === 500) {
-        navigate("/error");
-      }
-    });
+    );
+    onDownloaded(data.fid);
+    setAlertStatus(true);
+  } catch (error: any) {
+    if (error.response?.status === 409) {
+      onDownloaded(data.fid);
+      return;
+    }
+
+    if (error.response?.status === 401) {
+      navigate("/login");
+      return;
+    }
+
+    navigate("/error");
+  }
 }
 
 export function TorrentList({ data }: { data: TorrentData }) {
   const [alertStatus, setAlertStatus] = useState<boolean>(false);
+  const [downloadedFids, setDownloadedFids] = useState<Record<string, boolean>>({});
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!data.torrentList) {
+      return;
+    }
+
+    setDownloadedFids((previous) => {
+      const next = { ...previous };
+      data.torrentList.forEach((torrent) => {
+        if (torrent.isDownloaded) {
+          next[torrent.fid] = true;
+        }
+      });
+      return next;
+    });
+  }, [data]);
 
   useEffect(() => {
     if (alertStatus === true) {
@@ -90,81 +114,98 @@ export function TorrentList({ data }: { data: TorrentData }) {
         </div>
       ) : null}
       <div className="divider my-2"></div>
-      {data.torrentList.map((torrent) => (
-        <div key={torrent.fid}>
-          <div className="flex gap-x-1">
-            <div className="grow">
-              <div className="flex items-center gap-x-2">
-                <p className="md:text-base text-xs">{torrent.name}</p>
-              </div>
-              <div className="flex lg:gap-x-3 gap-x-2 md:pt-0 pt-2 text-xs">
-                <div className="flex lg:gap-x-3 gap-x-2 text-xs">
-                  <div
-                    className="tooltip tooltip-bottom"
-                    data-tip="Torrent uploaded"
-                  >
-                    <p className="hidden md:flex gap-x-1 items-center opacity-60">
-                      <TimestampIcon width={"16"} height={"16"} />
-                      {torrent.addedTimestamp}
-                    </p>
-                  </div>
-                  <div className="tooltip tooltip-bottom" data-tip="Filesize">
-                    <p className="flex gap-x-1 items-center opacity-60">
-                      <SizeIcon width={"16"} height={"16"} />
-                      {formatBytes(torrent.size)}
-                    </p>
-                  </div>
-                  <div
-                    className="tooltip tooltip-bottom"
-                    data-tip="Number downloads"
-                  >
-                    <p className="hidden md:flex gap-x-1 items-center opacity-60">
-                      <CompletedIcon height={"16"} width={"16"} />
-                      {torrent.completed}
-                    </p>
-                  </div>
-                  <div className="tooltip tooltip-bottom" data-tip="Seeders">
-                    <p className="flex gap-x-1 items-center text-green-600 opacity-60">
-                      <SeedersIcon height={"16"} width={"16"} />
-                      {torrent.seeders}
-                    </p>
-                  </div>
-                  <div className="tooltip tooltip-bottom" data-tip="Leechers">
-                    <p className="hidden md:flex gap-x-1 items-center text-red-600 opacity-60">
-                      <LeechersIcon height={"16"} width={"16"} />
-                      {torrent.leechers}
-                    </p>
-                  </div>
+      {data.torrentList.map((torrent) => {
+        const isDownloaded = Boolean(torrent.isDownloaded || downloadedFids[torrent.fid]);
+
+        return (
+          <div key={torrent.fid}>
+            <div className="flex gap-x-1">
+              <div className="grow">
+                <div className="flex items-center gap-x-2">
+                  <p className="md:text-base text-xs">
+                    {torrent.name}
+                    {isDownloaded ? (
+                      <span className="ml-2 text-xs text-green-600">(downloaded)</span>
+                    ) : null}
+                  </p>
                 </div>
-                {torrent.tags.includes("FREELEECH") ? (
-                  <div className="bg-[#ffdf00] rounded px-0.5 py-0.5">
-                    <p className="text-[#4d4d4d] text-xs">FREELEECH</p>
+                <div className="flex lg:gap-x-3 gap-x-2 md:pt-0 pt-2 text-xs">
+                  <div className="flex lg:gap-x-3 gap-x-2 text-xs">
+                    <div
+                      className="tooltip tooltip-bottom"
+                      data-tip="Torrent uploaded"
+                    >
+                      <p className="hidden md:flex gap-x-1 items-center opacity-60">
+                        <TimestampIcon width={"16"} height={"16"} />
+                        {torrent.addedTimestamp}
+                      </p>
+                    </div>
+                    <div className="tooltip tooltip-bottom" data-tip="Filesize">
+                      <p className="flex gap-x-1 items-center opacity-60">
+                        <SizeIcon width={"16"} height={"16"} />
+                        {formatBytes(torrent.size)}
+                      </p>
+                    </div>
+                    <div
+                      className="tooltip tooltip-bottom"
+                      data-tip="Number downloads"
+                    >
+                      <p className="hidden md:flex gap-x-1 items-center opacity-60">
+                        <CompletedIcon height={"16"} width={"16"} />
+                        {torrent.completed}
+                      </p>
+                    </div>
+                    <div className="tooltip tooltip-bottom" data-tip="Seeders">
+                      <p className="flex gap-x-1 items-center text-green-600 opacity-60">
+                        <SeedersIcon height={"16"} width={"16"} />
+                        {torrent.seeders}
+                      </p>
+                    </div>
+                    <div className="tooltip tooltip-bottom" data-tip="Leechers">
+                      <p className="hidden md:flex gap-x-1 items-center text-red-600 opacity-60">
+                        <LeechersIcon height={"16"} width={"16"} />
+                        {torrent.leechers}
+                      </p>
+                    </div>
                   </div>
-                ) : null}
+                  {torrent.tags.includes("FREELEECH") ? (
+                    <div className="bg-[#ffdf00] rounded px-0.5 py-0.5">
+                      <p className="text-[#4d4d4d] text-xs">FREELEECH</p>
+                    </div>
+                  ) : null}
+                </div>
               </div>
+              <button
+                disabled={isDownloaded}
+                className={`btn btn-ghost text-[#e5a00d] ${isDownloaded ? "btn-disabled opacity-50" : ""}`}
+                onClick={() => {
+                  if (isDownloaded) {
+                    return;
+                  }
+
+                  torrent_download(
+                    {
+                      fid: torrent.fid,
+                      filename: torrent.filename,
+                      categoryID: Number(torrent.categoryID),
+                      size: Number(torrent.size),
+                      isFreeleech: torrent.tags.includes("FREELEECH"),
+                    },
+                    navigate,
+                    setAlertStatus,
+                    (fid: string) => {
+                      setDownloadedFids((previous) => ({ ...previous, [fid]: true }));
+                    }
+                  );
+                }}
+              >
+                <ButtonDownloadIcon height={"25"} width={"25"} />
+              </button>
             </div>
-            <button
-              className="btn btn-ghost text-[#e5a00d]"
-              onClick={() => {
-                torrent_download(
-                  {
-                    fid: torrent.fid,
-                    filename: torrent.filename,
-                    categoryID: Number(torrent.categoryID),
-                    size: Number(torrent.size),
-                    isFreeleech: torrent.tags.includes("FREELEECH"),
-                  },
-                  navigate,
-                  setAlertStatus
-                );
-              }}
-            >
-              <ButtonDownloadIcon height={"25"} width={"25"} />
-            </button>
+            <div className="divider my-2"></div>
           </div>
-          <div className="divider my-2"></div>
-        </div>
-      ))}
+        );
+      })}
     </>
   );
 }

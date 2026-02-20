@@ -24,6 +24,7 @@ interface TorrentData {
       rating: number;
       seeders: number;
       size: number;
+      isDownloaded?: boolean;
       tags: [string];
       tvmazeID: string;
       uploader: string;
