@@ -59,7 +59,7 @@ For development on another machine:
 ## Production
 
 ```sh
-docker compose -f compose.yml up --build
+docker compose --env-file .env.production -f compose.yml up --build
 ```
 
 `compose.yml` reads `.env.production` for backend and frontend containers.
