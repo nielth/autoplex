@@ -64,9 +64,16 @@ export function Home() {
   // If search is initiated with "Enter" or "click", search the text input
   const handleSearch = (event: any) => {
     if (event.key === "Enter" || event.type === "click") {
-      setSearchParams(`search=${search}&p=1`);
       setPage(1);
-      search_torrent(search, 1, navigate, setData, setDataLoading);
+      const currentSearch = searchParams.get("search") ?? "";
+      const currentPage = searchParams.get("p") ?? "";
+
+      if (currentSearch === search && currentPage === "1") {
+        search_torrent(search, 1, navigate, setData, setDataLoading);
+        return;
+      }
+
+      setSearchParams(`search=${search}&p=1`);
     }
   };
 
