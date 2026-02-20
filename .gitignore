@@ -282,4 +282,6 @@ $RECYCLE.BIN/
 
 cookie.json
 .env
+.env.production
+.env.development
 frontend/nginx/ssl/*.pem

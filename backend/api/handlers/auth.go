@@ -11,7 +11,11 @@ import (
 )
 
 func AuthTokenHandler(c *gin.Context) {
-	authURL, respID, clientID := services.InitAuth()
+	authURL, respID, clientID, err := services.InitAuth()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
 	domain := os.Getenv("DOMAIN")
 
 	c.SetCookie("identifier", fmt.Sprintf("%d", respID), 120, "/", domain, false, true)

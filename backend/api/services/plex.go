@@ -4,10 +4,9 @@ import (
 	"api/models"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
-	"os"
 	"slices"
+	"strings"
 	"sync"
 
 	"github.com/google/uuid"
@@ -33,34 +32,49 @@ func ReturnPlexAuthPayload(client_identifer string) map[string]string {
 }
 
 // Function to request a generated, temporary Plex oauth link with a unique locally generated UUID4
-func InitAuth() (string, int, string) {
+func InitAuth() (string, int, string, error) {
 	localUUID := uuid.New().String()
 	header := ReturnPlexAuthPayload(localUUID)
 	client := http.Client{}
-	forwardUrl := os.Getenv("FORWARD_URL")
+	forwardUrl, err := requiredEnv("OAUTH_FORWARD_URL")
+	if err != nil {
+		return "", 0, "", err
+	}
 
 	// Request a temporary response ID from plex for oauth authentication where a uuid4 is used to to verify this transaction
-	req, _ := http.NewRequest("POST", "https://plex.tv/api/v2/pins.json?strong=true", nil)
+	req, err := http.NewRequest("POST", "https://plex.tv/api/v2/pins.json?strong=true", nil)
+	if err != nil {
+		return "", 0, "", err
+	}
 	for k, v := range header {
 		req.Header.Set(k, v)
 	}
 
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Fatalf("Could not send auth initAuth")
+		return "", 0, "", fmt.Errorf("could not send auth init request: %w", err)
 	}
 
 	defer resp.Body.Close()
 
 	var result map[string]interface{}
-	json.NewDecoder(resp.Body).Decode(&result)
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", 0, "", fmt.Errorf("could not decode init auth response: %w", err)
+	}
 
 	// We us our locally generated uuid4 as well as the returned plex code to create the url to authenticate the user
-	returnedPlexCode := result["code"].(string)
-	respID := int(result["id"].(float64))
+	returnedPlexCode, ok := result["code"].(string)
+	if !ok || returnedPlexCode == "" {
+		return "", 0, "", fmt.Errorf("could not read Plex code from init auth response")
+	}
+	respIDFloat, ok := result["id"].(float64)
+	if !ok {
+		return "", 0, "", fmt.Errorf("could not read Plex id from init auth response")
+	}
+	respID := int(respIDFloat)
 	authURL := fmt.Sprintf("https://app.plex.tv/auth#!?clientID=%s&code=%s&forwardUrl=%s", localUUID, returnedPlexCode, forwardUrl)
 
-	return authURL, respID, localUUID
+	return authURL, respID, localUUID, nil
 }
 
 // Function to check the oauth transaction, if true, check if user is linked to local Plex server
@@ -68,11 +82,25 @@ func RequestAuthToken(respID string, clientID string) (string, bool) {
 	// Link to get authToken from user oauth transaction
 	header := ReturnPlexAuthPayload(clientID)
 	tokenUrl := fmt.Sprintf("https://plex.tv/api/v2/pins/%s", respID)
-	plexToken := os.Getenv("PLEX_TOKEN")
+	plexToken, err := requiredEnv("PLEX_TOKEN")
+	if err != nil {
+		fmt.Println(err)
+		return "", false
+	}
+	plexURL, err := requiredEnv("PLEX_URL")
+	if err != nil {
+		fmt.Println(err)
+		return "", false
+	}
+	plexURL = strings.TrimRight(plexURL, "/")
 
 	client := http.Client{}
 
 	req, err := http.NewRequest("GET", tokenUrl, nil)
+	if err != nil {
+		fmt.Println("Could not create request for Plex Auth Token")
+		return "", false
+	}
 
 	for key, value := range header {
 		req.Header.Set(key, value)
@@ -81,25 +109,28 @@ func RequestAuthToken(respID string, clientID string) (string, bool) {
 	res, err := client.Do(req)
 	if err != nil {
 		fmt.Println("Could not retrieve Plex Auth Token")
+		return "", false
 	}
 
 	var result map[string]interface{}
 	err = json.NewDecoder(res.Body).Decode(&result)
 	if err != nil {
 		fmt.Println("Error decoding JSON response:", err)
+		return "", false
 	}
 
 	defer res.Body.Close()
 
 	token, ok := result["authToken"].(string)
-	if !ok {
+	if !ok || token == "" {
 		fmt.Println("Could not receive 'authToken'")
+		return "", false
 	}
 
 	// Link to get basic information about user oauth session to check if user is linked to plex
 	url1 := fmt.Sprintf("https://plex.tv/users/account/?X-Plex-Token=%s", token)
 	// Link to local Plex server to get all users linked in order to validate user login request (might take a while for user to appear)
-	url2 := fmt.Sprintf("http://nielth.com:32444/accounts/?X-Plex-Token=%s", plexToken)
+	url2 := fmt.Sprintf("%s/accounts/?X-Plex-Token=%s", plexURL, plexToken)
 
 	errCh := make(chan error, 2)
 

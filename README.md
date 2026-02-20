@@ -1,37 +1,53 @@
-## Prerequisites
+## Environment setup
 
-## For Prod (no trailing slash)
-
-`.env`
-```
-QBT_USER=<qbt_username>
-QBT_PASS=<qbt_pass>
-QBT_URL=https://qbt.example.com
-OAUTH_FORWARD_URL=https://autoplex.example.com
-PLEX_URL=http://plex.example.com:32400
-PLEX_TOKEN=<token>
-NGINX_HOST=nginx.example.com
-
-VITE_FLASK_LOCATION=https://example.com
-```
-
-```
-docker compose -f docker-compose.yml up --build
-```
-
-## For Dev
+Copy the env template you want to use:
 
 ```sh
-bun install && VITE_GO_BACKEND_LOCATION=http://localhost:8080  bun dev
+cp .env.production.example .env.production
+cp .env.development.example .env.development
 ```
 
-`.env`
-```
-QBT_USER=admin
-QBT_PASS=adminadmin
-QBT_URL=https://qbt.internal.example.com
-PLEX_TOKEN=<token>
-OAUTH_FORWARD_URL=http://localhost:3000
-PLEX_URL=http://external.example.com:32444
+Used backend vars:
+
+```text
+QBT_URL
+QBT_USER
+QBT_PASS
+OAUTH_FORWARD_URL
+PLEX_URL
+PLEX_TOKEN
+DOMAIN
+PATH_DISK
 ```
 
+Used frontend/nginx var (production compose):
+
+```text
+NGINX_HOST
+```
+
+## Production
+
+```sh
+docker compose -f compose.yml up --build
+```
+
+`compose.yml` reads `.env.production` for backend and frontend containers.
+
+## Development
+
+Start backend + support services with development env:
+
+```sh
+docker compose -f compose.dev.yml up --build
+```
+
+`compose.dev.yml` is a standalone development stack and reads `.env.development`.
+
+Run frontend locally:
+
+```sh
+cd frontend/src
+bun install
+VITE_GO_BACKEND_LOCATION=http://localhost:8080 bun dev
+```

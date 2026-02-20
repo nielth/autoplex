@@ -8,30 +8,53 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"strings"
 )
 
-func qbtLoginHandler() (*string, error) {
+func qbtConfig() (string, string, string, error) {
+	qbtURL, err := requiredEnv("QBT_URL")
+	if err != nil {
+		return "", "", "", err
+	}
+	qbtUser, err := requiredEnv("QBT_USER")
+	if err != nil {
+		return "", "", "", err
+	}
+	qbtPass, err := requiredEnv("QBT_PASS")
+	if err != nil {
+		return "", "", "", err
+	}
+
+	return strings.TrimRight(qbtURL, "/"), qbtUser, qbtPass, nil
+}
+
+func qbtLoginHandler() (*string, string, error) {
+	qbtURL, qbtUser, qbtPass, err := qbtConfig()
+	if err != nil {
+		return nil, "", err
+	}
+
 	var loginBody bytes.Buffer
 	writer := multipart.NewWriter(&loginBody)
 
-	login := map[string]string{"username": "admin", "password": "adminadmin"}
+	login := map[string]string{"username": qbtUser, "password": qbtPass}
 
 	for k, v := range login {
 		if err := writer.WriteField(k, v); err != nil {
 			fmt.Printf("Error writing field %s: %s\n", k, err)
-			return nil, err
+			return nil, "", err
 		}
 	}
 
 	if err := writer.Close(); err != nil {
 		fmt.Printf("Error closing writer: %s\n", err)
-		return nil, err
+		return nil, "", err
 	}
 
-	req, err := http.NewRequest(http.MethodPost, "https://qbt.internal.nielth.com/api/v2/auth/login", &loginBody)
+	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/api/v2/auth/login", qbtURL), &loginBody)
 	if err != nil {
 		fmt.Printf("Error creating request to qbt: %s\n", err)
-		return nil, err
+		return nil, "", err
 	}
 
 	req.Header.Set("Content-Type", writer.FormDataContentType())
@@ -41,7 +64,7 @@ func qbtLoginHandler() (*string, error) {
 	res, err := client.Do(req)
 	if err != nil {
 		fmt.Printf("Error making http request: %s\n", err)
-		return nil, err
+		return nil, "", err
 	}
 
 	defer res.Body.Close()
@@ -49,10 +72,10 @@ func qbtLoginHandler() (*string, error) {
 	cookie := res.Header["Set-Cookie"]
 	if len(cookie) == 0 {
 		fmt.Println("No cookie in qbt")
-		return nil, fmt.Errorf("No cookie in qbt")
+		return nil, "", fmt.Errorf("No cookie in qbt")
 	}
 
-	return &cookie[0], nil
+	return &cookie[0], qbtURL, nil
 }
 
 type QbtDownloadList struct {
@@ -67,12 +90,12 @@ type QbtDownloadList struct {
 }
 
 func QbtGetDownloadingList() (*[]QbtDownloadList, error) {
-	cookie, err := qbtLoginHandler()
+	cookie, qbtURL, err := qbtLoginHandler()
 	if err != nil {
 		return nil, err
 	}
 
-	req, err := http.NewRequest(http.MethodGet, "https://qbt.internal.nielth.com/api/v2/torrents/info?filter=downloading", nil)
+	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/api/v2/torrents/info?filter=downloading", qbtURL), nil)
 	if err != nil {
 		fmt.Printf("Error creating request to qbt: %s\n", err)
 		return nil, err
@@ -102,7 +125,7 @@ func QbtGetDownloadingList() (*[]QbtDownloadList, error) {
 }
 
 func QbtDownload(data *[]byte, category string) (*string, error) {
-	cookie, err := qbtLoginHandler()
+	cookie, qbtURL, err := qbtLoginHandler()
 	if err != nil {
 		fmt.Println(err)
 		return nil, err
@@ -135,7 +158,7 @@ func QbtDownload(data *[]byte, category string) (*string, error) {
 		return nil, err
 	}
 
-	req, err := http.NewRequest(http.MethodPost, "https://qbt.internal.nielth.com/api/v2/torrents/add", &torrentData)
+	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/api/v2/torrents/add", qbtURL), &torrentData)
 	if err != nil {
 		fmt.Printf("Error creating request to qbt: %s\n", err)
 		return nil, err

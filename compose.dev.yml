@@ -1,32 +1,16 @@
----
 services:
-
   go:
     build: ./backend
     container_name: backend-go
     env_file:
-      - .env.production
+      - .env.development
     volumes:
-      - /mnt/sdc/:/sdc:ro
-    expose: 
+      - /tmp:/sdc:ro
+    expose:
       - 8080
     ports:
       - 8080:8080
     restart: always
-
-  node-prod:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    depends_on:
-      - go
-    env_file:
-      - .env.production
-    container_name: node-prod
-    restart: always
-    ports:
-      - 8085:80
-      - 8086:443
 
   flaresolverr:
     image: 21hsmw/flaresolverr:nodriver
