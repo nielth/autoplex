@@ -17,6 +17,8 @@ func main() {
 		log.Fatalf("Failed to initialize mysql: %v", err)
 	}
 
+	services.StartTvEpisodeAutoInstallWorker()
+
 	r := router.SetupRouter()
 	r.Run("0.0.0.0:8080")
 }

@@ -23,6 +23,13 @@ func SetupRouter() *gin.Engine {
 	protected.GET("/downloads/delete-requests", handlers.PendingDeleteRequestsHandler)
 	protected.POST("/downloads/delete-requests/:id/approve", handlers.ApproveDeleteRequestHandler)
 	protected.POST("/plex/scan/movies-tv", handlers.PlexScanMoviesAndShowsHandler)
+	protected.GET("/tvmaze/search", handlers.TvMazeSearchShowsHandler)
+	protected.GET("/tvmaze/series/:id", handlers.TvMazeShowDetailHandler)
+	protected.GET("/tvmaze/series/:id/install-status", handlers.TvMazeShowInstallStatusHandler)
+	protected.PUT("/tvmaze/series/:id/auto-install", handlers.TvMazeConfigureAutoInstallHandler)
+	protected.POST("/tvmaze/series/:id/install/show", handlers.TvMazeInstallWholeShowHandler)
+	protected.POST("/tvmaze/series/:id/install/season/:season", handlers.TvMazeInstallSeasonHandler)
+	protected.POST("/tvmaze/series/:id/install/episode/:episode", handlers.TvMazeInstallEpisodeHandler)
 	protected.GET("/disk", handlers.BackendInfo)
 
 	return r

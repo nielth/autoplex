@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -157,6 +158,8 @@ func migrateAuditSchema(db *sql.DB) error {
 			username VARCHAR(255) NULL,
 			fid VARCHAR(128) NULL,
 			filename VARCHAR(512) NULL,
+			tvmaze_id VARCHAR(128) NULL,
+			tvmaze_episode_id VARCHAR(128) NULL,
 			category_id INT NULL,
 			torrent_size BIGINT UNSIGNED NULL,
 			is_freeleech TINYINT(1) NOT NULL DEFAULT 0,
@@ -174,6 +177,8 @@ func migrateAuditSchema(db *sql.DB) error {
 			KEY idx_download_events_created_at (created_at),
 			KEY idx_download_events_qbt_hash (qbt_hash),
 			KEY idx_download_events_deleted_at (deleted_at),
+			KEY idx_download_events_tvmaze_id (tvmaze_id),
+			KEY idx_download_events_tvmaze_episode_id (tvmaze_episode_id),
 			CONSTRAINT fk_download_events_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
 			CONSTRAINT fk_download_events_deleted_by_user FOREIGN KEY (deleted_by_user_id) REFERENCES users(id) ON DELETE SET NULL
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
@@ -197,12 +202,128 @@ func migrateAuditSchema(db *sql.DB) error {
 			CONSTRAINT fk_download_delete_requests_requested_by_user FOREIGN KEY (requested_by_user_id) REFERENCES users(id) ON DELETE SET NULL,
 			CONSTRAINT fk_download_delete_requests_approved_by_user FOREIGN KEY (approved_by_user_id) REFERENCES users(id) ON DELETE SET NULL
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+		`CREATE TABLE IF NOT EXISTS tv_show_subscriptions (
+			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+			user_id BIGINT UNSIGNED NOT NULL,
+			username VARCHAR(255) NOT NULL,
+			tvmaze_show_id BIGINT UNSIGNED NOT NULL,
+			show_name VARCHAR(255) NULL,
+			preferred_quality ENUM('1080', '2160') NOT NULL DEFAULT '1080',
+			auto_install_upcoming TINYINT(1) NOT NULL DEFAULT 0,
+			enabled TINYINT(1) NOT NULL DEFAULT 1,
+			last_synced_at DATETIME NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+			PRIMARY KEY (id),
+			UNIQUE KEY uq_tv_show_subscriptions_user_show (user_id, tvmaze_show_id),
+			KEY idx_tv_show_subscriptions_show_id (tvmaze_show_id),
+			KEY idx_tv_show_subscriptions_enabled (enabled),
+			CONSTRAINT fk_tv_show_subscriptions_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+		`CREATE TABLE IF NOT EXISTS tv_episode_jobs (
+			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+			subscription_id BIGINT UNSIGNED NULL,
+			user_id BIGINT UNSIGNED NOT NULL,
+			username VARCHAR(255) NOT NULL,
+			tvmaze_show_id BIGINT UNSIGNED NOT NULL,
+			tvmaze_episode_id BIGINT UNSIGNED NOT NULL,
+			episode_name VARCHAR(255) NULL,
+			season_number INT NULL,
+			episode_number INT NULL,
+			airstamp DATETIME NULL,
+			preferred_quality ENUM('1080', '2160') NOT NULL DEFAULT '1080',
+			status ENUM('pending', 'searching', 'downloaded', 'failed') NOT NULL DEFAULT 'pending',
+			attempt_count INT UNSIGNED NOT NULL DEFAULT 0,
+			next_check_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			last_checked_at DATETIME NULL,
+			last_error TEXT NULL,
+			downloaded_download_event_id BIGINT UNSIGNED NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+			PRIMARY KEY (id),
+			UNIQUE KEY uq_tv_episode_jobs_user_episode_quality (user_id, tvmaze_episode_id, preferred_quality),
+			KEY idx_tv_episode_jobs_due (status, next_check_at),
+			KEY idx_tv_episode_jobs_show_id (tvmaze_show_id),
+			KEY idx_tv_episode_jobs_subscription_id (subscription_id),
+			CONSTRAINT fk_tv_episode_jobs_subscription FOREIGN KEY (subscription_id) REFERENCES tv_show_subscriptions(id) ON DELETE SET NULL,
+			CONSTRAINT fk_tv_episode_jobs_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+			CONSTRAINT fk_tv_episode_jobs_download_event FOREIGN KEY (downloaded_download_event_id) REFERENCES download_events(id) ON DELETE SET NULL
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 	}
 
 	for _, statement := range statements {
 		if _, err := db.Exec(statement); err != nil {
 			return fmt.Errorf("schema migration failed: %w", err)
 		}
+	}
+
+	if err := ensureColumnExists(db, "download_events", "tvmaze_id", "VARCHAR(128) NULL AFTER `filename`"); err != nil {
+		return fmt.Errorf("schema migration failed adding download_events.tvmaze_id: %w", err)
+	}
+	if err := ensureColumnExists(db, "download_events", "tvmaze_episode_id", "VARCHAR(128) NULL AFTER `tvmaze_id`"); err != nil {
+		return fmt.Errorf("schema migration failed adding download_events.tvmaze_episode_id: %w", err)
+	}
+	if err := ensureIndexExists(db, "download_events", "idx_download_events_tvmaze_id", "`tvmaze_id`"); err != nil {
+		return fmt.Errorf("schema migration failed adding index download_events.idx_download_events_tvmaze_id: %w", err)
+	}
+	if err := ensureIndexExists(db, "download_events", "idx_download_events_tvmaze_episode_id", "`tvmaze_episode_id`"); err != nil {
+		return fmt.Errorf("schema migration failed adding index download_events.idx_download_events_tvmaze_episode_id: %w", err)
+	}
+
+	return nil
+}
+
+func ensureColumnExists(db *sql.DB, tableName string, columnName string, definition string) error {
+	var count int
+	if err := db.QueryRow(
+		`SELECT COUNT(*)
+		FROM information_schema.COLUMNS
+		WHERE TABLE_SCHEMA = DATABASE()
+		  AND TABLE_NAME = ?
+		  AND COLUMN_NAME = ?`,
+		tableName,
+		columnName,
+	).Scan(&count); err != nil {
+		return err
+	}
+
+	if count > 0 {
+		return nil
+	}
+
+	statement := fmt.Sprintf("ALTER TABLE `%s` ADD COLUMN `%s` %s", tableName, columnName, definition)
+	if _, err := db.Exec(statement); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func ensureIndexExists(db *sql.DB, tableName string, indexName string, columns string) error {
+	var count int
+	if err := db.QueryRow(
+		`SELECT COUNT(*)
+		FROM information_schema.STATISTICS
+		WHERE TABLE_SCHEMA = DATABASE()
+		  AND TABLE_NAME = ?
+		  AND INDEX_NAME = ?`,
+		tableName,
+		indexName,
+	).Scan(&count); err != nil {
+		return err
+	}
+
+	if count > 0 {
+		return nil
+	}
+
+	statement := fmt.Sprintf("ALTER TABLE `%s` ADD INDEX `%s` (%s)", tableName, indexName, columns)
+	if _, err := db.Exec(statement); err != nil {
+		var mysqlErr *mysql.MySQLError
+		if errors.As(err, &mysqlErr) && mysqlErr.Number == 1061 {
+			return nil
+		}
+		return err
 	}
 
 	return nil

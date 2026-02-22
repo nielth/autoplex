@@ -7,10 +7,15 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
+	"regexp"
+	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 )
 
 func fetchAndParseXML(url string, result any, wg *sync.WaitGroup, errCh chan<- error) {
@@ -72,6 +77,49 @@ func tlGetRequest(url string, ua *string) ([]byte, error) {
 		return nil, fmt.Errorf("Error creating request")
 	}
 
+	for key, value := range cookieData {
+		cookie := &http.Cookie{
+			Name:  key,
+			Value: value,
+		}
+		req.AddCookie(cookie)
+	}
+
+	if ua != nil {
+		req.Header.Add("User-Agent", *ua)
+	}
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Printf("Error sending request: %v\n", err)
+		return nil, fmt.Errorf("Error sending request")
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Printf("Error reading body: %v\n", err)
+		return nil, fmt.Errorf("Error reading request body")
+	}
+
+	return body, nil
+}
+
+func tlPostFormRequest(rawURL string, values url.Values, ua *string) ([]byte, error) {
+	cookieData, err := readCookie()
+	if err != nil {
+		fmt.Printf("Error reading Cookie: %v\n", err)
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", rawURL, strings.NewReader(values.Encode()))
+	if err != nil {
+		fmt.Printf("Error creating request: %v\n", err)
+		return nil, fmt.Errorf("Error creating request")
+	}
+
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	for key, value := range cookieData {
 		cookie := &http.Cookie{
 			Name:  key,
@@ -168,6 +216,373 @@ func TlDownloadRequest(data models.DownloadData) (string, error) {
 	}
 
 	return qbtHash, nil
+}
+
+type TlSeriesTorrent struct {
+	Fid            string   `json:"fid"`
+	Filename       string   `json:"filename"`
+	CategoryID     int      `json:"categoryID"`
+	Size           uint64   `json:"size"`
+	Seeders        int      `json:"seeders"`
+	Leechers       int      `json:"leechers"`
+	Name           string   `json:"name"`
+	Tags           []string `json:"tags"`
+	AddedTimestamp int64    `json:"addedTimestamp"`
+	TvMazeID       string   `json:"tvmazeID"`
+}
+
+var validQualityPreferences = []string{"1080", "2160"}
+
+func NormalizeQualityPreference(value string) string {
+	clean := strings.TrimSpace(strings.ToLower(value))
+	if clean == "2160p" {
+		clean = "2160"
+	}
+	if clean == "1080p" {
+		clean = "1080"
+	}
+	if slices.Contains(validQualityPreferences, clean) {
+		return clean
+	}
+	return "1080"
+}
+
+func TlSeriesSearchByTvMaze(tvmazeEpisodeID int64, tvmazeID int64) ([]TlSeriesTorrent, error) {
+	if tvmazeEpisodeID <= 0 {
+		return nil, fmt.Errorf("tvmaze episode id is required")
+	}
+	if tvmazeID <= 0 {
+		return nil, fmt.Errorf("tvmaze id is required")
+	}
+
+	payload := url.Values{}
+	payload.Set("tvmazeEpisodeID", fmt.Sprintf("%d", tvmazeEpisodeID))
+	payload.Set("tvmazeID", fmt.Sprintf("%d", tvmazeID))
+
+	body, err := tlPostFormRequest("https://www.torrentleech.org/torrents/series/torrent", payload, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var torrentList []TlSeriesTorrent
+	if err := json.Unmarshal(body, &torrentList); err != nil {
+		fmt.Printf("Cannot read JSON from tvmaze series request: %v\n", err)
+		return nil, fmt.Errorf("cannot read torrent list response")
+	}
+
+	return torrentList, nil
+}
+
+func TlSeriesBoxsetSearchByTvMaze(tvmazeSeriesID int64, tvmazeID int64) ([]TlSeriesTorrent, error) {
+	if tvmazeSeriesID <= 0 {
+		return nil, fmt.Errorf("tvmaze series id is required")
+	}
+	if tvmazeID <= 0 {
+		return nil, fmt.Errorf("tvmaze id is required")
+	}
+
+	payload := url.Values{}
+	payload.Set("tvmazeSeriesID", fmt.Sprintf("%d", tvmazeSeriesID))
+	payload.Set("tvmazeID", fmt.Sprintf("%d", tvmazeID))
+
+	body, err := tlPostFormRequest("https://www.torrentleech.org/torrents/series/boxset", payload, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var torrentList []TlSeriesTorrent
+	if err := json.Unmarshal(body, &torrentList); err != nil {
+		fmt.Printf("Cannot read JSON from tvmaze boxset request: %v\n", err)
+		return nil, fmt.Errorf("cannot read boxset response")
+	}
+
+	return torrentList, nil
+}
+
+func SelectBestTorrentByQuality(torrents []TlSeriesTorrent, quality string) *TlSeriesTorrent {
+	if len(torrents) == 0 {
+		return nil
+	}
+
+	preferredQuality := NormalizeQualityPreference(quality)
+	var candidates []TlSeriesTorrent
+	for _, torrent := range torrents {
+		if !IsMovieOrTVCategory(torrent.CategoryID) {
+			continue
+		}
+		if hasQualityToken(torrent.Name, preferredQuality) || hasQualityToken(torrent.Filename, preferredQuality) {
+			candidates = append(candidates, torrent)
+		}
+	}
+
+	if len(candidates) == 0 {
+		return nil
+	}
+
+	best := candidates[0]
+	for _, torrent := range candidates[1:] {
+		if torrent.Seeders > best.Seeders {
+			best = torrent
+			continue
+		}
+
+		if torrent.Seeders == best.Seeders && torrent.AddedTimestamp > best.AddedTimestamp {
+			best = torrent
+		}
+	}
+
+	return &best
+}
+
+func SelectBestBoxsetTorrentByQuality(torrents []TlSeriesTorrent, showName string, seasonNumber int, quality string) *TlSeriesTorrent {
+	if len(torrents) == 0 {
+		return nil
+	}
+
+	cleanShowName := strings.TrimSpace(showName)
+	if cleanShowName == "" {
+		return nil
+	}
+	if seasonNumber <= 0 {
+		return nil
+	}
+
+	preferredQuality := NormalizeQualityPreference(quality)
+	candidates := make([]TlSeriesTorrent, 0, len(torrents))
+	for _, torrent := range torrents {
+		if !IsMovieOrTVCategory(torrent.CategoryID) {
+			continue
+		}
+
+		if boxsetNameMatchesShowSeasonQuality(torrent.Name, cleanShowName, seasonNumber, preferredQuality) ||
+			boxsetNameMatchesShowSeasonQuality(torrent.Filename, cleanShowName, seasonNumber, preferredQuality) {
+			candidates = append(candidates, torrent)
+		}
+	}
+
+	if len(candidates) == 0 {
+		return nil
+	}
+
+	best := candidates[0]
+	for _, torrent := range candidates[1:] {
+		if torrent.Seeders > best.Seeders {
+			best = torrent
+			continue
+		}
+
+		if torrent.Seeders == best.Seeders && torrent.AddedTimestamp > best.AddedTimestamp {
+			best = torrent
+		}
+	}
+
+	return &best
+}
+
+func boxsetNameMatchesShowSeasonQuality(value string, showName string, seasonNumber int, quality string) bool {
+	tokens := tokenizeTitle(value)
+	showTokens := tokenizeTitle(showName)
+	if len(tokens) == 0 || len(showTokens) == 0 {
+		return false
+	}
+	if len(tokens) <= len(showTokens) {
+		return false
+	}
+
+	// Rule: torrent name starts with show name.
+	for index, token := range showTokens {
+		if tokens[index] != token {
+			return false
+		}
+	}
+
+	position := len(showTokens)
+	if position < len(tokens) && isYearToken(tokens[position]) {
+		position++
+	}
+	if position >= len(tokens) {
+		return false
+	}
+
+	seasonTokenShort := fmt.Sprintf("s%d", seasonNumber)
+	seasonTokenPadded := fmt.Sprintf("s%02d", seasonNumber)
+	switch tokens[position] {
+	case seasonTokenShort, seasonTokenPadded:
+		position++
+	case "season":
+		if position+1 >= len(tokens) {
+			return false
+		}
+		next := tokens[position+1]
+		if next != fmt.Sprintf("%d", seasonNumber) && next != fmt.Sprintf("%02d", seasonNumber) {
+			return false
+		}
+		position += 2
+	default:
+		return false
+	}
+
+	seasonNumbers := extractSeasonNumbers(tokens)
+	if len(seasonNumbers) == 0 {
+		return false
+	}
+	for _, foundSeason := range seasonNumbers {
+		if foundSeason != seasonNumber {
+			return false
+		}
+	}
+
+	qualityToken := NormalizeQualityPreference(quality)
+	for _, token := range tokens[position:] {
+		if token == qualityToken || token == qualityToken+"p" {
+			return true
+		}
+		if qualityToken == "2160" && (token == "uhd" || strings.Contains(token, "4k")) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func tokenizeTitle(value string) []string {
+	clean := strings.ToLower(strings.TrimSpace(value))
+	if clean == "" {
+		return nil
+	}
+
+	return regexp.MustCompile(`[a-z0-9]+`).FindAllString(clean, -1)
+}
+
+func isYearToken(value string) bool {
+	if len(value) != 4 {
+		return false
+	}
+
+	for _, character := range value {
+		if character < '0' || character > '9' {
+			return false
+		}
+	}
+
+	year := value[0:4]
+	return year >= "1900" && year <= "2100"
+}
+
+var seasonTokenPattern = regexp.MustCompile(`^s0*([1-9][0-9]?)(?:e[0-9]+)?$`)
+
+func extractSeasonNumbers(tokens []string) []int {
+	seasons := make([]int, 0)
+	for index := 0; index < len(tokens); index++ {
+		token := tokens[index]
+
+		if token == "season" {
+			if index+1 >= len(tokens) {
+				continue
+			}
+			seasonValue, err := strconv.Atoi(tokens[index+1])
+			if err != nil || seasonValue <= 0 || seasonValue > 99 {
+				continue
+			}
+			seasons = append(seasons, seasonValue)
+			index++
+			continue
+		}
+
+		matches := seasonTokenPattern.FindStringSubmatch(token)
+		if len(matches) != 2 {
+			continue
+		}
+		seasonValue, err := strconv.Atoi(matches[1])
+		if err != nil || seasonValue <= 0 || seasonValue > 99 {
+			continue
+		}
+		seasons = append(seasons, seasonValue)
+	}
+
+	return seasons
+}
+
+func hasQualityToken(value string, quality string) bool {
+	clean := strings.ToLower(strings.TrimSpace(value))
+	if clean == "" {
+		return false
+	}
+
+	target := NormalizeQualityPreference(quality)
+	pattern := fmt.Sprintf(`\b%s(p)?\b`, regexp.QuoteMeta(target))
+	matched, err := regexp.MatchString(pattern, clean)
+	if err != nil {
+		return strings.Contains(clean, target)
+	}
+
+	return matched
+}
+
+func seasonTokenMatches(value string, seasonNumber int) bool {
+	if seasonNumber <= 0 {
+		return false
+	}
+
+	clean := strings.ToLower(strings.TrimSpace(value))
+	if clean == "" {
+		return false
+	}
+
+	patterns := []string{
+		fmt.Sprintf(`\bs%02d\b`, seasonNumber),
+		fmt.Sprintf(`\bs%d\b`, seasonNumber),
+		fmt.Sprintf(`\bseason[\s._-]*%d\b`, seasonNumber),
+	}
+
+	for _, pattern := range patterns {
+		matched, err := regexp.MatchString(pattern, clean)
+		if err != nil {
+			continue
+		}
+		if matched {
+			return true
+		}
+	}
+
+	return false
+}
+
+func ConvertTlSeriesTorrentToDownloadData(torrent TlSeriesTorrent, tvmazeID int64, tvmazeEpisodeID int64) models.DownloadData {
+	tags := make(map[string]struct{}, len(torrent.Tags))
+	for _, tag := range torrent.Tags {
+		tags[strings.ToUpper(strings.TrimSpace(tag))] = struct{}{}
+	}
+
+	_, isFreeleech := tags["FREELEECH"]
+
+	return models.DownloadData{
+		Fid:             strings.TrimSpace(torrent.Fid),
+		Filename:        strings.TrimSpace(torrent.Filename),
+		CategoryID:      torrent.CategoryID,
+		Size:            torrent.Size,
+		IsFreeleech:     isFreeleech,
+		TvMazeID:        fmt.Sprintf("%d", tvmazeID),
+		TvMazeEpisodeID: fmt.Sprintf("%d", tvmazeEpisodeID),
+	}
+}
+
+func NextEpisodeRetryTime(airstamp time.Time, now time.Time) (time.Time, bool) {
+	releaseCheckStart := airstamp.Add(30 * time.Minute)
+	rapidCheckEnd := releaseCheckStart.Add(2 * time.Hour)
+	dailyCheckEnd := rapidCheckEnd.Add(7 * 24 * time.Hour)
+
+	if now.Before(releaseCheckStart) {
+		return releaseCheckStart, true
+	}
+	if now.Before(rapidCheckEnd) {
+		return now.Add(15 * time.Minute), true
+	}
+	if now.Before(dailyCheckEnd) {
+		return now.Add(24 * time.Hour), true
+	}
+
+	return time.Time{}, false
 }
 
 func DiskUsage() (map[string]uint64, error) {

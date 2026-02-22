@@ -11,6 +11,7 @@ import { Home } from "./routes/Home.tsx";
 import Root from "./routes/root.tsx";
 import { TvMaze } from "./routes/TvMaze.tsx";
 import { Downloads } from "./routes/Downloads.tsx";
+import { SeriesDetails } from "./routes/SeriesDetails.tsx";
 
 const router = createBrowserRouter([
   {
@@ -25,6 +26,10 @@ const router = createBrowserRouter([
       {
         path: "/tvmaze",
         Component: TvMaze,
+      },
+      {
+        path: "/series/:id",
+        Component: SeriesDetails,
       },
       {
         path: "/downloads",

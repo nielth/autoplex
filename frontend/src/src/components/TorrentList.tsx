@@ -20,6 +20,8 @@ async function torrent_download(
     categoryID: number;
     size: number;
     isFreeleech: boolean;
+    tvmazeID?: string;
+    tvmazeEpisodeID?: string;
   },
   navigate: Function,
   setAlertStatus: Function,
@@ -36,6 +38,8 @@ async function torrent_download(
         categoryID: data.categoryID,
         size: data.size,
         isFreeleech: data.isFreeleech,
+        tvmazeID: data.tvmazeID,
+        tvmazeEpisodeID: data.tvmazeEpisodeID,
       },
       {
         withCredentials: true,
@@ -59,6 +63,24 @@ async function torrent_download(
 
     navigate("/error");
   }
+}
+
+function parseTvMazeEpisodeID(value: string | undefined): string {
+  const clean = (value ?? "").trim();
+  if (clean === "") {
+    return "";
+  }
+
+  const match = /^e(\d+)$/i.exec(clean);
+  if (match) {
+    return match[1];
+  }
+
+  if (/^\d+$/.test(clean)) {
+    return clean;
+  }
+
+  return "";
 }
 
 export function TorrentList({ data }: { data: TorrentData }) {
@@ -190,6 +212,8 @@ export function TorrentList({ data }: { data: TorrentData }) {
                       categoryID: Number(torrent.categoryID),
                       size: Number(torrent.size),
                       isFreeleech: torrent.tags.includes("FREELEECH"),
+                      tvmazeID: torrent.tvmazeID,
+                      tvmazeEpisodeID: parseTvMazeEpisodeID(torrent.tvmazeID),
                     },
                     navigate,
                     setAlertStatus,

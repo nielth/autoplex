@@ -173,12 +173,14 @@ func LogDownloadEvent(username string, data models.DownloadData, qbtHash string,
 
 	_, err = db.ExecContext(
 		ctx,
-		`INSERT INTO download_events (user_id, username, fid, filename, category_id, torrent_size, is_freeleech, qbt_hash, success, error_message, ip_address, user_agent)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO download_events (user_id, username, fid, filename, tvmaze_id, tvmaze_episode_id, category_id, torrent_size, is_freeleech, qbt_hash, success, error_message, ip_address, user_agent)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		userID,
 		cleanUsername,
 		nullableString(data.Fid),
 		nullableString(data.Filename),
+		nullableString(data.TvMazeID),
+		nullableString(data.TvMazeEpisodeID),
 		data.CategoryID,
 		nullableUint64(data.Size),
 		data.IsFreeleech,

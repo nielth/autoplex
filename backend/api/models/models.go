@@ -16,11 +16,13 @@ type User struct {
 }
 
 type DownloadData struct {
-	Fid         string `json:"fid"`
-	Filename    string `json:"filename"`
-	CategoryID  int    `json:"categoryID"`
-	Size        uint64 `json:"size"`
-	IsFreeleech bool   `json:"isFreeleech"`
+	Fid             string `json:"fid"`
+	Filename        string `json:"filename"`
+	CategoryID      int    `json:"categoryID"`
+	Size            uint64 `json:"size"`
+	IsFreeleech     bool   `json:"isFreeleech"`
+	TvMazeID        string `json:"tvmazeID,omitempty"`
+	TvMazeEpisodeID string `json:"tvmazeEpisodeID,omitempty"`
 }
 
 type DownloadDeleteRequestInput struct {
@@ -33,6 +35,8 @@ type DownloadEventRecord struct {
 	Username          string  `json:"username"`
 	Fid               string  `json:"fid"`
 	Filename          string  `json:"filename"`
+	TvMazeID          string  `json:"tvmazeID,omitempty"`
+	TvMazeEpisodeID   string  `json:"tvmazeEpisodeID,omitempty"`
 	CategoryID        int     `json:"categoryID"`
 	TorrentSize       uint64  `json:"torrentSize"`
 	IsFreeleech       bool    `json:"isFreeleech"`
