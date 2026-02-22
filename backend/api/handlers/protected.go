@@ -83,6 +83,8 @@ func TlDownloadHandler(c *gin.Context) {
 		log.Printf("failed to write download event: %v", err)
 	}
 
+	services.ScheduleAutoPlexScanForDownload(qbtHash, data.CategoryID)
+
 	c.JSON(http.StatusOK, gin.H{"status": "queued"})
 }
 

@@ -177,6 +177,57 @@ func QbtGetAllTorrentsByHash() (map[string]QbtDownloadList, error) {
 	return torrentMap, nil
 }
 
+func QbtGetTorrentByHash(qbtHash string) (*QbtDownloadList, error) {
+	cleanHash := strings.ToLower(strings.TrimSpace(qbtHash))
+	if cleanHash == "" {
+		return nil, fmt.Errorf("qbt hash is required")
+	}
+
+	cookie, qbtURL, err := qbtLoginHandler()
+	if err != nil {
+		return nil, err
+	}
+
+	params := url.Values{}
+	params.Set("hashes", cleanHash)
+
+	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/api/v2/torrents/info?%s", qbtURL, params.Encode()), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("cookie", *cookie)
+
+	tr := &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}
+	client := &http.Client{Transport: tr}
+	res, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		body, _ := io.ReadAll(res.Body)
+		return nil, fmt.Errorf("qbt torrent lookup failed with status %d: %s", res.StatusCode, string(body))
+	}
+
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var torrents []QbtDownloadList
+	if err := json.Unmarshal(body, &torrents); err != nil {
+		return nil, err
+	}
+
+	if len(torrents) == 0 {
+		return nil, nil
+	}
+
+	return &torrents[0], nil
+}
+
 func qbtTagFromFid(fid string) string {
 	clean := strings.Map(func(r rune) rune {
 		switch {

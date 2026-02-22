@@ -8,7 +8,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"slices"
 	"strings"
 	"sync"
 	"syscall"
@@ -149,8 +148,6 @@ func TlSearchRequest(search string, page string) (map[string]any, error) {
 func TlDownloadRequest(data models.DownloadData) (string, error) {
 	url := "https://www.torrentleech.org/download/" + data.Fid + "/" + data.Filename
 	ua := "U_AGENT" // Without this, TL for some reason breaks
-	movie_range := []int{8, 9, 11, 37, 43, 14, 12, 13, 47, 15, 29, 36}
-	tv_range := []int{26, 32, 27, 44}
 
 	torrent_data, err := tlGetRequest(url, &ua)
 
@@ -159,13 +156,8 @@ func TlDownloadRequest(data models.DownloadData) (string, error) {
 		return "", err
 	}
 
-	var category string
-
-	if slices.Contains(movie_range, data.CategoryID) {
-		category = "movies"
-	} else if slices.Contains(tv_range, data.CategoryID) {
-		category = "tvseries"
-	} else {
+	category, ok := ResolveQbtCategory(data.CategoryID)
+	if !ok {
 		return "", fmt.Errorf("unsupported category id %d", data.CategoryID)
 	}
 
