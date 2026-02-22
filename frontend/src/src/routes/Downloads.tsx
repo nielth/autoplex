@@ -50,6 +50,7 @@ export function Downloads() {
   const [pendingRequests, setPendingRequests] = useState<DeleteRequestRecord[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [workingId, setWorkingId] = useState<number | null>(null);
+  const [isScanningPlex, setIsScanningPlex] = useState<boolean>(false);
   const [message, setMessage] = useState<string>("");
   const [errorMessage, setErrorMessage] = useState<string>("");
   const navigate = useNavigate();
@@ -154,6 +155,37 @@ export function Downloads() {
     }
   };
 
+  const handlePlexScan = async () => {
+    setIsScanningPlex(true);
+    setMessage("");
+    setErrorMessage("");
+
+    try {
+      const response = await axios.post(
+        `${domain}/api/plex/scan/movies-tv`,
+        {},
+        { withCredentials: true }
+      );
+
+      const scannedSections = response.data?.sections;
+      if (Array.isArray(scannedSections) && scannedSections.length > 0) {
+        setMessage(`Plex scan started for: ${scannedSections.join(", ")}`);
+      } else {
+        setMessage("Plex scan started for Movies and TV Shows");
+      }
+    } catch (error: any) {
+      if (error.response?.status === 401) {
+        await authProvider.signout();
+        navigate("/login");
+        return;
+      }
+
+      setErrorMessage(error.response?.data?.error || "Failed to trigger Plex scan");
+    } finally {
+      setIsScanningPlex(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="space-y-3">
@@ -166,13 +198,22 @@ export function Downloads() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Installed Torrents</h1>
-        <p className="text-sm opacity-70">
-          {isAdmin
-            ? "All tracked torrents across users"
-            : "Your tracked torrents and delete options"}
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold">Installed Torrents</h1>
+          <p className="text-sm opacity-70">
+            {isAdmin
+              ? "All tracked torrents across users"
+              : "Your tracked torrents and delete options"}
+          </p>
+        </div>
+        <button
+          className="btn btn-primary btn-sm"
+          disabled={isScanningPlex}
+          onClick={handlePlexScan}
+        >
+          {isScanningPlex ? "Starting Scan..." : "Scan Plex: Movies + TV Shows"}
+        </button>
       </div>
 
       {message ? <div className="alert alert-success">{message}</div> : null}

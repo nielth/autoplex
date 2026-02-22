@@ -190,6 +190,19 @@ func ApproveDeleteRequestHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "approved"})
 }
 
+func PlexScanMoviesAndShowsHandler(c *gin.Context) {
+	scannedSections, err := services.TriggerMoviesAndShowsScan()
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":   "scan_triggered",
+		"sections": scannedSections,
+	})
+}
+
 func BackendInfo(c *gin.Context) {
 	diskUsage, err := services.DiskUsage()
 	if err != nil {
