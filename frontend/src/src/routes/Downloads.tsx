@@ -233,9 +233,9 @@ export function Downloads() {
             return (
               <div
                 key={download.id}
-                className="rounded-xl border border-base-300 bg-base-200 p-4"
+                className="rounded-xl border border-base-300 bg-base-200 p-3"
               >
-                <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
+                <div className="mb-1 flex flex-wrap items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className="font-semibold break-all">{download.filename || download.fid}</p>
                     <p className="text-xs opacity-70">
@@ -256,34 +256,37 @@ export function Downloads() {
                   </div>
                 </div>
 
-                <div className="mb-2 text-xs opacity-75">
+                <div className="mb-1 text-xs opacity-75">
                   Size: {formatBytes(download.torrentSize || 0)} - State:{" "}
                   {normalizeState(download.qbtState)}
                 </div>
 
-                <progress
-                  className="progress progress-info w-full"
-                  value={progress}
-                  max={100}
-                />
-                <p className="mt-1 text-xs opacity-75">{progress.toFixed(2)}%</p>
-
-                {download.deletedAt ? (
-                  <p className="mt-2 text-xs opacity-70">
-                    Deleted by {download.deletedByUsername || "unknown"} at{" "}
-                    {formatDate(download.deletedAt)}
-                  </p>
-                ) : (
-                  <div className="mt-3">
+                <div className="mt-1 flex flex-wrap items-center gap-2">
+                  <div className="flex min-w-[180px] flex-1 items-center gap-2">
+                    <progress
+                      className="progress progress-info h-2 flex-1"
+                      value={progress}
+                      max={100}
+                    />
+                    <span className="w-14 text-right text-xs tabular-nums opacity-75">
+                      {progress.toFixed(2)}%
+                    </span>
+                  </div>
+                  {download.deletedAt ? (
+                    <span className="text-xs opacity-70">
+                      Deleted by {download.deletedByUsername || "unknown"} at{" "}
+                      {formatDate(download.deletedAt)}
+                    </span>
+                  ) : (
                     <button
-                      className="btn btn-error btn-sm"
+                      className="btn btn-error btn-xs sm:btn-sm"
                       disabled={workingId === download.id}
                       onClick={() => handleDelete(download)}
                     >
                       {deleteLabel}
                     </button>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             );
           })}

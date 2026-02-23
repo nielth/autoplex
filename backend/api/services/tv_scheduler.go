@@ -70,6 +70,17 @@ type TvShowInstallStatus struct {
 	FailedCount           int                       `json:"failedCount"`
 }
 
+type TvAutoInstallShowRecord struct {
+	SubscriptionID   uint64   `json:"subscriptionID"`
+	TvMazeShowID     int64    `json:"tvmazeShowID"`
+	ShowName         string   `json:"showName"`
+	ImageMedium      *string  `json:"imageMedium,omitempty"`
+	EnabledQualities []string `json:"enabledQualities"`
+	LastSyncedAt     *string  `json:"lastSyncedAt,omitempty"`
+	NextSyncAt       *string  `json:"nextSyncAt,omitempty"`
+	SyncDueNow       bool     `json:"syncDueNow"`
+}
+
 type TvInstallQueueResult struct {
 	Queued    int `json:"queued"`
 	Skipped   int `json:"skipped"`
@@ -236,6 +247,14 @@ func autoInstallSyncTimes() []string {
 		values = append(values, fmt.Sprintf("%02d:00", hour))
 	}
 	return values
+}
+
+func TvAutoInstallSyncTimes() []string {
+	return autoInstallSyncTimes()
+}
+
+func TvAutoInstallSyncTimezone() string {
+	return tvAutoInstallSyncTimezone
 }
 
 func latestTvAutoInstallSyncSlot(now time.Time) time.Time {
@@ -673,6 +692,142 @@ func GetTvShowInstallStatus(username string, showID int64) (*TvShowInstallStatus
 	}
 
 	return status, nil
+}
+
+func ListTvAutoInstallShows(username string) ([]TvAutoInstallShowRecord, error) {
+	cleanUsername := strings.TrimSpace(username)
+	if cleanUsername == "" {
+		return nil, fmt.Errorf("username is required")
+	}
+
+	db, err := dbConn()
+	if err != nil {
+		return nil, err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	rows, err := db.QueryContext(
+		ctx,
+		`SELECT
+			s.id,
+			s.tvmaze_show_id,
+			COALESCE(s.show_name, ''),
+			s.last_synced_at,
+			q.preferred_quality
+		FROM tv_show_subscriptions s
+		INNER JOIN tv_show_auto_install_qualities q
+			ON q.user_id = s.user_id
+			AND q.tvmaze_show_id = s.tvmaze_show_id
+			AND q.enabled = 1
+		WHERE s.username = ?
+		  AND s.enabled = 1
+		ORDER BY COALESCE(s.show_name, '') ASC, s.tvmaze_show_id ASC, q.preferred_quality ASC`,
+		cleanUsername,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	now := time.Now().UTC()
+	records := make([]TvAutoInstallShowRecord, 0)
+	indexByShowID := make(map[int64]int)
+
+	for rows.Next() {
+		var (
+			subscriptionID uint64
+			showID         int64
+			showName       string
+			lastSyncedAt   sql.NullTime
+			quality        string
+		)
+
+		if err := rows.Scan(
+			&subscriptionID,
+			&showID,
+			&showName,
+			&lastSyncedAt,
+			&quality,
+		); err != nil {
+			return nil, err
+		}
+
+		index, exists := indexByShowID[showID]
+		if !exists {
+			record := TvAutoInstallShowRecord{
+				SubscriptionID:   subscriptionID,
+				TvMazeShowID:     showID,
+				ShowName:         strings.TrimSpace(showName),
+				EnabledQualities: []string{},
+			}
+
+			if record.ShowName == "" {
+				record.ShowName = fmt.Sprintf("Show %d", showID)
+			}
+			if lastSyncedAt.Valid {
+				value := lastSyncedAt.Time.UTC().Format(time.RFC3339)
+				record.LastSyncedAt = &value
+			}
+
+			nextSyncAt, dueNow := nextTvAutoInstallSyncAt(nullableTimePtr(lastSyncedAt), now)
+			record.SyncDueNow = dueNow
+			if !dueNow {
+				value := nextSyncAt.UTC().Format(time.RFC3339)
+				record.NextSyncAt = &value
+			}
+
+			indexByShowID[showID] = len(records)
+			records = append(records, record)
+			index = len(records) - 1
+		}
+
+		normalizedQuality := NormalizeQualityPreference(quality)
+		if !containsQuality(records[index].EnabledQualities, normalizedQuality) {
+			records[index].EnabledQualities = append(records[index].EnabledQualities, normalizedQuality)
+		}
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	for index := range records {
+		sort.Slice(records[index].EnabledQualities, func(left int, right int) bool {
+			return records[index].EnabledQualities[left] < records[index].EnabledQualities[right]
+		})
+	}
+
+	sort.Slice(records, func(left int, right int) bool {
+		if records[left].ShowName == records[right].ShowName {
+			return records[left].TvMazeShowID < records[right].TvMazeShowID
+		}
+		return records[left].ShowName < records[right].ShowName
+	})
+
+	for index := range records {
+		show, showErr := TvMazeGetShow(records[index].TvMazeShowID)
+		if showErr != nil {
+			log.Printf("failed loading tvmaze show %d for auto-install list: %v", records[index].TvMazeShowID, showErr)
+			continue
+		}
+		if show == nil || show.Image == nil {
+			continue
+		}
+
+		medium := strings.TrimSpace(show.Image.Medium)
+		if medium == "" {
+			medium = strings.TrimSpace(show.Image.Original)
+		}
+		if medium == "" {
+			continue
+		}
+
+		records[index].ImageMedium = &medium
+	}
+
+	return records, nil
 }
 
 func ConfigureTvShowAutoInstall(username string, show TvMazeShow, preferredQuality string, autoInstallUpcoming bool) (*TvShowSubscriptionRecord, error) {
@@ -1665,6 +1820,14 @@ func nullableUint64Ptr(value *uint64) any {
 		return nil
 	}
 	return *value
+}
+
+func nullableTimePtr(value sql.NullTime) *time.Time {
+	if !value.Valid {
+		return nil
+	}
+	parsed := value.Time.UTC()
+	return &parsed
 }
 
 func BuildTvMazeDownloadDataFromTorrent(torrent TlSeriesTorrent, showID int64, episodeID int64) models.DownloadData {

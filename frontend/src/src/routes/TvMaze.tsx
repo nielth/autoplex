@@ -1,5 +1,5 @@
 import axios from "axios";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 import { authProvider } from "../auth";
@@ -23,8 +23,38 @@ interface TvMazeSearchResult {
   show: TvMazeShow;
 }
 
+interface TvAutoInstallShow {
+  subscriptionID: number;
+  tvmazeShowID: number;
+  showName: string;
+  imageMedium?: string;
+  enabledQualities: string[];
+  lastSyncedAt?: string;
+  nextSyncAt?: string;
+  syncDueNow: boolean;
+}
+
+interface TvAutoInstallShowsResponse {
+  shows?: TvAutoInstallShow[];
+  syncTimes?: string[];
+  syncTimezone?: string;
+}
+
 const FALLBACK_POSTER =
   "https://static.tvmaze.com/images/no-img/no-img-portrait-text.png";
+
+function formatDateTime(value?: string): string {
+  if (!value) {
+    return "Unknown";
+  }
+
+  const parsed = Date.parse(value);
+  if (Number.isNaN(parsed)) {
+    return value;
+  }
+
+  return new Date(parsed).toLocaleString();
+}
 
 export function TvMaze() {
   const [query, setQuery] = useState<string>("");
@@ -32,10 +62,54 @@ export function TvMaze() {
   const [results, setResults] = useState<TvMazeSearchResult[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
+  const [autoInstallShows, setAutoInstallShows] = useState<TvAutoInstallShow[]>([]);
+  const [autoInstallSyncTimes, setAutoInstallSyncTimes] = useState<string[]>([]);
+  const [autoInstallSyncTimezone, setAutoInstallSyncTimezone] = useState<string>("UTC");
+  const [autoInstallLoading, setAutoInstallLoading] = useState<boolean>(true);
+  const [autoInstallError, setAutoInstallError] = useState<string>("");
   const navigate = useNavigate();
   const domain = getApiDomain();
 
   const canSearch = useMemo(() => query.trim().length > 1, [query]);
+  const autoInstallScheduleLabel = useMemo(() => {
+    if (autoInstallSyncTimes.length === 0) {
+      return "08:00 and 17:00";
+    }
+
+    return autoInstallSyncTimes.join(" and ");
+  }, [autoInstallSyncTimes]);
+
+  const loadAutoInstallShows = async () => {
+    setAutoInstallLoading(true);
+    setAutoInstallError("");
+
+    try {
+      const response = await axios.get<TvAutoInstallShowsResponse>(
+        `${domain}/api/tvmaze/auto-install/shows`,
+        {
+          withCredentials: true,
+        }
+      );
+
+      setAutoInstallShows(response.data?.shows ?? []);
+      setAutoInstallSyncTimes(response.data?.syncTimes ?? []);
+      setAutoInstallSyncTimezone(response.data?.syncTimezone || "UTC");
+    } catch (err: any) {
+      if (err.response?.status === 401) {
+        await authProvider.signout();
+        navigate("/login");
+        return;
+      }
+
+      setAutoInstallError(err.response?.data?.error || "Failed to load auto-install shows");
+    } finally {
+      setAutoInstallLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadAutoInstallShows();
+  }, [domain]);
 
   const handleSearch = async (event: FormEvent) => {
     event.preventDefault();
@@ -140,6 +214,74 @@ export function TvMaze() {
           ))}
         </div>
       ) : null}
+
+      <div className="rounded-xl border border-base-300 bg-base-200 p-4">
+        <div className="mb-3">
+          <div>
+            <h2 className="text-lg font-semibold">Auto-Install Enabled Series</h2>
+            <p className="text-xs opacity-70">
+              Sync schedule: {autoInstallScheduleLabel} ({autoInstallSyncTimezone})
+            </p>
+          </div>
+        </div>
+
+        {autoInstallError ? (
+          <div className="mb-3 alert alert-error py-2 text-sm">{autoInstallError}</div>
+        ) : null}
+
+        {autoInstallLoading ? (
+          <div className="space-y-2">
+            {[...Array(4).keys()].map((value) => (
+              <div key={value} className="skeleton h-16 w-full" />
+            ))}
+          </div>
+        ) : null}
+
+        {!autoInstallLoading && autoInstallShows.length === 0 ? (
+          <div className="rounded-lg border border-base-300 bg-base-100 p-3 text-sm opacity-80">
+            No series currently have auto-install enabled.
+          </div>
+        ) : null}
+
+        {!autoInstallLoading && autoInstallShows.length > 0 ? (
+          <div className="space-y-2">
+            {autoInstallShows.map((show) => (
+              <Link
+                key={`${show.subscriptionID}-${show.tvmazeShowID}`}
+                to={`/series/${show.tvmazeShowID}`}
+                className="block rounded-lg border border-base-300 bg-base-100 p-3 transition hover:border-primary hover:shadow"
+              >
+                <div className="flex gap-3">
+                  <div className="h-28 w-20 shrink-0 overflow-hidden rounded-md bg-base-300">
+                    <img
+                      src={show.imageMedium || FALLBACK_POSTER}
+                      alt={show.showName}
+                      className="h-full w-full object-cover"
+                      loading="lazy"
+                    />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium break-all">{show.showName}</p>
+                    <p className="text-xs opacity-70">
+                      Next sync: {show.syncDueNow ? "Due now" : formatDateTime(show.nextSyncAt)}
+                    </p>
+                    <p className="text-xs opacity-70">
+                      Last synced: {formatDateTime(show.lastSyncedAt)}
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {show.enabledQualities.map((quality) => (
+                        <span key={`${show.tvmazeShowID}-${quality}`} className="badge badge-outline badge-sm">
+                          {quality}p
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }

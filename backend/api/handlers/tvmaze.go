@@ -32,6 +32,22 @@ func TvMazeSearchShowsHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"results": results})
 }
 
+func TvMazeAutoInstallShowsHandler(c *gin.Context) {
+	username := c.GetString("username")
+
+	shows, err := services.ListTvAutoInstallShows(username)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"shows":        shows,
+		"syncTimes":    services.TvAutoInstallSyncTimes(),
+		"syncTimezone": services.TvAutoInstallSyncTimezone(),
+	})
+}
+
 func TvMazeShowDetailHandler(c *gin.Context) {
 	showID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil || showID <= 0 {
