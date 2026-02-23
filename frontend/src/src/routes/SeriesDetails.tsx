@@ -227,7 +227,8 @@ export function SeriesDetails() {
         payload.installStatus?.subscription?.preferredQuality || "1080";
       setQuality(preferredQuality);
       setAutoInstallUpcoming(
-        payload.installStatus?.subscription?.autoInstallUpcoming === true
+        payload.installStatus?.subscription?.enabled === true &&
+          payload.installStatus?.subscription?.autoInstallUpcoming === true
       );
       setError("");
     } catch (err: any) {
@@ -285,6 +286,31 @@ export function SeriesDetails() {
         enabled
           ? "Auto-install for upcoming episodes enabled"
           : "Auto-install for upcoming episodes disabled"
+      );
+    });
+  };
+
+  const configurePreferredQuality = async (nextQuality: string) => {
+    if (nextQuality === quality || workingAction) {
+      return;
+    }
+
+    await withAction("quality", async () => {
+      await axios.put(
+        `${domain}/api/tvmaze/series/${showID}/auto-install`,
+        {
+          enabled: autoInstallUpcoming,
+          quality: nextQuality,
+        },
+        {
+          withCredentials: true,
+        }
+      );
+      setQuality(nextQuality);
+      setMessage(
+        autoInstallUpcoming
+          ? `Auto-install quality updated to ${nextQuality}p`
+          : `Preferred quality updated to ${nextQuality}p`
       );
     });
   };
@@ -378,6 +404,11 @@ export function SeriesDetails() {
   const scheduleDays = data.show.schedule?.days?.join(", ") || "Unknown days";
   const scheduleTime = data.show.schedule?.time || "Unknown time";
   const isShowEnded = (data.show.status || "").trim().toLowerCase() === "ended";
+  const subscription = data.installStatus?.subscription;
+  const hasSubscription = Boolean(subscription);
+  const persistedAutoInstallEnabled =
+    subscription?.enabled === true && subscription?.autoInstallUpcoming === true;
+  const persistedQuality = subscription?.preferredQuality;
   const airedSeasons = data.seasons.filter((season) => {
     const progress = seasonProgressByNumber.get(season.number);
     return (progress?.aired || 0) > 0;
@@ -458,7 +489,8 @@ export function SeriesDetails() {
                 name="preferred-quality"
                 aria-label="1080p"
                 checked={quality === "1080"}
-                onChange={() => setQuality("1080")}
+                disabled={Boolean(workingAction)}
+                onChange={() => configurePreferredQuality("1080")}
               />
               <input
                 className="join-item btn"
@@ -466,7 +498,8 @@ export function SeriesDetails() {
                 name="preferred-quality"
                 aria-label="2160p"
                 checked={quality === "2160"}
-                onChange={() => setQuality("2160")}
+                disabled={Boolean(workingAction)}
+                onChange={() => configurePreferredQuality("2160")}
               />
             </div>
           </div>
@@ -486,7 +519,7 @@ export function SeriesDetails() {
 
           <button
             className="btn btn-outline"
-            disabled={workingAction === "install-show" || isWholeShowInstalled}
+            disabled={Boolean(workingAction) || isWholeShowInstalled}
             onClick={installWholeShow}
           >
             {workingAction === "install-show"
@@ -495,6 +528,17 @@ export function SeriesDetails() {
                 ? "Installed"
                 : "Install Whole Show"}
           </button>
+        </div>
+
+        <div className="mt-3 text-sm opacity-80">
+          {!hasSubscription ? (
+            <p>Auto-install is not configured yet.</p>
+          ) : (
+            <p>
+              Auto-install is {persistedAutoInstallEnabled ? "enabled" : "disabled"}
+              {persistedQuality ? ` at ${persistedQuality}p` : ""}.
+            </p>
+          )}
         </div>
       </div>
 

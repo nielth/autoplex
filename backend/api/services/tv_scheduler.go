@@ -461,6 +461,13 @@ func ConfigureTvShowAutoInstall(username string, show TvMazeShow, preferredQuali
 		return nil, err
 	}
 
+	prunedJobs, pruneErr := prunePendingSubscriptionJobsForOtherQualities(uint64(subscriptionID), quality)
+	if pruneErr != nil {
+		log.Printf("failed pruning pending jobs for subscription %d quality %s: %v", subscriptionID, quality, pruneErr)
+	} else if prunedJobs > 0 {
+		log.Printf("pruned %d pending jobs for subscription %d with non-%sp quality", prunedJobs, subscriptionID, quality)
+	}
+
 	if autoInstallUpcoming {
 		if syncErr := queueUpcomingEpisodesForShow(cleanUsername, uint64(subscriptionID), show.ID, quality); syncErr != nil {
 			log.Printf("failed to queue upcoming episodes for show %d: %v", show.ID, syncErr)
@@ -772,6 +779,40 @@ func queueUpcomingEpisodesForShow(username string, subscriptionID uint64, showID
 	)
 
 	return err
+}
+
+func prunePendingSubscriptionJobsForOtherQualities(subscriptionID uint64, quality string) (int64, error) {
+	if subscriptionID == 0 {
+		return 0, fmt.Errorf("subscription id is required")
+	}
+
+	db, err := dbConn()
+	if err != nil {
+		return 0, err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	result, err := db.ExecContext(
+		ctx,
+		`DELETE FROM tv_episode_jobs
+		WHERE subscription_id = ?
+		  AND status IN ('pending', 'searching')
+		  AND preferred_quality <> ?`,
+		subscriptionID,
+		NormalizeQualityPreference(quality),
+	)
+	if err != nil {
+		return 0, err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+
+	return rowsAffected, nil
 }
 
 func queueSingleEpisodeJob(userID uint64, username string, subscriptionID *uint64, showID int64, episode TvMazeEpisode, quality string, immediate bool) (uint64, error) {

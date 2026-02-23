@@ -1,14 +1,15 @@
+import typography from "@tailwindcss/typography";
+import daisyui from "daisyui";
+import catppuccin from "@catppuccin/daisyui/legacy";
+
 /** @type {import('tailwindcss').Config} */
 export default {
-  content: [
-    "./src/**/*.{js,ts,jsx,tsx}",
-  ],
+  content: ["./src/**/*.{js,ts,jsx,tsx}"],
   theme: {
     extend: {},
   },
-  plugins: [
-    require("@tailwindcss/typography"),
-    require('daisyui'),
-  ],
-}
-
+  plugins: [typography, daisyui],
+  daisyui: {
+    themes: [catppuccin("mocha")],
+  },
+};
