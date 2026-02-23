@@ -203,9 +203,9 @@ func migrateAuditSchema(db *sql.DB) error {
 			CONSTRAINT fk_download_delete_requests_approved_by_user FOREIGN KEY (approved_by_user_id) REFERENCES users(id) ON DELETE SET NULL
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 		`CREATE TABLE IF NOT EXISTS tv_show_subscriptions (
-			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-			user_id BIGINT UNSIGNED NOT NULL,
-			username VARCHAR(255) NOT NULL,
+				id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+				user_id BIGINT UNSIGNED NOT NULL,
+				username VARCHAR(255) NOT NULL,
 			tvmaze_show_id BIGINT UNSIGNED NOT NULL,
 			show_name VARCHAR(255) NULL,
 			preferred_quality ENUM('1080', '2160') NOT NULL DEFAULT '1080',
@@ -217,12 +217,27 @@ func migrateAuditSchema(db *sql.DB) error {
 			PRIMARY KEY (id),
 			UNIQUE KEY uq_tv_show_subscriptions_user_show (user_id, tvmaze_show_id),
 			KEY idx_tv_show_subscriptions_show_id (tvmaze_show_id),
-			KEY idx_tv_show_subscriptions_enabled (enabled),
-			CONSTRAINT fk_tv_show_subscriptions_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+				KEY idx_tv_show_subscriptions_enabled (enabled),
+				CONSTRAINT fk_tv_show_subscriptions_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+		`CREATE TABLE IF NOT EXISTS tv_show_auto_install_qualities (
+				id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+				user_id BIGINT UNSIGNED NOT NULL,
+				username VARCHAR(255) NOT NULL,
+				tvmaze_show_id BIGINT UNSIGNED NOT NULL,
+				preferred_quality ENUM('1080', '2160') NOT NULL DEFAULT '1080',
+				enabled TINYINT(1) NOT NULL DEFAULT 0,
+				created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+				PRIMARY KEY (id),
+				UNIQUE KEY uq_tv_show_auto_install_qualities_user_show_quality (user_id, tvmaze_show_id, preferred_quality),
+				KEY idx_tv_show_auto_install_qualities_show_id (tvmaze_show_id),
+				KEY idx_tv_show_auto_install_qualities_enabled (enabled),
+				CONSTRAINT fk_tv_show_auto_install_qualities_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 		`CREATE TABLE IF NOT EXISTS tv_episode_jobs (
-			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-			subscription_id BIGINT UNSIGNED NULL,
+				id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+				subscription_id BIGINT UNSIGNED NULL,
 			user_id BIGINT UNSIGNED NOT NULL,
 			username VARCHAR(255) NOT NULL,
 			tvmaze_show_id BIGINT UNSIGNED NOT NULL,
@@ -269,8 +284,68 @@ func migrateAuditSchema(db *sql.DB) error {
 	if err := ensureIndexExists(db, "download_events", "idx_download_events_tvmaze_episode_id", "`tvmaze_episode_id`"); err != nil {
 		return fmt.Errorf("schema migration failed adding index download_events.idx_download_events_tvmaze_episode_id: %w", err)
 	}
+	if err := bootstrapTvShowAutoInstallQualities(db); err != nil {
+		return fmt.Errorf("schema migration failed bootstrapping tv auto-install qualities: %w", err)
+	}
 
 	return nil
+}
+
+func bootstrapTvShowAutoInstallQualities(db *sql.DB) error {
+	_, err := db.Exec(
+		`INSERT INTO tv_show_auto_install_qualities (
+			user_id,
+			username,
+			tvmaze_show_id,
+			preferred_quality,
+			enabled,
+			updated_at
+		)
+		SELECT
+			s.user_id,
+			s.username,
+			s.tvmaze_show_id,
+			s.preferred_quality,
+			1,
+			UTC_TIMESTAMP()
+		FROM tv_show_subscriptions s
+		WHERE s.auto_install_upcoming = 1
+		ON DUPLICATE KEY UPDATE
+			username = VALUES(username),
+			enabled = VALUES(enabled),
+			updated_at = UTC_TIMESTAMP()`,
+	)
+	if err != nil {
+		return err
+	}
+
+	_, err = db.Exec(
+		`INSERT INTO tv_show_auto_install_qualities (
+			user_id,
+			username,
+			tvmaze_show_id,
+			preferred_quality,
+			enabled,
+			updated_at
+		)
+		SELECT DISTINCT
+			j.user_id,
+			j.username,
+			j.tvmaze_show_id,
+			j.preferred_quality,
+			1,
+			UTC_TIMESTAMP()
+		FROM tv_episode_jobs j
+		INNER JOIN tv_show_subscriptions s
+			ON s.id = j.subscription_id
+		WHERE s.auto_install_upcoming = 1
+		  AND j.status IN ('pending', 'searching')
+		ON DUPLICATE KEY UPDATE
+			username = VALUES(username),
+			enabled = VALUES(enabled),
+			updated_at = UTC_TIMESTAMP()`,
+	)
+	return err
 }
 
 func ensureColumnExists(db *sql.DB, tableName string, columnName string, definition string) error {

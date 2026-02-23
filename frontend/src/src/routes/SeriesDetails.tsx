@@ -48,6 +48,7 @@ interface TvShowSubscriptionRecord {
   preferredQuality: string;
   autoInstallUpcoming: boolean;
   enabled: boolean;
+  lastSyncedAt?: string;
 }
 
 interface TvEpisodeJobRecord {
@@ -61,6 +62,10 @@ interface TvEpisodeJobRecord {
 
 interface TvShowInstallStatus {
   subscription?: TvShowSubscriptionRecord;
+  autoInstallQualities?: string[];
+  autoInstallSyncTimes?: string[];
+  autoInstallTimezone?: string;
+  autoInstallNextSyncAt?: string;
   jobs: TvEpisodeJobRecord[];
   pendingCount: number;
   downloadedCount: number;
@@ -126,6 +131,26 @@ function isEpisodeAired(episode: TvMazeEpisode, nowMs: number, today: string): b
   return Boolean(episode.airdate && episode.airdate <= today);
 }
 
+function formatDateTime(value?: string): string {
+  if (!value) {
+    return "Unknown";
+  }
+
+  const parsed = Date.parse(value);
+  if (Number.isNaN(parsed)) {
+    return value;
+  }
+
+  return new Date(parsed).toLocaleString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+
 export function SeriesDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -134,7 +159,6 @@ export function SeriesDetails() {
   const [data, setData] = useState<SeriesDetailResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [quality, setQuality] = useState<string>("1080");
-  const [autoInstallUpcoming, setAutoInstallUpcoming] = useState<boolean>(false);
   const [pendingAutoInstallUpcoming, setPendingAutoInstallUpcoming] = useState<
     boolean | null
   >(null);
@@ -157,6 +181,71 @@ export function SeriesDetails() {
       }
     });
     return map;
+  }, [data, quality]);
+
+  const enabledAutoInstallQualities = useMemo(() => {
+    const normalized = new Set<string>();
+    data?.installStatus?.autoInstallQualities?.forEach((entry) => {
+      const qualityValue = entry === "2160" ? "2160" : "1080";
+      normalized.add(qualityValue);
+    });
+    return normalized;
+  }, [data]);
+
+  const autoInstallUpcoming = useMemo(() => {
+    const showEnded = (data?.show?.status || "").trim().toLowerCase() === "ended";
+    if (showEnded) {
+      return false;
+    }
+    return enabledAutoInstallQualities.has(quality);
+  }, [data, enabledAutoInstallQualities, quality]);
+
+  const autoInstallSyncScheduleLabel = useMemo(() => {
+    const syncTimes = data?.installStatus?.autoInstallSyncTimes || [];
+    if (syncTimes.length === 0) {
+      return "08:00 and 17:00";
+    }
+
+    return syncTimes.join(" and ");
+  }, [data]);
+
+  const nextAutoInstallSyncLabel = useMemo(() => {
+    const nextSyncAt = data?.installStatus?.autoInstallNextSyncAt;
+    if (!nextSyncAt) {
+      return autoInstallUpcoming ? "Due now" : "Unknown";
+    }
+
+    return formatDateTime(nextSyncAt);
+  }, [autoInstallUpcoming, data]);
+
+  const nextEpisodeSearchCheckLabel = useMemo(() => {
+    let nextCheckMs: number | null = null;
+
+    data?.installStatus?.jobs?.forEach((job) => {
+      if (job.preferredQuality !== quality) {
+        return;
+      }
+
+      const status = (job.status || "").toLowerCase();
+      if (status !== "pending" && status !== "searching") {
+        return;
+      }
+
+      const parsed = Date.parse(job.nextCheckAt);
+      if (Number.isNaN(parsed)) {
+        return;
+      }
+
+      if (nextCheckMs === null || parsed < nextCheckMs) {
+        nextCheckMs = parsed;
+      }
+    });
+
+    if (nextCheckMs === null) {
+      return "Not scheduled yet";
+    }
+
+    return formatDateTime(new Date(nextCheckMs).toISOString());
   }, [data, quality]);
 
   const downloadedEpisodeIDsForQuality = useMemo(() => {
@@ -226,10 +315,6 @@ export function SeriesDetails() {
       const preferredQuality =
         payload.installStatus?.subscription?.preferredQuality || "1080";
       setQuality(preferredQuality);
-      setAutoInstallUpcoming(
-        payload.installStatus?.subscription?.enabled === true &&
-          payload.installStatus?.subscription?.autoInstallUpcoming === true
-      );
       setError("");
     } catch (err: any) {
       if (err.response?.status === 401) {
@@ -281,7 +366,6 @@ export function SeriesDetails() {
           withCredentials: true,
         }
       );
-      setAutoInstallUpcoming(enabled);
       setMessage(
         enabled
           ? "Auto-install for upcoming episodes enabled"
@@ -297,9 +381,8 @@ export function SeriesDetails() {
 
     await withAction("quality", async () => {
       await axios.put(
-        `${domain}/api/tvmaze/series/${showID}/auto-install`,
+        `${domain}/api/tvmaze/series/${showID}/preferred-quality`,
         {
-          enabled: autoInstallUpcoming,
           quality: nextQuality,
         },
         {
@@ -308,9 +391,7 @@ export function SeriesDetails() {
       );
       setQuality(nextQuality);
       setMessage(
-        autoInstallUpcoming
-          ? `Auto-install quality updated to ${nextQuality}p`
-          : `Preferred quality updated to ${nextQuality}p`
+        `Preferred quality updated to ${nextQuality}p`
       );
     });
   };
@@ -404,11 +485,9 @@ export function SeriesDetails() {
   const scheduleDays = data.show.schedule?.days?.join(", ") || "Unknown days";
   const scheduleTime = data.show.schedule?.time || "Unknown time";
   const isShowEnded = (data.show.status || "").trim().toLowerCase() === "ended";
-  const subscription = data.installStatus?.subscription;
-  const hasSubscription = Boolean(subscription);
-  const persistedAutoInstallEnabled =
-    subscription?.enabled === true && subscription?.autoInstallUpcoming === true;
-  const persistedQuality = subscription?.preferredQuality;
+  const enabledAutoInstallQualityList = Array.from(enabledAutoInstallQualities).sort(
+    (a, b) => Number(a) - Number(b)
+  );
   const airedSeasons = data.seasons.filter((season) => {
     const progress = seasonProgressByNumber.get(season.number);
     return (progress?.aired || 0) > 0;
@@ -454,13 +533,6 @@ export function SeriesDetails() {
               </p>
             ) : null}
           </div>
-
-          {data.show.summary ? (
-            <div
-              className="prose prose-sm max-w-none"
-              dangerouslySetInnerHTML={{ __html: data.show.summary }}
-            />
-          ) : null}
 
           <div className="flex flex-wrap gap-2">
             <span className="badge badge-outline">
@@ -530,16 +602,32 @@ export function SeriesDetails() {
           </button>
         </div>
 
-        <div className="mt-3 text-sm opacity-80">
-          {!hasSubscription ? (
-            <p>Auto-install is not configured yet.</p>
-          ) : (
-            <p>
-              Auto-install is {persistedAutoInstallEnabled ? "enabled" : "disabled"}
-              {persistedQuality ? ` at ${persistedQuality}p` : ""}.
-            </p>
-          )}
-        </div>
+        {!isShowEnded ? (
+          <div className="mt-3 text-sm opacity-80">
+            {enabledAutoInstallQualityList.length === 0 ? (
+              <p>Auto-install is not configured yet.</p>
+            ) : (
+              <>
+                <p>
+                  Auto-install is enabled at{" "}
+                  {enabledAutoInstallQualityList
+                    .map((enabledQuality) => `${enabledQuality}p`)
+                    .join(" and ")}
+                  .
+                </p>
+                {autoInstallUpcoming ? (
+                  <>
+                    <p>
+                      New-episode sync times: {autoInstallSyncScheduleLabel}.
+                    </p>
+                    <p>Next new-episode sync: {nextAutoInstallSyncLabel}.</p>
+                    <p>Next torrent search check for {quality}p: {nextEpisodeSearchCheckLabel}.</p>
+                  </>
+                ) : null}
+              </>
+            )}
+          </div>
+        ) : null}
       </div>
 
       {showAutoInstallModal && !isShowEnded ? (

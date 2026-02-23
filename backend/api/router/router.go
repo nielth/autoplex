@@ -27,6 +27,7 @@ func SetupRouter() *gin.Engine {
 	protected.GET("/tvmaze/series/:id", handlers.TvMazeShowDetailHandler)
 	protected.GET("/tvmaze/series/:id/install-status", handlers.TvMazeShowInstallStatusHandler)
 	protected.PUT("/tvmaze/series/:id/auto-install", handlers.TvMazeConfigureAutoInstallHandler)
+	protected.PUT("/tvmaze/series/:id/preferred-quality", handlers.TvMazeConfigurePreferredQualityHandler)
 	protected.POST("/tvmaze/series/:id/install/show", handlers.TvMazeInstallWholeShowHandler)
 	protected.POST("/tvmaze/series/:id/install/season/:season", handlers.TvMazeInstallSeasonHandler)
 	protected.POST("/tvmaze/series/:id/install/episode/:episode", handlers.TvMazeInstallEpisodeHandler)

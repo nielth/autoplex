@@ -11,12 +11,3 @@ services:
     ports:
       - 8080:8080
     restart: always
-
-  flaresolverr:
-    image: 21hsmw/flaresolverr:nodriver
-    container_name: flaresolverr
-    expose:
-      - 8191
-    environment:
-      - LOG_LEVEL=info
-    restart: always

@@ -14,10 +14,16 @@ import (
 )
 
 const (
-	tvDefaultCategoryID       = 32
-	tvEpisodeWorkerInterval   = 1 * time.Minute
-	tvEpisodeWorkerBatchLimit = 25
+	tvDefaultCategoryID         = 32
+	tvEpisodeWorkerInterval     = 1 * time.Minute
+	tvEpisodeWorkerBatchLimit   = 25
+	tvAutoInstallSyncLimit      = 25
+	tvAutoInstallQueueLookback  = 24 * time.Hour
+	tvAutoInstallQueueLookahead = 48 * time.Hour
+	tvAutoInstallSyncTimezone   = "UTC"
 )
+
+var tvAutoInstallSyncHours = [...]int{8, 17}
 
 var (
 	ErrSeasonIncomplete = errors.New("season is incomplete")
@@ -26,13 +32,14 @@ var (
 )
 
 type TvShowSubscriptionRecord struct {
-	ID                  uint64 `json:"id"`
-	TvMazeShowID        int64  `json:"tvmazeShowID"`
-	ShowName            string `json:"showName"`
-	PreferredQuality    string `json:"preferredQuality"`
-	AutoInstallUpcoming bool   `json:"autoInstallUpcoming"`
-	Enabled             bool   `json:"enabled"`
-	UpdatedAt           string `json:"updatedAt"`
+	ID                  uint64  `json:"id"`
+	TvMazeShowID        int64   `json:"tvmazeShowID"`
+	ShowName            string  `json:"showName"`
+	PreferredQuality    string  `json:"preferredQuality"`
+	AutoInstallUpcoming bool    `json:"autoInstallUpcoming"`
+	Enabled             bool    `json:"enabled"`
+	LastSyncedAt        *string `json:"lastSyncedAt,omitempty"`
+	UpdatedAt           string  `json:"updatedAt"`
 }
 
 type TvEpisodeJobRecord struct {
@@ -52,11 +59,15 @@ type TvEpisodeJobRecord struct {
 }
 
 type TvShowInstallStatus struct {
-	Subscription    *TvShowSubscriptionRecord `json:"subscription,omitempty"`
-	Jobs            []TvEpisodeJobRecord      `json:"jobs"`
-	PendingCount    int                       `json:"pendingCount"`
-	DownloadedCount int                       `json:"downloadedCount"`
-	FailedCount     int                       `json:"failedCount"`
+	Subscription          *TvShowSubscriptionRecord `json:"subscription,omitempty"`
+	AutoInstallQualities  []string                  `json:"autoInstallQualities"`
+	AutoInstallSyncTimes  []string                  `json:"autoInstallSyncTimes"`
+	AutoInstallTimezone   string                    `json:"autoInstallTimezone"`
+	AutoInstallNextSyncAt *string                   `json:"autoInstallNextSyncAt,omitempty"`
+	Jobs                  []TvEpisodeJobRecord      `json:"jobs"`
+	PendingCount          int                       `json:"pendingCount"`
+	DownloadedCount       int                       `json:"downloadedCount"`
+	FailedCount           int                       `json:"failedCount"`
 }
 
 type TvInstallQueueResult struct {
@@ -78,6 +89,14 @@ type tvEpisodeJobRow struct {
 	AttemptCount     uint64
 }
 
+type tvAutoInstallSubscriptionRow struct {
+	SubscriptionID uint64
+	UserID         uint64
+	Username       string
+	TvMazeShowID   int64
+	LastSyncedAt   sql.NullTime
+}
+
 var (
 	tvEpisodeWorkerOnce sync.Once
 	tvEpisodeWorkerMu   sync.Mutex
@@ -93,15 +112,241 @@ func runTvEpisodeAutoInstallWorker() {
 	ticker := time.NewTicker(tvEpisodeWorkerInterval)
 	defer ticker.Stop()
 
-	if err := ProcessDueTvEpisodeJobs(tvEpisodeWorkerBatchLimit); err != nil {
-		log.Printf("tv episode worker initial run failed: %v", err)
-	}
+	runTvAutoInstallWorkerCycle(true)
 
 	for range ticker.C {
-		if err := ProcessDueTvEpisodeJobs(tvEpisodeWorkerBatchLimit); err != nil {
+		runTvAutoInstallWorkerCycle(false)
+	}
+}
+
+func runTvAutoInstallWorkerCycle(initial bool) {
+	if err := SyncDueTvShowAutoInstallSubscriptions(tvAutoInstallSyncLimit); err != nil {
+		if initial {
+			log.Printf("tv auto install sync initial run failed: %v", err)
+		} else {
+			log.Printf("tv auto install sync run failed: %v", err)
+		}
+	}
+
+	if err := ProcessDueTvEpisodeJobs(tvEpisodeWorkerBatchLimit); err != nil {
+		if initial {
+			log.Printf("tv episode worker initial run failed: %v", err)
+		} else {
 			log.Printf("tv episode worker run failed: %v", err)
 		}
 	}
+}
+
+func SyncDueTvShowAutoInstallSubscriptions(limit int) error {
+	if limit <= 0 {
+		limit = tvAutoInstallSyncLimit
+	}
+
+	subscriptions, err := listDueTvShowAutoInstallSubscriptions(limit)
+	if err != nil {
+		return err
+	}
+
+	for _, subscription := range subscriptions {
+		if err := syncTvShowAutoInstallSubscription(subscription); err != nil {
+			log.Printf(
+				"failed syncing auto-install subscription %d (show %d user %s): %v",
+				subscription.SubscriptionID,
+				subscription.TvMazeShowID,
+				subscription.Username,
+				err,
+			)
+		}
+	}
+
+	return nil
+}
+
+func listDueTvShowAutoInstallSubscriptions(limit int) ([]tvAutoInstallSubscriptionRow, error) {
+	db, err := dbConn()
+	if err != nil {
+		return nil, err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	candidateLimit := limit * 6
+	if candidateLimit < limit {
+		candidateLimit = limit
+	}
+
+	rows, err := db.QueryContext(
+		ctx,
+		`SELECT
+			s.id,
+			s.user_id,
+			s.username,
+			s.tvmaze_show_id,
+			s.last_synced_at
+		FROM tv_show_subscriptions s
+		WHERE s.enabled = 1
+		  AND EXISTS (
+			SELECT 1
+			FROM tv_show_auto_install_qualities q
+			WHERE q.user_id = s.user_id
+			  AND q.tvmaze_show_id = s.tvmaze_show_id
+			  AND q.enabled = 1
+		  )
+		ORDER BY s.last_synced_at ASC, s.id ASC
+		LIMIT ?`,
+		candidateLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	now := time.Now().UTC()
+	records := make([]tvAutoInstallSubscriptionRow, 0, limit)
+	for rows.Next() {
+		var record tvAutoInstallSubscriptionRow
+		if err := rows.Scan(
+			&record.SubscriptionID,
+			&record.UserID,
+			&record.Username,
+			&record.TvMazeShowID,
+			&record.LastSyncedAt,
+		); err != nil {
+			return nil, err
+		}
+		if !isTvAutoInstallSubscriptionDue(record.LastSyncedAt, now) {
+			continue
+		}
+		records = append(records, record)
+		if len(records) >= limit {
+			break
+		}
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return records, nil
+}
+
+func autoInstallSyncTimes() []string {
+	values := make([]string, 0, len(tvAutoInstallSyncHours))
+	for _, hour := range tvAutoInstallSyncHours {
+		values = append(values, fmt.Sprintf("%02d:00", hour))
+	}
+	return values
+}
+
+func latestTvAutoInstallSyncSlot(now time.Time) time.Time {
+	nowUTC := now.UTC()
+	year, month, day := nowUTC.Date()
+
+	for index := len(tvAutoInstallSyncHours) - 1; index >= 0; index-- {
+		hour := tvAutoInstallSyncHours[index]
+		slot := time.Date(year, month, day, hour, 0, 0, 0, time.UTC)
+		if !slot.After(nowUTC) {
+			return slot
+		}
+	}
+
+	previousDay := nowUTC.AddDate(0, 0, -1)
+	previousYear, previousMonth, previousDate := previousDay.Date()
+	return time.Date(
+		previousYear,
+		previousMonth,
+		previousDate,
+		tvAutoInstallSyncHours[len(tvAutoInstallSyncHours)-1],
+		0,
+		0,
+		0,
+		time.UTC,
+	)
+}
+
+func nextTvAutoInstallSyncSlot(after time.Time) time.Time {
+	afterUTC := after.UTC()
+	year, month, day := afterUTC.Date()
+
+	for _, hour := range tvAutoInstallSyncHours {
+		slot := time.Date(year, month, day, hour, 0, 0, 0, time.UTC)
+		if slot.After(afterUTC) {
+			return slot
+		}
+	}
+
+	nextDay := afterUTC.AddDate(0, 0, 1)
+	nextYear, nextMonth, nextDate := nextDay.Date()
+	return time.Date(nextYear, nextMonth, nextDate, tvAutoInstallSyncHours[0], 0, 0, 0, time.UTC)
+}
+
+func isTvAutoInstallSubscriptionDue(lastSyncedAt sql.NullTime, now time.Time) bool {
+	if !lastSyncedAt.Valid {
+		return true
+	}
+
+	latestSlot := latestTvAutoInstallSyncSlot(now)
+	return lastSyncedAt.Time.UTC().Before(latestSlot)
+}
+
+func nextTvAutoInstallSyncAt(lastSyncedAt *time.Time, now time.Time) (time.Time, bool) {
+	nowUTC := now.UTC()
+	latestSlot := latestTvAutoInstallSyncSlot(nowUTC)
+
+	if lastSyncedAt == nil {
+		return latestSlot, true
+	}
+
+	lastSyncedUTC := lastSyncedAt.UTC()
+	if lastSyncedUTC.Before(latestSlot) {
+		return latestSlot, true
+	}
+
+	return nextTvAutoInstallSyncSlot(lastSyncedUTC), false
+}
+
+func syncTvShowAutoInstallSubscription(subscription tvAutoInstallSubscriptionRow) error {
+	if subscription.SubscriptionID == 0 {
+		return fmt.Errorf("subscription id is required")
+	}
+	if subscription.UserID == 0 {
+		return fmt.Errorf("user id is required")
+	}
+	cleanUsername := strings.TrimSpace(subscription.Username)
+	if cleanUsername == "" {
+		return fmt.Errorf("username is required")
+	}
+	if subscription.TvMazeShowID <= 0 {
+		return fmt.Errorf("show id is required")
+	}
+
+	qualities, err := listEnabledTvShowAutoInstallQualities(cleanUsername, subscription.TvMazeShowID)
+	if err != nil {
+		return err
+	}
+	if len(qualities) == 0 {
+		return markTvShowSubscriptionSynced(subscription.SubscriptionID)
+	}
+
+	episodes, err := TvMazeGetEpisodes(subscription.TvMazeShowID)
+	if err != nil {
+		return err
+	}
+
+	for _, quality := range qualities {
+		if err := queueUpcomingEpisodesForShowWithEpisodes(
+			subscription.UserID,
+			cleanUsername,
+			subscription.SubscriptionID,
+			subscription.TvMazeShowID,
+			quality,
+			episodes,
+		); err != nil {
+			return err
+		}
+	}
+
+	return markTvShowSubscriptionSynced(subscription.SubscriptionID)
 }
 
 func ProcessDueTvEpisodeJobs(limit int) error {
@@ -148,14 +393,18 @@ func listDueEpisodeJobs(limit int) ([]tvEpisodeJobRow, error) {
 			j.airstamp,
 			j.preferred_quality,
 			j.attempt_count
-		FROM tv_episode_jobs j
-		LEFT JOIN tv_show_subscriptions s
-			ON s.id = j.subscription_id
-		WHERE j.status IN ('pending', 'searching')
-		  AND j.next_check_at <= UTC_TIMESTAMP()
-		  AND (j.subscription_id IS NULL OR (s.enabled = 1 AND s.auto_install_upcoming = 1))
-		ORDER BY j.next_check_at ASC, j.id ASC
-		LIMIT ?`,
+			FROM tv_episode_jobs j
+			LEFT JOIN tv_show_subscriptions s
+				ON s.id = j.subscription_id
+			LEFT JOIN tv_show_auto_install_qualities q
+				ON q.user_id = j.user_id
+				AND q.tvmaze_show_id = j.tvmaze_show_id
+				AND q.preferred_quality = j.preferred_quality
+			WHERE j.status IN ('pending', 'searching')
+			  AND j.next_check_at <= UTC_TIMESTAMP()
+			  AND (j.subscription_id IS NULL OR (s.enabled = 1 AND q.enabled = 1))
+			ORDER BY j.next_check_at ASC, j.id ASC
+			LIMIT ?`,
 		limit,
 	)
 	if err != nil {
@@ -377,15 +626,39 @@ func GetTvShowInstallStatus(username string, showID int64) (*TvShowInstallStatus
 	if err != nil {
 		return nil, err
 	}
+	autoInstallQualities, err := listEnabledTvShowAutoInstallQualities(cleanUsername, showID)
+	if err != nil {
+		return nil, err
+	}
 
 	jobs, err := listTvEpisodeJobsByShow(cleanUsername, showID, 200)
 	if err != nil {
 		return nil, err
 	}
+	if subscription != nil {
+		subscription.AutoInstallUpcoming = containsQuality(autoInstallQualities, subscription.PreferredQuality)
+	}
 
 	status := &TvShowInstallStatus{
-		Subscription: subscription,
-		Jobs:         jobs,
+		Subscription:         subscription,
+		AutoInstallQualities: autoInstallQualities,
+		AutoInstallSyncTimes: autoInstallSyncTimes(),
+		AutoInstallTimezone:  tvAutoInstallSyncTimezone,
+		Jobs:                 jobs,
+	}
+	if subscription != nil {
+		var lastSyncedAt *time.Time
+		if subscription.LastSyncedAt != nil {
+			if parsedLastSyncedAt, parseErr := time.Parse(time.RFC3339, *subscription.LastSyncedAt); parseErr == nil {
+				lastSyncedAt = &parsedLastSyncedAt
+			}
+		}
+
+		nextSyncAt, dueNow := nextTvAutoInstallSyncAt(lastSyncedAt, time.Now().UTC())
+		if !dueNow {
+			value := nextSyncAt.UTC().Format(time.RFC3339)
+			status.AutoInstallNextSyncAt = &value
+		}
 	}
 
 	for _, job := range jobs {
@@ -410,6 +683,50 @@ func ConfigureTvShowAutoInstall(username string, show TvMazeShow, preferredQuali
 	if show.ID <= 0 {
 		return nil, fmt.Errorf("show id is required")
 	}
+	if IsTvMazeShowEnded(show.Status) {
+		autoInstallUpcoming = false
+	}
+
+	quality := NormalizeQualityPreference(preferredQuality)
+	userID, err := ensureUserByUsername(cleanUsername)
+	if err != nil {
+		return nil, err
+	}
+	subscriptionID, err := upsertTvShowSubscription(userID, cleanUsername, show, quality, autoInstallUpcoming)
+	if err != nil {
+		return nil, err
+	}
+	if err := setTvShowAutoInstallQuality(userID, cleanUsername, show.ID, quality, autoInstallUpcoming); err != nil {
+		return nil, err
+	}
+
+	if autoInstallUpcoming {
+		if syncErr := syncTvShowAutoInstallSubscription(tvAutoInstallSubscriptionRow{
+			SubscriptionID: uint64(subscriptionID),
+			UserID:         userID,
+			Username:       cleanUsername,
+			TvMazeShowID:   show.ID,
+		}); syncErr != nil {
+			log.Printf("failed to sync auto install subscription %d for show %d: %v", subscriptionID, show.ID, syncErr)
+		}
+		go func() {
+			if processErr := ProcessDueTvEpisodeJobs(5); processErr != nil {
+				log.Printf("failed to trigger tv episode worker after enabling auto install: %v", processErr)
+			}
+		}()
+	}
+
+	return getTvShowSubscriptionByShowID(cleanUsername, show.ID)
+}
+
+func ConfigureTvShowPreferredQuality(username string, show TvMazeShow, preferredQuality string) (*TvShowSubscriptionRecord, error) {
+	cleanUsername := strings.TrimSpace(username)
+	if cleanUsername == "" {
+		return nil, fmt.Errorf("username is required")
+	}
+	if show.ID <= 0 {
+		return nil, fmt.Errorf("show id is required")
+	}
 
 	quality := NormalizeQualityPreference(preferredQuality)
 	userID, err := ensureUserByUsername(cleanUsername)
@@ -417,9 +734,72 @@ func ConfigureTvShowAutoInstall(username string, show TvMazeShow, preferredQuali
 		return nil, err
 	}
 
-	db, err := dbConn()
+	autoInstallUpcoming, err := isTvShowAutoInstallQualityEnabledByUserID(userID, show.ID, quality)
 	if err != nil {
 		return nil, err
+	}
+	if IsTvMazeShowEnded(show.Status) {
+		autoInstallUpcoming = false
+	}
+
+	if _, err := upsertTvShowSubscription(userID, cleanUsername, show, quality, autoInstallUpcoming); err != nil {
+		return nil, err
+	}
+
+	return getTvShowSubscriptionByShowID(cleanUsername, show.ID)
+}
+
+func DisableTvShowAutoInstallUpcoming(username string, showID int64) error {
+	cleanUsername := strings.TrimSpace(username)
+	if cleanUsername == "" {
+		return fmt.Errorf("username is required")
+	}
+	if showID <= 0 {
+		return fmt.Errorf("show id is required")
+	}
+
+	db, err := dbConn()
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err = db.ExecContext(
+		ctx,
+		`UPDATE tv_show_subscriptions
+		SET auto_install_upcoming = 0,
+			updated_at = UTC_TIMESTAMP()
+		WHERE username = ?
+		  AND tvmaze_show_id = ?
+		  AND auto_install_upcoming = 1`,
+		cleanUsername,
+		showID,
+	)
+	if err != nil {
+		return err
+	}
+
+	_, err = db.ExecContext(
+		ctx,
+		`UPDATE tv_show_auto_install_qualities
+		SET enabled = 0,
+			updated_at = UTC_TIMESTAMP()
+		WHERE username = ?
+		  AND tvmaze_show_id = ?
+		  AND enabled = 1`,
+		cleanUsername,
+		showID,
+	)
+
+	return err
+}
+
+func upsertTvShowSubscription(userID uint64, username string, show TvMazeShow, quality string, autoInstallUpcoming bool) (int64, error) {
+	db, err := dbConn()
+	if err != nil {
+		return 0, err
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -446,40 +826,152 @@ func ConfigureTvShowAutoInstall(username string, show TvMazeShow, preferredQuali
 			enabled = 1,
 			updated_at = UTC_TIMESTAMP()`,
 		userID,
-		cleanUsername,
+		username,
 		show.ID,
 		nullableString(show.Name),
-		quality,
+		NormalizeQualityPreference(quality),
 		autoInstallUpcoming,
 	)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 
 	subscriptionID, err := result.LastInsertId()
 	if err != nil {
+		return 0, err
+	}
+
+	return subscriptionID, nil
+}
+
+func setTvShowAutoInstallQuality(userID uint64, username string, showID int64, quality string, enabled bool) error {
+	db, err := dbConn()
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err = db.ExecContext(
+		ctx,
+		`INSERT INTO tv_show_auto_install_qualities (
+			user_id,
+			username,
+			tvmaze_show_id,
+			preferred_quality,
+			enabled,
+			updated_at
+		) VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP())
+		ON DUPLICATE KEY UPDATE
+			username = VALUES(username),
+			enabled = VALUES(enabled),
+			updated_at = UTC_TIMESTAMP()`,
+		userID,
+		username,
+		showID,
+		NormalizeQualityPreference(quality),
+		enabled,
+	)
+
+	return err
+}
+
+func listEnabledTvShowAutoInstallQualities(username string, showID int64) ([]string, error) {
+	cleanUsername := strings.TrimSpace(username)
+	if cleanUsername == "" {
+		return []string{}, nil
+	}
+	if showID <= 0 {
+		return []string{}, nil
+	}
+
+	db, err := dbConn()
+	if err != nil {
 		return nil, err
 	}
 
-	prunedJobs, pruneErr := prunePendingSubscriptionJobsForOtherQualities(uint64(subscriptionID), quality)
-	if pruneErr != nil {
-		log.Printf("failed pruning pending jobs for subscription %d quality %s: %v", subscriptionID, quality, pruneErr)
-	} else if prunedJobs > 0 {
-		log.Printf("pruned %d pending jobs for subscription %d with non-%sp quality", prunedJobs, subscriptionID, quality)
-	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
-	if autoInstallUpcoming {
-		if syncErr := queueUpcomingEpisodesForShow(cleanUsername, uint64(subscriptionID), show.ID, quality); syncErr != nil {
-			log.Printf("failed to queue upcoming episodes for show %d: %v", show.ID, syncErr)
+	rows, err := db.QueryContext(
+		ctx,
+		`SELECT preferred_quality
+		FROM tv_show_auto_install_qualities
+		WHERE username = ?
+		  AND tvmaze_show_id = ?
+		  AND enabled = 1
+		ORDER BY preferred_quality ASC`,
+		cleanUsername,
+		showID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	qualities := make([]string, 0, 2)
+	for rows.Next() {
+		var quality string
+		if err := rows.Scan(&quality); err != nil {
+			return nil, err
 		}
-		go func() {
-			if processErr := ProcessDueTvEpisodeJobs(5); processErr != nil {
-				log.Printf("failed to trigger tv episode worker after enabling auto install: %v", processErr)
-			}
-		}()
+		normalized := NormalizeQualityPreference(quality)
+		if !containsQuality(qualities, normalized) {
+			qualities = append(qualities, normalized)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 
-	return getTvShowSubscriptionByShowID(cleanUsername, show.ID)
+	return qualities, nil
+}
+
+func isTvShowAutoInstallQualityEnabledByUserID(userID uint64, showID int64, quality string) (bool, error) {
+	if userID == 0 || showID <= 0 {
+		return false, nil
+	}
+
+	db, err := dbConn()
+	if err != nil {
+		return false, err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var enabled bool
+	err = db.QueryRowContext(
+		ctx,
+		`SELECT enabled
+		FROM tv_show_auto_install_qualities
+		WHERE user_id = ?
+		  AND tvmaze_show_id = ?
+		  AND preferred_quality = ?
+		LIMIT 1`,
+		userID,
+		showID,
+		NormalizeQualityPreference(quality),
+	).Scan(&enabled)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+
+	return enabled, nil
+}
+
+func containsQuality(values []string, target string) bool {
+	normalizedTarget := NormalizeQualityPreference(target)
+	for _, value := range values {
+		if NormalizeQualityPreference(value) == normalizedTarget {
+			return true
+		}
+	}
+	return false
 }
 
 func QueueWholeShowInstall(username string, showID int64, preferredQuality string) (*TvInstallQueueResult, error) {
@@ -741,7 +1233,60 @@ func queueUpcomingEpisodesForShow(username string, subscriptionID uint64, showID
 		return err
 	}
 
+	if err := queueUpcomingEpisodesForShowWithEpisodes(
+		userID,
+		cleanUsername,
+		subscriptionID,
+		showID,
+		quality,
+		episodes,
+	); err != nil {
+		return err
+	}
+
+	return markTvShowSubscriptionSynced(subscriptionID)
+}
+
+func queueUpcomingEpisodesForShowWithEpisodes(
+	userID uint64,
+	username string,
+	subscriptionID uint64,
+	showID int64,
+	quality string,
+	episodes []TvMazeEpisode,
+) error {
+	cleanUsername := strings.TrimSpace(username)
+	if cleanUsername == "" {
+		return fmt.Errorf("username is required")
+	}
+	if userID == 0 {
+		return fmt.Errorf("user id is required")
+	}
+	if subscriptionID == 0 {
+		return fmt.Errorf("subscription id is required")
+	}
+	if showID <= 0 {
+		return fmt.Errorf("show id is required")
+	}
+
 	now := time.Now().UTC()
+	normalizedQuality := NormalizeQualityPreference(quality)
+	windowStart := now.Add(-tvAutoInstallQueueLookback)
+	windowEnd := now.Add(tvAutoInstallQueueLookahead)
+	if pruneErr := pruneSubscriptionQueuedEpisodesOutsideWindow(
+		subscriptionID,
+		normalizedQuality,
+		windowStart,
+		windowEnd,
+	); pruneErr != nil {
+		log.Printf(
+			"failed pruning queued episodes outside auto-install window for subscription %d quality %s: %v",
+			subscriptionID,
+			normalizedQuality,
+			pruneErr,
+		)
+	}
+
 	for _, episode := range episodes {
 		if strings.TrimSpace(episode.Airstamp) == "" {
 			continue
@@ -751,14 +1296,64 @@ func queueUpcomingEpisodesForShow(username string, subscriptionID uint64, showID
 		if parseErr != nil {
 			continue
 		}
-		if !airstamp.After(now) {
+		if airstamp.Before(windowStart) || airstamp.After(windowEnd) {
 			continue
 		}
 
+		immediate := !airstamp.After(now)
 		subscriptionIDCopy := subscriptionID
-		if _, queueErr := queueSingleEpisodeJob(userID, cleanUsername, &subscriptionIDCopy, showID, episode, quality, false); queueErr != nil {
+		if _, queueErr := queueSingleEpisodeJob(userID, cleanUsername, &subscriptionIDCopy, showID, episode, normalizedQuality, immediate); queueErr != nil {
 			log.Printf("failed to queue upcoming episode %d for show %d: %v", episode.ID, showID, queueErr)
 		}
+	}
+
+	return nil
+}
+
+func pruneSubscriptionQueuedEpisodesOutsideWindow(
+	subscriptionID uint64,
+	quality string,
+	windowStart time.Time,
+	windowEnd time.Time,
+) error {
+	if subscriptionID == 0 {
+		return fmt.Errorf("subscription id is required")
+	}
+
+	db, err := dbConn()
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err = db.ExecContext(
+		ctx,
+		`DELETE FROM tv_episode_jobs
+		WHERE subscription_id = ?
+		  AND preferred_quality = ?
+		  AND status IN ('pending', 'searching')
+		  AND (
+			airstamp IS NULL
+			OR airstamp < ?
+			OR airstamp > ?
+		  )`,
+		subscriptionID,
+		NormalizeQualityPreference(quality),
+		windowStart,
+		windowEnd,
+	)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func markTvShowSubscriptionSynced(subscriptionID uint64) error {
+	if subscriptionID == 0 {
+		return fmt.Errorf("subscription id is required")
 	}
 
 	db, err := dbConn()
@@ -779,40 +1374,6 @@ func queueUpcomingEpisodesForShow(username string, subscriptionID uint64, showID
 	)
 
 	return err
-}
-
-func prunePendingSubscriptionJobsForOtherQualities(subscriptionID uint64, quality string) (int64, error) {
-	if subscriptionID == 0 {
-		return 0, fmt.Errorf("subscription id is required")
-	}
-
-	db, err := dbConn()
-	if err != nil {
-		return 0, err
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	result, err := db.ExecContext(
-		ctx,
-		`DELETE FROM tv_episode_jobs
-		WHERE subscription_id = ?
-		  AND status IN ('pending', 'searching')
-		  AND preferred_quality <> ?`,
-		subscriptionID,
-		NormalizeQualityPreference(quality),
-	)
-	if err != nil {
-		return 0, err
-	}
-
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return 0, err
-	}
-
-	return rowsAffected, nil
 }
 
 func queueSingleEpisodeJob(userID uint64, username string, subscriptionID *uint64, showID int64, episode TvMazeEpisode, quality string, immediate bool) (uint64, error) {
@@ -878,7 +1439,11 @@ func queueSingleEpisodeJob(userID uint64, username string, subscriptionID *uint6
 						  AND d.deleted_at IS NULL
 					)
 				THEN next_check_at
-				ELSE LEAST(next_check_at, VALUES(next_check_at))
+				WHEN VALUES(next_check_at) < next_check_at
+				THEN VALUES(next_check_at)
+				WHEN NOT (airstamp <=> VALUES(airstamp))
+				THEN VALUES(next_check_at)
+				ELSE next_check_at
 			END,
 			status = CASE
 				WHEN status = 'downloaded'
@@ -943,6 +1508,7 @@ func getTvShowSubscriptionByShowID(username string, showID int64) (*TvShowSubscr
 	defer cancel()
 
 	var record TvShowSubscriptionRecord
+	var lastSyncedAt sql.NullTime
 	var updatedAt time.Time
 	err = db.QueryRowContext(
 		ctx,
@@ -953,6 +1519,7 @@ func getTvShowSubscriptionByShowID(username string, showID int64) (*TvShowSubscr
 			preferred_quality,
 			auto_install_upcoming,
 			enabled,
+			last_synced_at,
 			updated_at
 		FROM tv_show_subscriptions
 		WHERE username = ?
@@ -967,6 +1534,7 @@ func getTvShowSubscriptionByShowID(username string, showID int64) (*TvShowSubscr
 		&record.PreferredQuality,
 		&record.AutoInstallUpcoming,
 		&record.Enabled,
+		&lastSyncedAt,
 		&updatedAt,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -978,6 +1546,10 @@ func getTvShowSubscriptionByShowID(username string, showID int64) (*TvShowSubscr
 
 	record.UpdatedAt = updatedAt.UTC().Format(time.RFC3339)
 	record.PreferredQuality = NormalizeQualityPreference(record.PreferredQuality)
+	if lastSyncedAt.Valid {
+		value := lastSyncedAt.Time.UTC().Format(time.RFC3339)
+		record.LastSyncedAt = &value
+	}
 
 	return &record, nil
 }

@@ -58,6 +58,12 @@ func TvMazeShowDetailHandler(c *gin.Context) {
 	}
 
 	username := c.GetString("username")
+	if services.IsTvMazeShowEnded(show.Status) {
+		if err := services.DisableTvShowAutoInstallUpcoming(username, showID); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+	}
 	installStatus, err := services.GetTvShowInstallStatus(username, showID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -79,7 +85,19 @@ func TvMazeShowInstallStatusHandler(c *gin.Context) {
 		return
 	}
 
+	show, err := services.TvMazeGetShow(showID)
+	if err != nil {
+		handleTvMazeError(c, err)
+		return
+	}
+
 	username := c.GetString("username")
+	if services.IsTvMazeShowEnded(show.Status) {
+		if err := services.DisableTvShowAutoInstallUpcoming(username, showID); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+	}
 	status, err := services.GetTvShowInstallStatus(username, showID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -109,7 +127,50 @@ func TvMazeConfigureAutoInstallHandler(c *gin.Context) {
 	}
 
 	username := c.GetString("username")
-	subscription, err := services.ConfigureTvShowAutoInstall(username, *show, input.Quality, input.Enabled)
+	enabled := input.Enabled
+	if services.IsTvMazeShowEnded(show.Status) {
+		enabled = false
+	}
+
+	subscription, err := services.ConfigureTvShowAutoInstall(username, *show, input.Quality, enabled)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	status, err := services.GetTvShowInstallStatus(username, showID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"subscription":  subscription,
+		"installStatus": status,
+	})
+}
+
+func TvMazeConfigurePreferredQualityHandler(c *gin.Context) {
+	showID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || showID <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid show id"})
+		return
+	}
+
+	var input tvInstallRequest
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	show, err := services.TvMazeGetShow(showID)
+	if err != nil {
+		handleTvMazeError(c, err)
+		return
+	}
+
+	username := c.GetString("username")
+	subscription, err := services.ConfigureTvShowPreferredQuality(username, *show, input.Quality)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

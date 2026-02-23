@@ -184,6 +184,10 @@ func TvMazeGetEpisode(episodeID int64) (*TvMazeEpisode, error) {
 	return &episode, nil
 }
 
+func IsTvMazeShowEnded(status string) bool {
+	return strings.EqualFold(strings.TrimSpace(status), "ended")
+}
+
 func ParseTvMazeAirstamp(airstamp string) (time.Time, error) {
 	clean := strings.TrimSpace(airstamp)
 	if clean == "" {
