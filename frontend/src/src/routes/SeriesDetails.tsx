@@ -494,9 +494,14 @@ export function SeriesDetails() {
   });
   const now = Date.now();
   const today = new Date().toISOString().slice(0, 10);
-  const airedEpisodes = data.episodes.filter((episode) =>
-    isEpisodeAired(episode, now, today)
-  );
+  const airedEpisodes = data.episodes
+    .filter((episode) => isEpisodeAired(episode, now, today))
+    .sort((a, b) => {
+      if (a.season !== b.season) {
+        return b.season - a.season;
+      }
+      return b.number - a.number;
+    });
   const airedEpisodeIDsBySeason = new Map<number, number[]>();
   airedEpisodes.forEach((episode) => {
     const seasonEpisodes = airedEpisodeIDsBySeason.get(episode.season) || [];
@@ -732,7 +737,7 @@ export function SeriesDetails() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="table table-zebra table-sm">
+            <table className="table table-sm">
               <thead>
                 <tr>
                   <th>S/E</th>
@@ -745,11 +750,11 @@ export function SeriesDetails() {
               <tbody>
                 {airedEpisodes.map((episode) => {
                   const job = jobsByEpisodeID.get(episode.id);
-                  const status = job?.status || "not queued";
+                  const status = job?.status || "not downloaded";
                   const isEpisodeInstalled = downloadedEpisodeIDsForQuality.has(episode.id);
 
                   return (
-                    <tr key={episode.id}>
+                    <tr key={episode.id} className="transition-colors hover:bg-base-300/60">
                       <td>
                         S{episode.season}E{episode.number}
                       </td>
