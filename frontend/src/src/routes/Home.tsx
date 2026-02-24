@@ -125,7 +125,7 @@ export function Home() {
   useEffect(() => {
     const fetchActiveDownloads = () => {
       axios
-        .get(`${domain}/api/disk`, { withCredentials: true })
+        .get(`${domain}/api/system/overview`, { withCredentials: true })
         .then((resp) => {
           setActiveDownloads(resp.data.qbtDownloadingList ?? []);
         })

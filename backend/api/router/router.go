@@ -32,7 +32,7 @@ func SetupRouter() *gin.Engine {
 	protected.POST("/tvmaze/series/:id/install/show", handlers.TvMazeInstallWholeShowHandler)
 	protected.POST("/tvmaze/series/:id/install/season/:season", handlers.TvMazeInstallSeasonHandler)
 	protected.POST("/tvmaze/series/:id/install/episode/:episode", handlers.TvMazeInstallEpisodeHandler)
-	protected.GET("/disk", handlers.BackendInfo)
+	protected.GET("/system/overview", handlers.SystemOverview)
 
 	return r
 }

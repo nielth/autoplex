@@ -12,7 +12,7 @@ export function DiskUsage() {
   useEffect(() => {
     const domain = getApiDomain();
     if (auth.isAuthenticated) {
-      axios.get(`${domain}/api/disk`, { withCredentials: true }).then((resp) => {
+      axios.get(`${domain}/api/system/overview`, { withCredentials: true }).then((resp) => {
         setDisk(resp.data.diskUsage)
       })
     }

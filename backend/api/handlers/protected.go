@@ -205,7 +205,7 @@ func PlexScanMoviesAndShowsHandler(c *gin.Context) {
 	})
 }
 
-func BackendInfo(c *gin.Context) {
+func SystemOverview(c *gin.Context) {
 	diskUsage, err := services.DiskUsage()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err})
