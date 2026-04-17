@@ -472,6 +472,86 @@ func DeleteOrRequestDownload(downloadID uint64, username string, isAdmin bool, r
 	return DownloadDeleteActionRequested, nil
 }
 
+func ListResolvedDeleteRequests(username string, isAdmin bool, limit int) ([]models.DownloadDeleteRequestRecord, error) {
+	cleanUsername := strings.TrimSpace(username)
+	if cleanUsername == "" {
+		return nil, fmt.Errorf("username is required")
+	}
+
+	if !isAdmin {
+		return nil, ErrAdminRequired
+	}
+
+	if limit <= 0 || limit > 500 {
+		limit = 100
+	}
+
+	db, err := dbConn()
+	if err != nil {
+		return nil, err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	rows, err := db.QueryContext(
+		ctx,
+		`SELECT
+			id,
+			download_event_id,
+			requested_by_username,
+			status,
+			COALESCE(request_note, ''),
+			COALESCE(approved_by_username, ''),
+			created_at,
+			approved_at
+		FROM download_delete_requests
+		WHERE status IN ('approved', 'rejected')
+		ORDER BY COALESCE(approved_at, created_at) DESC
+		LIMIT ?`,
+		limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	requests := make([]models.DownloadDeleteRequestRecord, 0)
+	for rows.Next() {
+		var (
+			record     models.DownloadDeleteRequestRecord
+			createdAt  time.Time
+			approvedAt sql.NullTime
+		)
+
+		if err := rows.Scan(
+			&record.ID,
+			&record.DownloadEventID,
+			&record.RequestedByUsername,
+			&record.Status,
+			&record.Reason,
+			&record.ApprovedByUsername,
+			&createdAt,
+			&approvedAt,
+		); err != nil {
+			return nil, err
+		}
+
+		record.CreatedAt = createdAt.UTC().Format(time.RFC3339)
+		if approvedAt.Valid {
+			record.ApprovedAt = approvedAt.Time.UTC().Format(time.RFC3339)
+		}
+
+		requests = append(requests, record)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return requests, nil
+}
+
 func ListPendingDeleteRequests(username string, isAdmin bool) ([]models.DownloadDeleteRequestRecord, error) {
 	cleanUsername := strings.TrimSpace(username)
 	if cleanUsername == "" {

@@ -161,6 +161,23 @@ func PendingDeleteRequestsHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"requests": requests})
 }
 
+func DeleteRequestHistoryHandler(c *gin.Context) {
+	username := c.GetString("username")
+	isAdmin := c.GetBool("is_admin")
+
+	requests, err := services.ListResolvedDeleteRequests(username, isAdmin, 100)
+	if err != nil {
+		if errors.Is(err, services.ErrAdminRequired) {
+			c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"requests": requests})
+}
+
 func ApproveDeleteRequestHandler(c *gin.Context) {
 	username := c.GetString("username")
 	isAdmin := c.GetBool("is_admin")

@@ -21,6 +21,7 @@ func SetupRouter() *gin.Engine {
 	protected.GET("/downloads", handlers.DownloadListHandler)
 	protected.POST("/downloads/:id/delete", handlers.DownloadDeleteHandler)
 	protected.GET("/downloads/delete-requests", handlers.PendingDeleteRequestsHandler)
+	protected.GET("/downloads/delete-requests/history", handlers.DeleteRequestHistoryHandler)
 	protected.POST("/downloads/delete-requests/:id/approve", handlers.ApproveDeleteRequestHandler)
 	protected.POST("/plex/scan/movies-tv", handlers.PlexScanMoviesAndShowsHandler)
 	protected.GET("/tvmaze/search", handlers.TvMazeSearchShowsHandler)

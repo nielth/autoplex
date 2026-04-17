@@ -68,6 +68,7 @@ type DownloadSortDirection = "asc" | "desc";
 export function Downloads() {
   const [downloads, setDownloads] = useState<DownloadRecord[]>([]);
   const [pendingRequests, setPendingRequests] = useState<DeleteRequestRecord[]>([]);
+  const [historyRequests, setHistoryRequests] = useState<DeleteRequestRecord[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [workingId, setWorkingId] = useState<number | null>(null);
   const [isScanningPlex, setIsScanningPlex] = useState<boolean>(false);
@@ -122,10 +123,23 @@ export function Downloads() {
     setPendingRequests(response.data.requests ?? []);
   };
 
+  const loadHistoryRequests = async () => {
+    if (!isAdmin) {
+      setHistoryRequests([]);
+      return;
+    }
+
+    const response = await axios.get(
+      `${domain}/api/downloads/delete-requests/history`,
+      { withCredentials: true }
+    );
+    setHistoryRequests(response.data.requests ?? []);
+  };
+
   const loadAllData = async () => {
     setLoading(true);
     try {
-      await Promise.all([loadDownloads(), loadPendingRequests()]);
+      await Promise.all([loadDownloads(), loadPendingRequests(), loadHistoryRequests()]);
       setErrorMessage("");
     } catch (error: any) {
       if (error.response?.status === 401) {
@@ -178,7 +192,7 @@ export function Downloads() {
         setMessage("Torrent deleted");
       }
 
-      await Promise.all([loadDownloads(), loadPendingRequests()]);
+      await Promise.all([loadDownloads(), loadPendingRequests(), loadHistoryRequests()]);
     } catch (error: any) {
       if (error.response?.status === 401) {
         await authProvider.signout();
@@ -204,7 +218,7 @@ export function Downloads() {
         { withCredentials: true }
       );
       setMessage("Delete request approved");
-      await Promise.all([loadDownloads(), loadPendingRequests()]);
+      await Promise.all([loadDownloads(), loadPendingRequests(), loadHistoryRequests()]);
     } catch (error: any) {
       if (error.response?.status === 401) {
         await authProvider.signout();
@@ -345,6 +359,35 @@ export function Downloads() {
       {message ? <div className="alert alert-success">{message}</div> : null}
       {errorMessage ? <div className="alert alert-error">{errorMessage}</div> : null}
 
+      {isAdmin && pendingRequests.length > 0 ? (
+        <div className="space-y-3">
+          <h2 className="text-xl font-semibold">Pending Delete Requests</h2>
+          {pendingRequests.map((request) => (
+            <div
+              key={`pending-${request.id}`}
+              className="rounded-xl border border-base-300 bg-base-200 p-4"
+            >
+              <p className="font-medium">
+                Request #{request.id} for Download #{request.downloadEventID}
+              </p>
+              <p className="text-xs opacity-70">
+                Requested by {request.requestedByUsername} at {formatDate(request.createdAt)}
+              </p>
+              {request.reason ? (
+                <p className="mt-1 text-sm">Reason: {request.reason}</p>
+              ) : null}
+              <button
+                className="btn btn-success btn-sm mt-3"
+                disabled={workingId === request.id}
+                onClick={() => handleApprove(request.id)}
+              >
+                Approve and Delete
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
       <div className="rounded-xl border border-base-300 bg-base-200 p-4">
         <div className="flex flex-wrap items-end gap-3">
           <label className="form-control w-full sm:max-w-md">
@@ -482,39 +525,43 @@ export function Downloads() {
         </div>
       )}
 
-      {isAdmin ? (
+      {isAdmin && historyRequests.length > 0 ? (
         <div className="space-y-3">
-          <h2 className="text-xl font-semibold">Pending Delete Requests</h2>
-          {pendingRequests.length === 0 ? (
-            <div className="rounded-xl border border-base-300 bg-base-200 p-5 text-sm opacity-80">
-              No pending delete requests.
-            </div>
-          ) : (
-            pendingRequests.map((request) => (
+          <h2 className="text-xl font-semibold">Delete History</h2>
+          {historyRequests.map((request) => {
+            const isApproved = request.status === "approved";
+            return (
               <div
-                key={request.id}
-                className="rounded-xl border border-base-300 bg-base-200 p-4"
+                key={`history-${request.id}`}
+                className="rounded-xl border border-base-300 bg-base-200 p-3"
               >
-                <p className="font-medium">
-                  Request #{request.id} for Download #{request.downloadEventID}
-                </p>
-                <p className="text-xs opacity-70">
-                  Requested by {request.requestedByUsername} at{" "}
-                  {formatDate(request.createdAt)}
-                </p>
-                {request.reason ? (
-                  <p className="mt-1 text-sm">Reason: {request.reason}</p>
-                ) : null}
-                <button
-                  className="btn btn-success btn-sm mt-3"
-                  disabled={workingId === request.id}
-                  onClick={() => handleApprove(request.id)}
-                >
-                  Approve and Delete
-                </button>
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-medium">
+                      Request #{request.id} for Download #{request.downloadEventID}
+                    </p>
+                    <p className="text-xs opacity-70">
+                      Requested by {request.requestedByUsername} at{" "}
+                      {formatDate(request.createdAt)}
+                      {request.approvedByUsername
+                        ? ` - resolved by ${request.approvedByUsername}${
+                            request.approvedAt ? ` at ${formatDate(request.approvedAt)}` : ""
+                          }`
+                        : ""}
+                    </p>
+                    {request.reason ? (
+                      <p className="mt-1 text-sm opacity-80">Reason: {request.reason}</p>
+                    ) : null}
+                  </div>
+                  <span
+                    className={`badge badge-sm ${isApproved ? "badge-success" : "badge-error"}`}
+                  >
+                    {isApproved ? "Approved" : "Rejected"}
+                  </span>
+                </div>
               </div>
-            ))
-          )}
+            );
+          })}
         </div>
       ) : null}
     </div>
