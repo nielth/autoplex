@@ -194,10 +194,11 @@ func listDueTvShowAutoInstallSubscriptions(limit int) ([]tvAutoInstallSubscripti
 		`SELECT
 			s.id,
 			s.user_id,
-			s.username,
+			u.username,
 			s.tvmaze_show_id,
 			s.last_synced_at
 		FROM tv_show_subscriptions s
+		INNER JOIN users u ON u.id = s.user_id
 		WHERE s.enabled = 1
 		  AND EXISTS (
 			SELECT 1
@@ -406,7 +407,7 @@ func listDueEpisodeJobs(limit int) ([]tvEpisodeJobRow, error) {
 		ctx,
 		`SELECT
 			j.id,
-			j.username,
+			u.username,
 			j.tvmaze_show_id,
 			j.tvmaze_episode_id,
 			COALESCE(j.episode_name, ''),
@@ -417,6 +418,7 @@ func listDueEpisodeJobs(limit int) ([]tvEpisodeJobRow, error) {
 			j.preferred_quality,
 			j.attempt_count
 			FROM tv_episode_jobs j
+			INNER JOIN users u ON u.id = j.user_id
 			LEFT JOIN tv_show_subscriptions s
 				ON s.id = j.subscription_id
 			LEFT JOIN tv_show_auto_install_qualities q
@@ -722,11 +724,12 @@ func ListTvAutoInstallShows(username string) ([]TvAutoInstallShowRecord, error) 
 			s.last_synced_at,
 			q.preferred_quality
 		FROM tv_show_subscriptions s
+		INNER JOIN users u ON u.id = s.user_id
 		INNER JOIN tv_show_auto_install_qualities q
 			ON q.user_id = s.user_id
 			AND q.tvmaze_show_id = s.tvmaze_show_id
 			AND q.enabled = 1
-		WHERE s.username = ?
+		WHERE u.username = ?
 		  AND s.enabled = 1
 		ORDER BY COALESCE(s.show_name, '') ASC, s.tvmaze_show_id ASC, q.preferred_quality ASC`,
 		cleanUsername,
@@ -948,27 +951,13 @@ func DisableTvShowAutoInstallUpcoming(username string, showID int64) error {
 
 	_, err = db.ExecContext(
 		ctx,
-		`UPDATE tv_show_subscriptions
-		SET auto_install_upcoming = 0,
-			updated_at = UTC_TIMESTAMP()
-		WHERE username = ?
-		  AND tvmaze_show_id = ?
-		  AND auto_install_upcoming = 1`,
-		cleanUsername,
-		showID,
-	)
-	if err != nil {
-		return err
-	}
-
-	_, err = db.ExecContext(
-		ctx,
-		`UPDATE tv_show_auto_install_qualities
-		SET enabled = 0,
-			updated_at = UTC_TIMESTAMP()
-		WHERE username = ?
-		  AND tvmaze_show_id = ?
-		  AND enabled = 1`,
+		`UPDATE tv_show_auto_install_qualities q
+		INNER JOIN users u ON u.id = q.user_id
+		SET q.enabled = 0,
+			q.updated_at = UTC_TIMESTAMP()
+		WHERE u.username = ?
+		  AND q.tvmaze_show_id = ?
+		  AND q.enabled = 1`,
 		cleanUsername,
 		showID,
 	)
@@ -985,32 +974,26 @@ func upsertTvShowSubscription(userID uint64, username string, show TvMazeShow, q
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	_ = username
+	_ = quality
+	_ = autoInstallUpcoming
 	result, err := db.ExecContext(
 		ctx,
 		`INSERT INTO tv_show_subscriptions (
 			user_id,
-			username,
 			tvmaze_show_id,
 			show_name,
-			preferred_quality,
-			auto_install_upcoming,
 			enabled,
 			updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, 1, UTC_TIMESTAMP())
+		) VALUES (?, ?, ?, 1, UTC_TIMESTAMP())
 		ON DUPLICATE KEY UPDATE
 			id = LAST_INSERT_ID(id),
-			username = VALUES(username),
 			show_name = VALUES(show_name),
-			preferred_quality = VALUES(preferred_quality),
-			auto_install_upcoming = VALUES(auto_install_upcoming),
 			enabled = 1,
 			updated_at = UTC_TIMESTAMP()`,
 		userID,
-		username,
 		show.ID,
 		nullableString(show.Name),
-		NormalizeQualityPreference(quality),
-		autoInstallUpcoming,
 	)
 	if err != nil {
 		return 0, err
@@ -1033,22 +1016,20 @@ func setTvShowAutoInstallQuality(userID uint64, username string, showID int64, q
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	_ = username
 	_, err = db.ExecContext(
 		ctx,
 		`INSERT INTO tv_show_auto_install_qualities (
 			user_id,
-			username,
 			tvmaze_show_id,
 			preferred_quality,
 			enabled,
 			updated_at
-		) VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP())
+		) VALUES (?, ?, ?, ?, UTC_TIMESTAMP())
 		ON DUPLICATE KEY UPDATE
-			username = VALUES(username),
 			enabled = VALUES(enabled),
 			updated_at = UTC_TIMESTAMP()`,
 		userID,
-		username,
 		showID,
 		NormalizeQualityPreference(quality),
 		enabled,
@@ -1076,12 +1057,13 @@ func listEnabledTvShowAutoInstallQualities(username string, showID int64) ([]str
 
 	rows, err := db.QueryContext(
 		ctx,
-		`SELECT preferred_quality
-		FROM tv_show_auto_install_qualities
-		WHERE username = ?
-		  AND tvmaze_show_id = ?
-		  AND enabled = 1
-		ORDER BY preferred_quality ASC`,
+		`SELECT q.preferred_quality
+		FROM tv_show_auto_install_qualities q
+		INNER JOIN users u ON u.id = q.user_id
+		WHERE u.username = ?
+		  AND q.tvmaze_show_id = ?
+		  AND q.enabled = 1
+		ORDER BY q.preferred_quality ASC`,
 		cleanUsername,
 		showID,
 	)
@@ -1588,7 +1570,6 @@ func queueSingleEpisodeJob(userID uint64, username string, subscriptionID *uint6
 		`INSERT INTO tv_episode_jobs (
 			subscription_id,
 			user_id,
-			username,
 			tvmaze_show_id,
 			tvmaze_episode_id,
 			episode_name,
@@ -1604,7 +1585,7 @@ func queueSingleEpisodeJob(userID uint64, username string, subscriptionID *uint6
 			last_error,
 			downloaded_download_event_id,
 			updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, ?, NULL, NULL, NULL, UTC_TIMESTAMP())
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, ?, NULL, NULL, NULL, UTC_TIMESTAMP())
 		ON DUPLICATE KEY UPDATE
 			id = LAST_INSERT_ID(id),
 			subscription_id = COALESCE(VALUES(subscription_id), subscription_id),
@@ -1654,7 +1635,6 @@ func queueSingleEpisodeJob(userID uint64, username string, subscriptionID *uint6
 			updated_at = UTC_TIMESTAMP()`,
 		nullableUint64Ptr(subscriptionID),
 		userID,
-		username,
 		showID,
 		episode.ID,
 		nullableString(episode.Name),
@@ -1665,6 +1645,7 @@ func queueSingleEpisodeJob(userID uint64, username string, subscriptionID *uint6
 		NormalizeQualityPreference(quality),
 		nextCheck,
 	)
+	_ = username
 	if err != nil {
 		return 0, err
 	}
@@ -1694,20 +1675,37 @@ func getTvShowSubscriptionByShowID(username string, showID int64) (*TvShowSubscr
 	var record TvShowSubscriptionRecord
 	var lastSyncedAt sql.NullTime
 	var updatedAt time.Time
+	var derivedQuality sql.NullString
+	var autoInstallUpcoming bool
 	err = db.QueryRowContext(
 		ctx,
 		`SELECT
-			id,
-			tvmaze_show_id,
-			COALESCE(show_name, ''),
-			preferred_quality,
-			auto_install_upcoming,
-			enabled,
-			last_synced_at,
-			updated_at
-		FROM tv_show_subscriptions
-		WHERE username = ?
-		  AND tvmaze_show_id = ?
+			s.id,
+			s.tvmaze_show_id,
+			COALESCE(s.show_name, ''),
+			s.enabled,
+			s.last_synced_at,
+			s.updated_at,
+			(
+				SELECT q.preferred_quality
+				FROM tv_show_auto_install_qualities q
+				WHERE q.user_id = s.user_id
+				  AND q.tvmaze_show_id = s.tvmaze_show_id
+				  AND q.enabled = 1
+				ORDER BY CAST(q.preferred_quality AS UNSIGNED) DESC
+				LIMIT 1
+			),
+			EXISTS (
+				SELECT 1
+				FROM tv_show_auto_install_qualities q
+				WHERE q.user_id = s.user_id
+				  AND q.tvmaze_show_id = s.tvmaze_show_id
+				  AND q.enabled = 1
+			)
+		FROM tv_show_subscriptions s
+		INNER JOIN users u ON u.id = s.user_id
+		WHERE u.username = ?
+		  AND s.tvmaze_show_id = ?
 		LIMIT 1`,
 		cleanUsername,
 		showID,
@@ -1715,11 +1713,11 @@ func getTvShowSubscriptionByShowID(username string, showID int64) (*TvShowSubscr
 		&record.ID,
 		&record.TvMazeShowID,
 		&record.ShowName,
-		&record.PreferredQuality,
-		&record.AutoInstallUpcoming,
 		&record.Enabled,
 		&lastSyncedAt,
 		&updatedAt,
+		&derivedQuality,
+		&autoInstallUpcoming,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
@@ -1729,7 +1727,12 @@ func getTvShowSubscriptionByShowID(username string, showID int64) (*TvShowSubscr
 	}
 
 	record.UpdatedAt = updatedAt.UTC().Format(time.RFC3339)
-	record.PreferredQuality = NormalizeQualityPreference(record.PreferredQuality)
+	if derivedQuality.Valid {
+		record.PreferredQuality = NormalizeQualityPreference(derivedQuality.String)
+	} else {
+		record.PreferredQuality = "1080"
+	}
+	record.AutoInstallUpcoming = autoInstallUpcoming
 	if lastSyncedAt.Valid {
 		value := lastSyncedAt.Time.UTC().Format(time.RFC3339)
 		record.LastSyncedAt = &value
@@ -1768,9 +1771,10 @@ func listTvEpisodeJobsByShow(username string, showID int64, limit int) ([]TvEpis
 			j.last_checked_at,
 			COALESCE(j.last_error, '')
 		FROM tv_episode_jobs j
+		INNER JOIN users u ON u.id = j.user_id
 		LEFT JOIN download_events d
 			ON d.id = j.downloaded_download_event_id
-		WHERE j.username = ?
+		WHERE u.username = ?
 		  AND j.tvmaze_show_id = ?
 		  AND NOT (
 			j.status = 'downloaded'

@@ -118,8 +118,9 @@ func loadTlRssSubscriptionIndex() ([]tlRssSubscriptionMatch, error) {
 
 	rows, err := db.QueryContext(
 		ctx,
-		`SELECT s.user_id, s.username, s.tvmaze_show_id, COALESCE(s.show_name, ''), q.preferred_quality
+		`SELECT s.user_id, u.username, s.tvmaze_show_id, COALESCE(s.show_name, ''), q.preferred_quality
 		FROM tv_show_subscriptions s
+		INNER JOIN users u ON u.id = s.user_id
 		INNER JOIN tv_show_auto_install_qualities q
 		  ON q.user_id = s.user_id
 		  AND q.tvmaze_show_id = s.tvmaze_show_id
