@@ -97,6 +97,7 @@ type tvEpisodeJobRow struct {
 	SeasonNumber     sql.NullInt64
 	EpisodeNumber    sql.NullInt64
 	Airstamp         sql.NullTime
+	AirtimeKnown     bool
 	PreferredQuality string
 	AttemptCount     uint64
 }
@@ -411,6 +412,7 @@ func listDueEpisodeJobs(limit int) ([]tvEpisodeJobRow, error) {
 			j.season_number,
 			j.episode_number,
 			j.airstamp,
+			j.airtime_known,
 			j.preferred_quality,
 			j.attempt_count
 			FROM tv_episode_jobs j
@@ -444,6 +446,7 @@ func listDueEpisodeJobs(limit int) ([]tvEpisodeJobRow, error) {
 			&row.SeasonNumber,
 			&row.EpisodeNumber,
 			&row.Airstamp,
+			&row.AirtimeKnown,
 			&row.PreferredQuality,
 			&row.AttemptCount,
 		); err != nil {
@@ -512,7 +515,7 @@ func markEpisodeJobRetry(job tvEpisodeJobRow, reason string) error {
 	var hasNext bool
 
 	if job.Airstamp.Valid {
-		nextCheck, hasNext = NextEpisodeRetryTime(job.Airstamp.Time.UTC(), now)
+		nextCheck, hasNext = NextEpisodeRetryTime(job.Airstamp.Time.UTC(), now, job.AirtimeKnown)
 	}
 
 	if !hasNext {
@@ -1558,12 +1561,13 @@ func queueSingleEpisodeJob(userID uint64, username string, subscriptionID *uint6
 	}
 
 	nextCheck := time.Now().UTC()
+	airtimeKnown := strings.TrimSpace(episode.Airtime) != ""
 	var airstamp any
 	if strings.TrimSpace(episode.Airstamp) != "" {
 		if parsedAirstamp, err := ParseTvMazeAirstamp(episode.Airstamp); err == nil {
 			airstamp = parsedAirstamp
 			if !immediate {
-				if calculatedNext, ok := NextEpisodeRetryTime(parsedAirstamp, time.Now().UTC()); ok {
+				if calculatedNext, ok := NextEpisodeRetryTime(parsedAirstamp, time.Now().UTC(), airtimeKnown); ok {
 					nextCheck = calculatedNext
 				}
 			}
@@ -1590,6 +1594,7 @@ func queueSingleEpisodeJob(userID uint64, username string, subscriptionID *uint6
 			season_number,
 			episode_number,
 			airstamp,
+			airtime_known,
 			preferred_quality,
 			status,
 			attempt_count,
@@ -1598,7 +1603,7 @@ func queueSingleEpisodeJob(userID uint64, username string, subscriptionID *uint6
 			last_error,
 			downloaded_download_event_id,
 			updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, ?, NULL, NULL, NULL, UTC_TIMESTAMP())
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, ?, NULL, NULL, NULL, UTC_TIMESTAMP())
 		ON DUPLICATE KEY UPDATE
 			id = LAST_INSERT_ID(id),
 			subscription_id = COALESCE(VALUES(subscription_id), subscription_id),
@@ -1606,6 +1611,7 @@ func queueSingleEpisodeJob(userID uint64, username string, subscriptionID *uint6
 			season_number = VALUES(season_number),
 			episode_number = VALUES(episode_number),
 			airstamp = VALUES(airstamp),
+			airtime_known = VALUES(airtime_known),
 			next_check_at = CASE
 				WHEN status = 'downloaded'
 					AND EXISTS (
@@ -1654,6 +1660,7 @@ func queueSingleEpisodeJob(userID uint64, username string, subscriptionID *uint6
 		nullableInt(episode.Season),
 		nullableInt(episode.Number),
 		airstamp,
+		airtimeKnown,
 		NormalizeQualityPreference(quality),
 		nextCheck,
 	)

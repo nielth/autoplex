@@ -567,7 +567,23 @@ func ConvertTlSeriesTorrentToDownloadData(torrent TlSeriesTorrent, tvmazeID int6
 	}
 }
 
-func NextEpisodeRetryTime(airstamp time.Time, now time.Time) (time.Time, bool) {
+func NextEpisodeRetryTime(airstamp time.Time, now time.Time, airtimeKnown bool) (time.Time, bool) {
+	if !airtimeKnown {
+		rapidCheckEnd := airstamp.Add(48 * time.Hour)
+		dailyCheckEnd := rapidCheckEnd.Add(7 * 24 * time.Hour)
+
+		if now.Before(airstamp) {
+			return airstamp, true
+		}
+		if now.Before(rapidCheckEnd) {
+			return now.Add(30 * time.Minute), true
+		}
+		if now.Before(dailyCheckEnd) {
+			return now.Add(24 * time.Hour), true
+		}
+		return time.Time{}, false
+	}
+
 	releaseCheckStart := airstamp.Add(30 * time.Minute)
 	rapidCheckEnd := releaseCheckStart.Add(2 * time.Hour)
 	dailyCheckEnd := rapidCheckEnd.Add(7 * 24 * time.Hour)

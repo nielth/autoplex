@@ -246,6 +246,7 @@ func migrateAuditSchema(db *sql.DB) error {
 			season_number INT NULL,
 			episode_number INT NULL,
 			airstamp DATETIME NULL,
+			airtime_known TINYINT(1) NOT NULL DEFAULT 1,
 			preferred_quality ENUM('1080', '2160') NOT NULL DEFAULT '1080',
 			status ENUM('pending', 'searching', 'downloaded', 'failed') NOT NULL DEFAULT 'pending',
 			attempt_count INT UNSIGNED NOT NULL DEFAULT 0,
@@ -283,6 +284,9 @@ func migrateAuditSchema(db *sql.DB) error {
 	}
 	if err := ensureIndexExists(db, "download_events", "idx_download_events_tvmaze_episode_id", "`tvmaze_episode_id`"); err != nil {
 		return fmt.Errorf("schema migration failed adding index download_events.idx_download_events_tvmaze_episode_id: %w", err)
+	}
+	if err := ensureColumnExists(db, "tv_episode_jobs", "airtime_known", "TINYINT(1) NOT NULL DEFAULT 1 AFTER `airstamp`"); err != nil {
+		return fmt.Errorf("schema migration failed adding tv_episode_jobs.airtime_known: %w", err)
 	}
 	if err := bootstrapTvShowAutoInstallQualities(db); err != nil {
 		return fmt.Errorf("schema migration failed bootstrapping tv auto-install qualities: %w", err)
