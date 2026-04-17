@@ -37,7 +37,7 @@ export default function Root() {
       {!loading ? (
         <>
           <Navbar />
-          <div id="detail" className="py-8 lg:container mx-auto">
+          <div id="detail" className="mx-auto px-4 py-6 sm:px-6 sm:py-8 lg:container">
             <Outlet />
           </div>
         </>
