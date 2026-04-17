@@ -246,7 +246,7 @@ export function TvMaze() {
               Upcoming episodes scheduled on TVMaze.
             </p>
           </div>
-          <div className="space-y-2">
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(18rem,1fr))] gap-3">
             {activeReleaseShows.map((show) => (
               <Link
                 key={`active-${show.subscriptionID}-${show.tvmazeShowID}`}
@@ -323,7 +323,7 @@ export function TvMaze() {
         ) : null}
 
         {!autoInstallLoading && dormantShows.length > 0 ? (
-          <div className="space-y-2">
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(18rem,1fr))] gap-3">
             {dormantShows.map((show) => (
               <Link
                 key={`${show.subscriptionID}-${show.tvmazeShowID}`}
