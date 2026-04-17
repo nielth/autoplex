@@ -818,7 +818,7 @@ export function SeriesDetails() {
                     <span
                       className={`badge badge-sm ${progress.complete ? "badge-success" : "badge-warning"}`}
                     >
-                      {progress.complete ? "Complete" : "Incomplete"}
+                      {progress.complete ? "Fully Aired" : "Still Airing"}
                     </span>
                   </div>
                   <p className="text-xs opacity-70">
