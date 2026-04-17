@@ -119,6 +119,7 @@ func StartTvEpisodeAutoInstallWorker() {
 	tvEpisodeWorkerOnce.Do(func() {
 		go runTvEpisodeAutoInstallWorker()
 	})
+	StartTlRssWorker()
 }
 
 func runTvEpisodeAutoInstallWorker() {
