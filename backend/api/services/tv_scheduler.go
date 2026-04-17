@@ -975,7 +975,6 @@ func upsertTvShowSubscription(userID uint64, username string, show TvMazeShow, q
 	defer cancel()
 
 	_ = username
-	_ = quality
 	_ = autoInstallUpcoming
 	result, err := db.ExecContext(
 		ctx,
@@ -983,17 +982,20 @@ func upsertTvShowSubscription(userID uint64, username string, show TvMazeShow, q
 			user_id,
 			tvmaze_show_id,
 			show_name,
+			preferred_quality,
 			enabled,
 			updated_at
-		) VALUES (?, ?, ?, 1, UTC_TIMESTAMP())
+		) VALUES (?, ?, ?, ?, 1, UTC_TIMESTAMP())
 		ON DUPLICATE KEY UPDATE
 			id = LAST_INSERT_ID(id),
 			show_name = VALUES(show_name),
+			preferred_quality = VALUES(preferred_quality),
 			enabled = 1,
 			updated_at = UTC_TIMESTAMP()`,
 		userID,
 		show.ID,
 		nullableString(show.Name),
+		NormalizeQualityPreference(quality),
 	)
 	if err != nil {
 		return 0, err
@@ -1675,7 +1677,6 @@ func getTvShowSubscriptionByShowID(username string, showID int64) (*TvShowSubscr
 	var record TvShowSubscriptionRecord
 	var lastSyncedAt sql.NullTime
 	var updatedAt time.Time
-	var derivedQuality sql.NullString
 	var autoInstallUpcoming bool
 	err = db.QueryRowContext(
 		ctx,
@@ -1683,18 +1684,10 @@ func getTvShowSubscriptionByShowID(username string, showID int64) (*TvShowSubscr
 			s.id,
 			s.tvmaze_show_id,
 			COALESCE(s.show_name, ''),
+			s.preferred_quality,
 			s.enabled,
 			s.last_synced_at,
 			s.updated_at,
-			(
-				SELECT q.preferred_quality
-				FROM tv_show_auto_install_qualities q
-				WHERE q.user_id = s.user_id
-				  AND q.tvmaze_show_id = s.tvmaze_show_id
-				  AND q.enabled = 1
-				ORDER BY CAST(q.preferred_quality AS UNSIGNED) DESC
-				LIMIT 1
-			),
 			EXISTS (
 				SELECT 1
 				FROM tv_show_auto_install_qualities q
@@ -1713,10 +1706,10 @@ func getTvShowSubscriptionByShowID(username string, showID int64) (*TvShowSubscr
 		&record.ID,
 		&record.TvMazeShowID,
 		&record.ShowName,
+		&record.PreferredQuality,
 		&record.Enabled,
 		&lastSyncedAt,
 		&updatedAt,
-		&derivedQuality,
 		&autoInstallUpcoming,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -1727,11 +1720,7 @@ func getTvShowSubscriptionByShowID(username string, showID int64) (*TvShowSubscr
 	}
 
 	record.UpdatedAt = updatedAt.UTC().Format(time.RFC3339)
-	if derivedQuality.Valid {
-		record.PreferredQuality = NormalizeQualityPreference(derivedQuality.String)
-	} else {
-		record.PreferredQuality = "1080"
-	}
+	record.PreferredQuality = NormalizeQualityPreference(record.PreferredQuality)
 	record.AutoInstallUpcoming = autoInstallUpcoming
 	if lastSyncedAt.Valid {
 		value := lastSyncedAt.Time.UTC().Format(time.RFC3339)
