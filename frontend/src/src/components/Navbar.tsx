@@ -35,8 +35,8 @@ export function Navbar() {
     <>
       <div className="navbar bg-base-300">
         <div className="navbar-start">
-          <div className="flex items-center">
-            <Link to="/">
+          <div className="whitespace-nowrap leading-[3rem]">
+            <Link to="/" className="inline-block align-middle">
               <button
                 className="btn btn-ghost text-xl"
                 onClick={() => {
@@ -46,6 +46,12 @@ export function Navbar() {
                 Autoplex
               </button>
             </Link>
+            <span
+              className="ml-2 hidden align-middle font-mono text-xs opacity-60 tabular-nums lg:inline-block"
+              title="Current UTC time"
+            >
+              {utcNow}
+            </span>
           </div>
         </div>
         <DiskUsage />
@@ -128,13 +134,7 @@ export function Navbar() {
               </ul>
             </div>
           ) : null}
-          <div className="hidden lg:flex items-center">
-            <span
-              className="mr-3 font-mono text-sm opacity-70 tabular-nums"
-              title="Current UTC time"
-            >
-              {utcNow}
-            </span>
+          <div className="hidden lg:flex">
             <ul className="menu menu-horizontal px-1">
               <li>
                 <Link to="/">Home</Link>
