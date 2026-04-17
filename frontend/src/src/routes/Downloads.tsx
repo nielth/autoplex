@@ -29,6 +29,10 @@ interface DeleteRequestRecord {
   approvedByUsername?: string;
   createdAt: string;
   approvedAt?: string;
+  downloadFilename?: string;
+  downloadFid?: string;
+  downloadSize?: number;
+  downloadIsFreeleech?: boolean;
 }
 
 function formatDate(value?: string) {
@@ -124,11 +128,6 @@ export function Downloads() {
   };
 
   const loadHistoryRequests = async () => {
-    if (!isAdmin) {
-      setHistoryRequests([]);
-      return;
-    }
-
     const response = await axios.get(
       `${domain}/api/downloads/delete-requests/history`,
       { withCredentials: true }
@@ -367,12 +366,25 @@ export function Downloads() {
               key={`pending-${request.id}`}
               className="rounded-xl border border-base-300 bg-base-200 p-4"
             >
-              <p className="font-medium">
-                Request #{request.id} for Download #{request.downloadEventID}
-              </p>
-              <p className="text-xs opacity-70">
-                Requested by {request.requestedByUsername} at {formatDate(request.createdAt)}
-              </p>
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="font-semibold break-all">
+                    {request.downloadFilename || request.downloadFid || `Download #${request.downloadEventID}`}
+                  </p>
+                  <p className="text-xs opacity-70">
+                    Request #{request.id} for Download #{request.downloadEventID}
+                    {request.downloadSize
+                      ? ` - Size: ${formatBytes(request.downloadSize)}`
+                      : ""}
+                  </p>
+                  <p className="text-xs opacity-70">
+                    Requested by {request.requestedByUsername} at {formatDate(request.createdAt)}
+                  </p>
+                </div>
+                {request.downloadIsFreeleech ? (
+                  <span className="badge badge-warning badge-sm">FREELEECH</span>
+                ) : null}
+              </div>
               {request.reason ? (
                 <p className="mt-1 text-sm">Reason: {request.reason}</p>
               ) : null}
@@ -525,7 +537,7 @@ export function Downloads() {
         </div>
       )}
 
-      {isAdmin && historyRequests.length > 0 ? (
+      {historyRequests.length > 0 ? (
         <div className="space-y-3">
           <h2 className="text-xl font-semibold">Delete History</h2>
           {historyRequests.map((request) => {
@@ -537,8 +549,14 @@ export function Downloads() {
               >
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="font-medium">
+                    <p className="font-semibold break-all">
+                      {request.downloadFilename || request.downloadFid || `Download #${request.downloadEventID}`}
+                    </p>
+                    <p className="text-xs opacity-70">
                       Request #{request.id} for Download #{request.downloadEventID}
+                      {request.downloadSize
+                        ? ` - Size: ${formatBytes(request.downloadSize)}`
+                        : ""}
                     </p>
                     <p className="text-xs opacity-70">
                       Requested by {request.requestedByUsername} at{" "}
@@ -553,11 +571,16 @@ export function Downloads() {
                       <p className="mt-1 text-sm opacity-80">Reason: {request.reason}</p>
                     ) : null}
                   </div>
-                  <span
-                    className={`badge badge-sm ${isApproved ? "badge-success" : "badge-error"}`}
-                  >
-                    {isApproved ? "Approved" : "Rejected"}
-                  </span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {request.downloadIsFreeleech ? (
+                      <span className="badge badge-warning badge-sm">FREELEECH</span>
+                    ) : null}
+                    <span
+                      className={`badge badge-sm ${isApproved ? "badge-success" : "badge-error"}`}
+                    >
+                      {isApproved ? "Approved" : "Rejected"}
+                    </span>
+                  </div>
                 </div>
               </div>
             );

@@ -58,4 +58,8 @@ type DownloadDeleteRequestRecord struct {
 	ApprovedByUsername  string `json:"approvedByUsername,omitempty"`
 	CreatedAt           string `json:"createdAt"`
 	ApprovedAt          string `json:"approvedAt,omitempty"`
+	DownloadFilename    string `json:"downloadFilename,omitempty"`
+	DownloadFid         string `json:"downloadFid,omitempty"`
+	DownloadSize        uint64 `json:"downloadSize"`
+	DownloadIsFreeleech bool   `json:"downloadIsFreeleech"`
 }

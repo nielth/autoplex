@@ -478,10 +478,6 @@ func ListResolvedDeleteRequests(username string, isAdmin bool, limit int) ([]mod
 		return nil, fmt.Errorf("username is required")
 	}
 
-	if !isAdmin {
-		return nil, ErrAdminRequired
-	}
-
 	if limit <= 0 || limit > 500 {
 		limit = 100
 	}
@@ -494,23 +490,32 @@ func ListResolvedDeleteRequests(username string, isAdmin bool, limit int) ([]mod
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	rows, err := db.QueryContext(
-		ctx,
-		`SELECT
-			id,
-			download_event_id,
-			requested_by_username,
-			status,
-			COALESCE(request_note, ''),
-			COALESCE(approved_by_username, ''),
-			created_at,
-			approved_at
-		FROM download_delete_requests
-		WHERE status IN ('approved', 'rejected')
-		ORDER BY COALESCE(approved_at, created_at) DESC
-		LIMIT ?`,
-		limit,
-	)
+	query := `SELECT
+			r.id,
+			r.download_event_id,
+			r.requested_by_username,
+			r.status,
+			COALESCE(r.request_note, ''),
+			COALESCE(r.approved_by_username, ''),
+			r.created_at,
+			r.approved_at,
+			COALESCE(e.filename, ''),
+			COALESCE(e.fid, ''),
+			COALESCE(e.torrent_size, 0),
+			COALESCE(e.is_freeleech, 0)
+		FROM download_delete_requests r
+		LEFT JOIN download_events e ON e.id = r.download_event_id
+		WHERE r.status IN ('approved', 'rejected')`
+
+	var args []any
+	if !isAdmin {
+		query += ` AND r.requested_by_username = ?`
+		args = append(args, cleanUsername)
+	}
+	query += ` ORDER BY COALESCE(r.approved_at, r.created_at) DESC LIMIT ?`
+	args = append(args, limit)
+
+	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -533,6 +538,10 @@ func ListResolvedDeleteRequests(username string, isAdmin bool, limit int) ([]mod
 			&record.ApprovedByUsername,
 			&createdAt,
 			&approvedAt,
+			&record.DownloadFilename,
+			&record.DownloadFid,
+			&record.DownloadSize,
+			&record.DownloadIsFreeleech,
 		); err != nil {
 			return nil, err
 		}
@@ -573,17 +582,22 @@ func ListPendingDeleteRequests(username string, isAdmin bool) ([]models.Download
 	rows, err := db.QueryContext(
 		ctx,
 		`SELECT
-			id,
-			download_event_id,
-			requested_by_username,
-			status,
-			COALESCE(request_note, ''),
-			COALESCE(approved_by_username, ''),
-			created_at,
-			approved_at
-		FROM download_delete_requests
-		WHERE status = 'pending'
-		ORDER BY created_at ASC`,
+			r.id,
+			r.download_event_id,
+			r.requested_by_username,
+			r.status,
+			COALESCE(r.request_note, ''),
+			COALESCE(r.approved_by_username, ''),
+			r.created_at,
+			r.approved_at,
+			COALESCE(e.filename, ''),
+			COALESCE(e.fid, ''),
+			COALESCE(e.torrent_size, 0),
+			COALESCE(e.is_freeleech, 0)
+		FROM download_delete_requests r
+		LEFT JOIN download_events e ON e.id = r.download_event_id
+		WHERE r.status = 'pending'
+		ORDER BY r.created_at ASC`,
 	)
 	if err != nil {
 		return nil, err
@@ -607,6 +621,10 @@ func ListPendingDeleteRequests(username string, isAdmin bool) ([]models.Download
 			&record.ApprovedByUsername,
 			&createdAt,
 			&approvedAt,
+			&record.DownloadFilename,
+			&record.DownloadFid,
+			&record.DownloadSize,
+			&record.DownloadIsFreeleech,
 		); err != nil {
 			return nil, err
 		}
