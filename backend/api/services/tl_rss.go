@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -16,9 +17,10 @@ import (
 const tlRssPollInterval = 3 * time.Minute
 
 var (
-	tlRssWorkerOnce sync.Once
-	tlRssFidPattern = regexp.MustCompile(`/download/(\d+)/`)
-	tlRssSeenFids   sync.Map
+	tlRssWorkerOnce         sync.Once
+	tlRssFidPattern         = regexp.MustCompile(`/download/(\d+)/`)
+	tlRssEpisodeTokenRegex  = regexp.MustCompile(`^s0*([1-9][0-9]?)e0*([1-9][0-9]{0,2})$`)
+	tlRssSeenFids           sync.Map
 )
 
 type tlRssFeed struct {
@@ -180,12 +182,12 @@ func processTlRssItem(item tlRssItem, subs []tlRssSubscriptionMatch) {
 		return
 	}
 
-	match, quality := matchTlRssItem(title, subs)
+	match, quality, season, episode := matchTlRssItem(title, subs)
 	if match == nil {
 		return
 	}
 
-	log.Printf("tl rss match: show=%q quality=%s fid=%s title=%q", match.showName, quality, fid, title)
+	log.Printf("tl rss match: show=%q s%02de%02d quality=%s fid=%s title=%q", match.showName, season, episode, quality, fid, title)
 
 	already, err := IsFidAlreadyDownloaded(fid)
 	if err != nil {
@@ -194,6 +196,16 @@ func processTlRssItem(item tlRssItem, subs []tlRssSubscriptionMatch) {
 	}
 	tlRssSeenFids.Store(fid, struct{}{})
 	if already {
+		return
+	}
+
+	episodeOwned, err := isEpisodeAlreadyDownloaded(match.tvmazeShowID, season, episode, quality)
+	if err != nil {
+		log.Printf("tl rss episode ownership check failed show=%d s%02de%02d: %v", match.tvmazeShowID, season, episode, err)
+		return
+	}
+	if episodeOwned {
+		log.Printf("tl rss skip: show=%q s%02de%02d already downloaded", match.showName, season, episode)
 		return
 	}
 
@@ -235,10 +247,15 @@ func deriveTlRssFilename(link string, title string) string {
 	return strings.ReplaceAll(title, " ", ".")
 }
 
-func matchTlRssItem(title string, subs []tlRssSubscriptionMatch) (*tlRssSubscriptionMatch, string) {
+func matchTlRssItem(title string, subs []tlRssSubscriptionMatch) (*tlRssSubscriptionMatch, string, int, int) {
 	tokens := tokenizeTitle(title)
 	if len(tokens) == 0 {
-		return nil, ""
+		return nil, "", 0, 0
+	}
+
+	season, episode, hasEpisode := extractSingleEpisodeToken(tokens)
+	if !hasEpisode {
+		return nil, "", 0, 0
 	}
 
 	for i := range subs {
@@ -248,11 +265,30 @@ func matchTlRssItem(title string, subs []tlRssSubscriptionMatch) (*tlRssSubscrip
 		}
 		for normalized := range sub.qualities {
 			if hasQualityToken(title, normalized) {
-				return sub, normalized
+				return sub, normalized, season, episode
 			}
 		}
 	}
-	return nil, ""
+	return nil, "", 0, 0
+}
+
+func extractSingleEpisodeToken(tokens []string) (int, int, bool) {
+	for _, token := range tokens {
+		m := tlRssEpisodeTokenRegex.FindStringSubmatch(token)
+		if len(m) != 3 {
+			continue
+		}
+		season, err := strconv.Atoi(m[1])
+		if err != nil {
+			continue
+		}
+		episode, err := strconv.Atoi(m[2])
+		if err != nil {
+			continue
+		}
+		return season, episode, true
+	}
+	return 0, 0, false
 }
 
 func tokensStartWithShow(titleTokens []string, showTokens []string) bool {
@@ -265,4 +301,35 @@ func tokensStartWithShow(titleTokens []string, showTokens []string) bool {
 		}
 	}
 	return true
+}
+
+func isEpisodeAlreadyDownloaded(tvmazeShowID int64, season int, episode int, quality string) (bool, error) {
+	db, err := dbConn()
+	if err != nil {
+		return false, err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var exists bool
+	err = db.QueryRowContext(
+		ctx,
+		`SELECT EXISTS(
+			SELECT 1 FROM tv_episode_jobs
+			WHERE tvmaze_show_id = ?
+			  AND season_number = ?
+			  AND episode_number = ?
+			  AND preferred_quality = ?
+			  AND status = 'downloaded'
+		)`,
+		tvmazeShowID,
+		season,
+		episode,
+		NormalizeQualityPreference(quality),
+	).Scan(&exists)
+	if err != nil {
+		return false, err
+	}
+	return exists, nil
 }
