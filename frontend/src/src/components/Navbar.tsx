@@ -2,10 +2,19 @@ import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { DiskUsage } from "./DiskUsage";
 
+function formatUtcNow(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return (
+    `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())} ` +
+    `${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}:${pad(date.getUTCSeconds())} UTC`
+  );
+}
+
 export function Navbar() {
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
+  const [utcNow, setUtcNow] = useState<string>(() => formatUtcNow(new Date()));
 
   const closeMobileMenu = () => {
     setMobileMenuOpen(false);
@@ -14,6 +23,13 @@ export function Navbar() {
   useEffect(() => {
     setMobileMenuOpen(false);
   }, [location.pathname, location.search, location.hash]);
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      setUtcNow(formatUtcNow(new Date()));
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, []);
 
   return (
     <>
@@ -112,7 +128,13 @@ export function Navbar() {
               </ul>
             </div>
           ) : null}
-          <div className="hidden lg:flex">
+          <div className="hidden lg:flex items-center">
+            <span
+              className="mr-3 font-mono text-sm opacity-70 tabular-nums"
+              title="Current UTC time"
+            >
+              {utcNow}
+            </span>
             <ul className="menu menu-horizontal px-1">
               <li>
                 <Link to="/">Home</Link>

@@ -15,12 +15,26 @@ interface TvMazeSchedule {
   days?: string[];
 }
 
+interface TvMazeCountry {
+  name?: string;
+  code?: string;
+  timezone?: string;
+}
+
+interface TvMazeNetwork {
+  id?: number;
+  name?: string;
+  country?: TvMazeCountry;
+}
+
 interface TvMazeShow {
   id: number;
   name: string;
   status?: string;
   premiered?: string;
   schedule?: TvMazeSchedule;
+  network?: TvMazeNetwork;
+  webChannel?: TvMazeNetwork;
   image?: TvMazeImage;
   summary?: string;
 }
@@ -93,6 +107,79 @@ interface SeasonProgress {
 
 const FALLBACK_POSTER =
   "https://static.tvmaze.com/images/no-img/no-img-portrait-text.png";
+
+const WEEKDAYS = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+];
+
+function timezoneOffsetMs(timeZone: string, date: Date): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).formatToParts(date);
+  const get = (type: string) => Number(parts.find((p) => p.type === type)?.value);
+  const asUTC = Date.UTC(
+    get("year"),
+    get("month") - 1,
+    get("day"),
+    get("hour"),
+    get("minute"),
+    get("second")
+  );
+  return asUTC - date.getTime();
+}
+
+function translateScheduleToUTC(
+  days: string[] | undefined,
+  time: string | undefined,
+  timezone: string
+): { days: string[]; time: string } | null {
+  if (!days?.length || !time || !timezone) return null;
+  const [h, m] = time.split(":").map(Number);
+  if (Number.isNaN(h) || Number.isNaN(m)) return null;
+
+  const now = new Date();
+  const utcDays = new Set<string>();
+  const utcTimes = new Set<string>();
+
+  for (const day of days) {
+    const idx = WEEKDAYS.indexOf(day);
+    if (idx < 0) continue;
+
+    const daysUntil = (idx - now.getUTCDay() + 7) % 7;
+    const base = new Date(
+      Date.UTC(
+        now.getUTCFullYear(),
+        now.getUTCMonth(),
+        now.getUTCDate() + daysUntil,
+        h,
+        m,
+        0
+      )
+    );
+    const utcInstant = new Date(base.getTime() - timezoneOffsetMs(timezone, base));
+
+    utcDays.add(WEEKDAYS[utcInstant.getUTCDay()]);
+    const hh = String(utcInstant.getUTCHours()).padStart(2, "0");
+    const mm = String(utcInstant.getUTCMinutes()).padStart(2, "0");
+    utcTimes.add(`${hh}:${mm}`);
+  }
+
+  if (utcDays.size === 0 || utcTimes.size === 0) return null;
+  return { days: Array.from(utcDays), time: Array.from(utcTimes).join(", ") };
+}
 
 function statusBadgeClass(status?: string): string {
   const clean = (status || "").toLowerCase();
@@ -482,8 +569,19 @@ export function SeriesDetails() {
     return <div className="alert alert-error">{error || "Series not found."}</div>;
   }
 
-  const scheduleDays = data.show.schedule?.days?.join(", ") || "Unknown days";
-  const scheduleTime = data.show.schedule?.time || "Unknown time";
+  const scheduleTimezone =
+    data.show.network?.country?.timezone || data.show.webChannel?.country?.timezone || "";
+  const utcSchedule = translateScheduleToUTC(
+    data.show.schedule?.days,
+    data.show.schedule?.time,
+    scheduleTimezone
+  );
+  const scheduleDays =
+    utcSchedule?.days.join(", ") ||
+    data.show.schedule?.days?.join(", ") ||
+    "Unknown days";
+  const scheduleTime = utcSchedule?.time || data.show.schedule?.time || "Unknown time";
+  const scheduleSuffix = utcSchedule ? " UTC" : "";
   const isShowEnded = (data.show.status || "").trim().toLowerCase() === "ended";
   const enabledAutoInstallQualityList = Array.from(enabledAutoInstallQualities).sort(
     (a, b) => Number(a) - Number(b)
@@ -535,6 +633,7 @@ export function SeriesDetails() {
             {!isShowEnded ? (
               <p>
                 Schedule: {scheduleDays} at {scheduleTime}
+                {scheduleSuffix}
               </p>
             ) : null}
           </div>

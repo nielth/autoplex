@@ -32,6 +32,7 @@ interface TvAutoInstallShow {
   lastSyncedAt?: string;
   nextSyncAt?: string;
   syncDueNow: boolean;
+  nextEpisodeAirstamp?: string;
 }
 
 interface TvAutoInstallShowsResponse {
@@ -84,6 +85,22 @@ export function TvMaze() {
 
     return autoInstallSyncTimes.join(" and ");
   }, [autoInstallSyncTimes]);
+
+  const activeReleaseShows = useMemo(
+    () =>
+      autoInstallShows
+        .filter((show) => !!show.nextEpisodeAirstamp)
+        .slice()
+        .sort(
+          (a, b) =>
+            Date.parse(a.nextEpisodeAirstamp || "") - Date.parse(b.nextEpisodeAirstamp || "")
+        ),
+    [autoInstallShows]
+  );
+  const dormantShows = useMemo(
+    () => autoInstallShows.filter((show) => !show.nextEpisodeAirstamp),
+    [autoInstallShows]
+  );
 
   const loadAutoInstallShows = async () => {
     setAutoInstallLoading(true);
@@ -221,6 +238,56 @@ export function TvMaze() {
         </div>
       ) : null}
 
+      {!autoInstallLoading && activeReleaseShows.length > 0 ? (
+        <div className="rounded-xl border border-base-300 bg-base-200 p-4">
+          <div className="mb-3">
+            <h2 className="text-lg font-semibold">Shows With Active Releases</h2>
+            <p className="text-xs opacity-70">
+              Upcoming episodes scheduled on TVMaze.
+            </p>
+          </div>
+          <div className="space-y-2">
+            {activeReleaseShows.map((show) => (
+              <Link
+                key={`active-${show.subscriptionID}-${show.tvmazeShowID}`}
+                to={`/series/${show.tvmazeShowID}`}
+                className="block rounded-lg border border-base-300 bg-base-100 p-3 transition hover:border-primary hover:shadow"
+              >
+                <div className="flex gap-3">
+                  <div className="h-28 w-20 shrink-0 overflow-hidden rounded-md bg-base-300">
+                    <img
+                      src={show.imageMedium || FALLBACK_POSTER}
+                      alt={show.showName}
+                      className="h-full w-full object-cover"
+                      loading="lazy"
+                    />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium break-all">{show.showName}</p>
+                    <p className="text-xs opacity-70">
+                      Next episode: {formatDateTime(show.nextEpisodeAirstamp)}
+                    </p>
+                    <p className="text-xs opacity-70">
+                      Next sync: {show.syncDueNow ? "Due now" : formatDateTime(show.nextSyncAt)}
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {show.enabledQualities.map((quality) => (
+                        <span
+                          key={`active-${show.tvmazeShowID}-${quality}`}
+                          className="badge badge-outline badge-sm"
+                        >
+                          {quality}p
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       <div className="rounded-xl border border-base-300 bg-base-200 p-4">
         <div className="mb-3">
           <div>
@@ -249,9 +316,15 @@ export function TvMaze() {
           </div>
         ) : null}
 
-        {!autoInstallLoading && autoInstallShows.length > 0 ? (
+        {!autoInstallLoading && autoInstallShows.length > 0 && dormantShows.length === 0 ? (
+          <div className="rounded-lg border border-base-300 bg-base-100 p-3 text-sm opacity-80">
+            All enabled series have upcoming episodes (listed above).
+          </div>
+        ) : null}
+
+        {!autoInstallLoading && dormantShows.length > 0 ? (
           <div className="space-y-2">
-            {autoInstallShows.map((show) => (
+            {dormantShows.map((show) => (
               <Link
                 key={`${show.subscriptionID}-${show.tvmazeShowID}`}
                 to={`/series/${show.tvmazeShowID}`}

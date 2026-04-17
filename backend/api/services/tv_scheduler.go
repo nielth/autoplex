@@ -71,14 +71,15 @@ type TvShowInstallStatus struct {
 }
 
 type TvAutoInstallShowRecord struct {
-	SubscriptionID   uint64   `json:"subscriptionID"`
-	TvMazeShowID     int64    `json:"tvmazeShowID"`
-	ShowName         string   `json:"showName"`
-	ImageMedium      *string  `json:"imageMedium,omitempty"`
-	EnabledQualities []string `json:"enabledQualities"`
-	LastSyncedAt     *string  `json:"lastSyncedAt,omitempty"`
-	NextSyncAt       *string  `json:"nextSyncAt,omitempty"`
-	SyncDueNow       bool     `json:"syncDueNow"`
+	SubscriptionID      uint64   `json:"subscriptionID"`
+	TvMazeShowID        int64    `json:"tvmazeShowID"`
+	ShowName            string   `json:"showName"`
+	ImageMedium         *string  `json:"imageMedium,omitempty"`
+	EnabledQualities    []string `json:"enabledQualities"`
+	LastSyncedAt        *string  `json:"lastSyncedAt,omitempty"`
+	NextSyncAt          *string  `json:"nextSyncAt,omitempty"`
+	SyncDueNow          bool     `json:"syncDueNow"`
+	NextEpisodeAirstamp *string  `json:"nextEpisodeAirstamp,omitempty"`
 }
 
 type TvInstallQueueResult struct {
@@ -810,21 +811,41 @@ func ListTvAutoInstallShows(username string) ([]TvAutoInstallShowRecord, error) 
 		show, showErr := TvMazeGetShow(records[index].TvMazeShowID)
 		if showErr != nil {
 			log.Printf("failed loading tvmaze show %d for auto-install list: %v", records[index].TvMazeShowID, showErr)
-			continue
+		} else if show != nil && show.Image != nil {
+			medium := strings.TrimSpace(show.Image.Medium)
+			if medium == "" {
+				medium = strings.TrimSpace(show.Image.Original)
+			}
+			if medium != "" {
+				records[index].ImageMedium = &medium
+			}
 		}
-		if show == nil || show.Image == nil {
+
+		episodes, epErr := TvMazeGetEpisodes(records[index].TvMazeShowID)
+		if epErr != nil {
+			log.Printf("failed loading tvmaze episodes for auto-install list %d: %v", records[index].TvMazeShowID, epErr)
 			continue
 		}
 
-		medium := strings.TrimSpace(show.Image.Medium)
-		if medium == "" {
-			medium = strings.TrimSpace(show.Image.Original)
+		var earliest time.Time
+		found := false
+		for _, episode := range episodes {
+			if strings.TrimSpace(episode.Airstamp) == "" {
+				continue
+			}
+			airstamp, parseErr := ParseTvMazeAirstamp(episode.Airstamp)
+			if parseErr != nil || !airstamp.After(now) {
+				continue
+			}
+			if !found || airstamp.Before(earliest) {
+				earliest = airstamp
+				found = true
+			}
 		}
-		if medium == "" {
-			continue
+		if found {
+			value := earliest.UTC().Format(time.RFC3339)
+			records[index].NextEpisodeAirstamp = &value
 		}
-
-		records[index].ImageMedium = &medium
 	}
 
 	return records, nil

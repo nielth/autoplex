@@ -576,7 +576,7 @@ func NextEpisodeRetryTime(airstamp time.Time, now time.Time) (time.Time, bool) {
 		return releaseCheckStart, true
 	}
 	if now.Before(rapidCheckEnd) {
-		return now.Add(15 * time.Minute), true
+		return now.Add(10 * time.Minute), true
 	}
 	if now.Before(dailyCheckEnd) {
 		return now.Add(24 * time.Hour), true
