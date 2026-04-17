@@ -420,6 +420,22 @@ export function SeriesDetails() {
     loadShowDetails();
   }, [showID]);
 
+  const loadInstallStatus = async () => {
+    if (!showID || Number.isNaN(showID)) {
+      return;
+    }
+
+    const response = await axios.get<TvShowInstallStatus>(
+      `${domain}/api/tvmaze/series/${showID}/install-status`,
+      { withCredentials: true }
+    );
+    const status = response.data;
+    setData((previous) => (previous ? { ...previous, installStatus: status } : previous));
+    if (status?.subscription?.preferredQuality) {
+      setQuality(status.subscription.preferredQuality);
+    }
+  };
+
   const withAction = async (actionKey: string, callback: () => Promise<void>) => {
     setWorkingAction(actionKey);
     setMessage("");
@@ -427,7 +443,7 @@ export function SeriesDetails() {
 
     try {
       await callback();
-      await loadShowDetails();
+      await loadInstallStatus();
     } catch (err: any) {
       if (err.response?.status === 401) {
         await authProvider.signout();
