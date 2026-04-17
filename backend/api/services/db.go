@@ -207,7 +207,6 @@ func migrateAuditSchema(db *sql.DB) error {
 				user_id BIGINT UNSIGNED NOT NULL,
 			tvmaze_show_id BIGINT UNSIGNED NOT NULL,
 			show_name VARCHAR(255) NULL,
-			preferred_quality ENUM('1080', '2160') NOT NULL DEFAULT '1080',
 			enabled TINYINT(1) NOT NULL DEFAULT 1,
 			last_synced_at DATETIME NULL,
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -283,9 +282,6 @@ func migrateAuditSchema(db *sql.DB) error {
 	}
 	if err := ensureColumnExists(db, "tv_episode_jobs", "airtime_known", "TINYINT(1) NOT NULL DEFAULT 1 AFTER `airstamp`"); err != nil {
 		return fmt.Errorf("schema migration failed adding tv_episode_jobs.airtime_known: %w", err)
-	}
-	if err := ensureColumnExists(db, "tv_show_subscriptions", "preferred_quality", "ENUM('1080','2160') NOT NULL DEFAULT '1080' AFTER `show_name`"); err != nil {
-		return fmt.Errorf("schema migration failed adding tv_show_subscriptions.preferred_quality: %w", err)
 	}
 
 	return nil

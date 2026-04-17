@@ -431,9 +431,6 @@ export function SeriesDetails() {
     );
     const status = response.data;
     setData((previous) => (previous ? { ...previous, installStatus: status } : previous));
-    if (status?.subscription?.preferredQuality) {
-      setQuality(status.subscription.preferredQuality);
-    }
   };
 
   const withAction = async (actionKey: string, callback: () => Promise<void>) => {
