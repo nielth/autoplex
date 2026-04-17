@@ -49,12 +49,17 @@ services:
     ports:
       - 8085:80
       - 8086:443
+    volumes:
+      - ./frontend/certbot/www:/var/www/certbot:ro
+      - ./frontend/certbot/conf:/etc/nginx/ssl:ro
 
-  flaresolverr:
-    image: 21hsmw/flaresolverr:nodriver
-    container_name: flaresolverr
-    expose:
-      - 8191
-    environment:
-      - LOG_LEVEL=info
+  certbot:
+    image: certbot/certbot:latest
+    container_name: certbot
     restart: always
+    volumes:
+      - ./frontend/certbot/www:/var/www/certbot:rw
+      - ./frontend/certbot/conf:/etc/letsencrypt:rw
+    entrypoint: /bin/sh -c
+    command: "trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h & wait $${!}; done"
+
