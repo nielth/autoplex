@@ -51,7 +51,7 @@ services:
       - 8086:443
     volumes:
       - ./frontend/certbot/www:/var/www/certbot:ro
-      - ./frontend/certbot/conf:/etc/nginx/ssl:ro
+      - ./frontend/nginx/ssl:/etc/nginx/ssl:ro
 
   certbot:
     image: certbot/certbot:latest

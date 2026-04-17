@@ -15,8 +15,8 @@ server {
     listen 443 ssl default_server;
     server_name _;
 
-    ssl_certificate /etc/nginx/ssl/live/${NGINX_HOST}/fullchain.pem;
-    ssl_certificate_key /etc/nginx/ssl/live/${NGINX_HOST}/privkey.pem;
+    ssl_certificate /etc/nginx/ssl/fullchain.pem;
+    ssl_certificate_key /etc/nginx/ssl/privkey.pem;
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_prefer_server_ciphers on;
 
@@ -27,8 +27,8 @@ server {
     listen 443 ssl;
     server_name ${NGINX_HOST};
 
-    ssl_certificate /etc/nginx/ssl/live/${NGINX_HOST}/fullchain.pem;
-    ssl_certificate_key /etc/nginx/ssl/live/${NGINX_HOST}/privkey.pem;
+    ssl_certificate /etc/nginx/ssl/fullchain.pem;
+    ssl_certificate_key /etc/nginx/ssl/privkey.pem;
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_prefer_server_ciphers on;
     ssl_stapling on;
