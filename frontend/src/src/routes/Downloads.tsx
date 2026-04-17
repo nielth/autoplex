@@ -517,14 +517,8 @@ export function Downloads() {
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="w-full min-w-0 text-xs opacity-70 sm:w-auto">
-                      Added: {formatDate(download.createdAt)} - Size:{" "}
-                      {formatBytes(download.torrentSize || 0)} - State:{" "}
-                      {normalizeState(download.qbtState)}
-                      {canSortByUser ? ` - User: ${download.username}` : ""}
-                    </p>
                     <div className="flex shrink-0 items-center gap-2">
-                      <span className="text-xs tabular-nums opacity-75 sm:w-12 sm:text-right">
+                      <span className="text-xs tabular-nums opacity-75">
                         {progress.toFixed(0)}%
                       </span>
                       <progress
@@ -533,6 +527,12 @@ export function Downloads() {
                         max={100}
                       />
                     </div>
+                    <p className="w-full min-w-0 text-xs opacity-70 sm:w-auto">
+                      Added: {formatDate(download.createdAt)} - Size:{" "}
+                      {formatBytes(download.torrentSize || 0)} - State:{" "}
+                      {normalizeState(download.qbtState)}
+                      {canSortByUser ? ` - User: ${download.username}` : ""}
+                    </p>
                     <div className="ml-auto sm:hidden">{actionElement}</div>
                   </div>
                 </div>
