@@ -228,6 +228,8 @@ func processTlRssItem(item tlRssItem, subs []tlRssSubscriptionMatch) {
 		log.Printf("tl rss failed to log event fid=%s: %v", fid, logErr)
 	}
 	ScheduleAutoPlexScanForDownload(qbtHash, data.CategoryID)
+	eventID, _ := findLatestDownloadEventIDByFid(fid, match.username)
+	markEpisodeJobsDownloadedForRss(match.userID, match.tvmazeShowID, season, episode, quality, eventID)
 	log.Printf("tl rss dispatched download show=%q fid=%s quality=%s title=%q", match.showName, fid, quality, title)
 }
 

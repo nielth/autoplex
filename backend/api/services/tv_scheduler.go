@@ -486,6 +486,12 @@ func processEpisodeJob(job tvEpisodeJobRow) error {
 		return markEpisodeJobRetry(job, fmt.Sprintf("failed duplicate check: %v", err))
 	}
 
+	if !isDownloaded {
+		if epEventID, epErr := findLatestDownloadEventIDByEpisode(job.TvMazeEpisodeID, job.Username); epErr == nil && epEventID != nil {
+			return markEpisodeJobDownloaded(job.ID, epEventID)
+		}
+	}
+
 	var downloadEventID *uint64
 	if isDownloaded {
 		eventID, lookupErr := findLatestDownloadEventIDByFid(downloadData.Fid, job.Username)
@@ -637,6 +643,79 @@ func findLatestDownloadEventIDByFid(fid string, username string) (*uint64, error
 	}
 
 	return &eventID, nil
+}
+
+func findLatestDownloadEventIDByEpisode(tvmazeEpisodeID int64, username string) (*uint64, error) {
+	cleanUsername := strings.TrimSpace(username)
+	if tvmazeEpisodeID <= 0 || cleanUsername == "" {
+		return nil, nil
+	}
+
+	db, err := dbConn()
+	if err != nil {
+		return nil, err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var eventID uint64
+	err = db.QueryRowContext(
+		ctx,
+		`SELECT id
+		FROM download_events
+		WHERE tvmaze_episode_id = ?
+		  AND username = ?
+		  AND success = 1
+		  AND deleted_at IS NULL
+		ORDER BY created_at DESC
+		LIMIT 1`,
+		fmt.Sprintf("%d", tvmazeEpisodeID),
+		cleanUsername,
+	).Scan(&eventID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return &eventID, nil
+}
+
+func markEpisodeJobsDownloadedForRss(userID uint64, tvmazeShowID int64, season, episode int, quality string, downloadEventID *uint64) {
+	if userID == 0 || tvmazeShowID <= 0 || season <= 0 || episode <= 0 {
+		return
+	}
+
+	db, err := dbConn()
+	if err != nil {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, _ = db.ExecContext(
+		ctx,
+		`UPDATE tv_episode_jobs
+		SET status = 'downloaded',
+			downloaded_download_event_id = COALESCE(?, downloaded_download_event_id),
+			last_checked_at = UTC_TIMESTAMP(),
+			updated_at = UTC_TIMESTAMP()
+		WHERE user_id = ?
+		  AND tvmaze_show_id = ?
+		  AND season_number = ?
+		  AND episode_number = ?
+		  AND preferred_quality = ?
+		  AND status != 'downloaded'`,
+		downloadEventID,
+		userID,
+		tvmazeShowID,
+		season,
+		episode,
+		NormalizeQualityPreference(quality),
+	)
 }
 
 func GetTvShowInstallStatus(username string, showID int64) (*TvShowInstallStatus, error) {
