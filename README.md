@@ -67,7 +67,7 @@ For development on another machine:
 ## Production
 
 ```sh
-docker compose --env-file .env.production -f compose.yml up --build
+docker compose --env-file .env.production -f compose.yaml up --build
 ```
 
 `compose.yml` reads `.env.production` for backend and frontend containers.
@@ -77,7 +77,7 @@ docker compose --env-file .env.production -f compose.yml up --build
 Start backend + support services with development env:
 
 ```sh
-docker compose -f compose.dev.yml up --build
+docker compose -f local.yaml up --build
 ```
 
 `compose.dev.yml` is a standalone development stack and reads `.env.development`.
