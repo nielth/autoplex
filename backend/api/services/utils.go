@@ -41,23 +41,19 @@ func fetchAndParseXML(url string, result any, wg *sync.WaitGroup, errCh chan<- e
 }
 
 func readCookie() (map[string]string, error) {
-	cookieFile, err := os.Open("cookie.json")
-	if err != nil {
-		fmt.Printf("Error opening JSON: %v\n", err)
-		return nil, fmt.Errorf("Error opening cookie JSON")
+	raw := os.Getenv("TL_COOKIE_JSON")
+	if raw == "" {
+		return nil, fmt.Errorf("TL_COOKIE_JSON environment variable is not set")
 	}
-	defer cookieFile.Close()
 
-	byteValue, _ := io.ReadAll(cookieFile)
 	var cookieData map[string]string
-	if err := json.Unmarshal(byteValue, &cookieData); err != nil {
-		fmt.Printf("Error parsing JSON: %v\n", err)
-		return nil, fmt.Errorf("Error parsing cookie JSON")
+	if err := json.Unmarshal([]byte(raw), &cookieData); err != nil {
+		fmt.Printf("Error parsing TL_COOKIE_JSON: %v\n", err)
+		return nil, fmt.Errorf("Error parsing TL_COOKIE_JSON")
 	}
 
 	if len(cookieData) == 0 {
-		fmt.Println("Cookie file emtpy")
-		return nil, fmt.Errorf("TL Cookie json file emtpy")
+		return nil, fmt.Errorf("TL_COOKIE_JSON is empty")
 	}
 
 	return cookieData, nil

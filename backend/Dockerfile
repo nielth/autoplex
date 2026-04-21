@@ -11,7 +11,6 @@ FROM alpine AS final
 WORKDIR /
 
 COPY --from=build-stage /api /api
-COPY ./api/cookie.json ./cookie.json
 
 # ENTRYPOINT ["tail", "-f", "/dev/null"]
 ENTRYPOINT ["/api"]
