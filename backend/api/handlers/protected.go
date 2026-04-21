@@ -230,8 +230,8 @@ func SystemOverview(c *gin.Context) {
 	}
 	qbtDownloadingList, err := services.QbtGetDownloadingList()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err})
-		return
+		log.Printf("qbt unavailable, returning empty download list: %v", err)
+		qbtDownloadingList = &[]services.QbtDownloadList{}
 	}
 
 	resp := map[string]any{"diskUsage": diskUsage, "qbtDownloadingList": qbtDownloadingList}
