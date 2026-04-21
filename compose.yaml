@@ -27,8 +27,8 @@ services:
   go:
     build: ./backend
     container_name: backend-go
-    # env_file:
-    #   - .env.production
+    env_file:
+      - .env.production
     volumes:
       - /mnt/sdc/:/sdc:ro
     expose: 
@@ -48,8 +48,8 @@ services:
       - public-caddy
     depends_on:
       - go
-    # env_file:
-    #   - .env.production
+    env_file:
+      - .env.production
     container_name: node-prod
     restart: always
     expose:
