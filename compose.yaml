@@ -16,7 +16,8 @@ services:
     ports:
       - 3306:3306
     volumes:
-      - ${HOME}/mysql:/var/lib/mysql
+      # - /home/thomasnie/mysql:/var/lib/mysql
+      - mysql_data:/var/lib/mysql
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$${MYSQL_ROOT_PASSWORD} --silent"]
       interval: 10s
@@ -58,3 +59,6 @@ services:
 networks:
   public-caddy:
     external: true
+
+volumes:
+  mysql_data:
