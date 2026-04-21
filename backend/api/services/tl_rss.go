@@ -32,11 +32,16 @@ type tlRssChannel struct {
 	Items []tlRssItem `xml:"item"`
 }
 
+type tlRssEnclosure struct {
+	Length int64 `xml:"length,attr"`
+}
+
 type tlRssItem struct {
-	Title   string `xml:"title"`
-	Link    string `xml:"link"`
-	PubDate string `xml:"pubDate"`
-	GUID    string `xml:"guid"`
+	Title     string         `xml:"title"`
+	Link      string         `xml:"link"`
+	PubDate   string         `xml:"pubDate"`
+	GUID      string         `xml:"guid"`
+	Enclosure tlRssEnclosure `xml:"enclosure"`
 }
 
 type tlRssSubscriptionMatch struct {
@@ -216,6 +221,7 @@ func processTlRssItem(item tlRssItem, subs []tlRssSubscriptionMatch) {
 		Filename:   filename,
 		CategoryID: tvDefaultCategoryID,
 		TvMazeID:   fmt.Sprintf("%d", match.tvmazeShowID),
+		Size:       uint64(item.Enclosure.Length),
 	}
 
 	qbtHash, err := TlDownloadRequest(data)
