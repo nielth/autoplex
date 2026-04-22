@@ -25,9 +25,9 @@ services:
       retries: 10
       start_period: 20s
 
-  go:
-    build: ./backend
-    container_name: backend-go
+  backend:
+    image: registry.nielth.com/admin/autoplex-backend
+    container_name: autoplex-backend
     env_file:
       - .env.production
     volumes:
@@ -41,17 +41,15 @@ services:
       mysql:
         condition: service_healthy
 
-  node-prod:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
+  frontend:
+    image: registry.nielth.com/admin/autoplex-frontend
     networks:
       - public-caddy
     depends_on:
       - go
     env_file:
       - .env.production
-    container_name: node-prod
+    container_name: autoplex-frontend 
     restart: always
     expose:
       - 80
