@@ -46,7 +46,7 @@ services:
     networks:
       - public-caddy
     depends_on:
-      - go
+      - backend
     env_file:
       - .env.production
     container_name: autoplex-frontend 
