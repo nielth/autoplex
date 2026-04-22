@@ -264,6 +264,9 @@ func ListDownloadEvents(username string, isAdmin bool) ([]models.DownloadEventRe
 			if torrent, exists := torrentsByHash[hash]; exists {
 				downloads[i].QbtState = strings.TrimSpace(torrent.State)
 				downloads[i].ProgressPercent = torrent.Progress * 100
+				if downloads[i].TorrentSize == 0 && torrent.Size > 0 {
+					downloads[i].TorrentSize = uint64(torrent.Size)
+				}
 				continue
 			}
 
