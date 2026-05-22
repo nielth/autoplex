@@ -17,10 +17,10 @@ import (
 const tlRssPollInterval = 3 * time.Minute
 
 var (
-	tlRssWorkerOnce         sync.Once
-	tlRssFidPattern         = regexp.MustCompile(`/download/(\d+)/`)
-	tlRssEpisodeTokenRegex  = regexp.MustCompile(`^s0*([1-9][0-9]?)e0*([1-9][0-9]{0,2})$`)
-	tlRssSeenFids           sync.Map
+	tlRssWorkerOnce        sync.Once
+	tlRssFidPattern        = regexp.MustCompile(`/download/(\d+)/`)
+	tlRssEpisodeTokenRegex = regexp.MustCompile(`^s0*([1-9][0-9]?)e0*([1-9][0-9]{0,2})$`)
+	tlRssSeenFids          sync.Map
 )
 
 type tlRssFeed struct {
@@ -205,13 +205,13 @@ func processTlRssItem(item tlRssItem, subs []tlRssSubscriptionMatch) {
 		return
 	}
 
-	episodeOwned, err := isEpisodeAlreadyDownloaded(match.tvmazeShowID, season, episode, quality)
+	hasJob, err := hasActiveEpisodeJob(match.userID, match.tvmazeShowID, season, episode, quality)
 	if err != nil {
-		log.Printf("tl rss episode ownership check failed show=%d s%02de%02d: %v", match.tvmazeShowID, season, episode, err)
+		log.Printf("tl rss active job check failed show=%d s%02de%02d: %v", match.tvmazeShowID, season, episode, err)
 		return
 	}
-	if episodeOwned {
-		log.Printf("tl rss skip: show=%q s%02de%02d already downloaded", match.showName, season, episode)
+	if !hasJob {
+		log.Printf("tl rss skip: show=%q s%02de%02d not in active auto-install window", match.showName, season, episode)
 		return
 	}
 
@@ -312,7 +312,7 @@ func tokensStartWithShow(titleTokens []string, showTokens []string) bool {
 	return true
 }
 
-func isEpisodeAlreadyDownloaded(tvmazeShowID int64, season int, episode int, quality string) (bool, error) {
+func hasActiveEpisodeJob(userID uint64, tvmazeShowID int64, season int, episode int, quality string) (bool, error) {
 	db, err := dbConn()
 	if err != nil {
 		return false, err
@@ -326,12 +326,14 @@ func isEpisodeAlreadyDownloaded(tvmazeShowID int64, season int, episode int, qua
 		ctx,
 		`SELECT EXISTS(
 			SELECT 1 FROM tv_episode_jobs
-			WHERE tvmaze_show_id = ?
+			WHERE user_id = ?
+			  AND tvmaze_show_id = ?
 			  AND season_number = ?
 			  AND episode_number = ?
 			  AND preferred_quality = ?
-			  AND status = 'downloaded'
+			  AND status IN ('pending', 'searching')
 		)`,
+		userID,
 		tvmazeShowID,
 		season,
 		episode,
