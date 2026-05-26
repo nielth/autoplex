@@ -323,7 +323,7 @@ func QbtDownload(data *[]byte, category string, fid string) (string, error) {
 		return "", err
 	}
 
-	if err := writer.WriteField("savepath", "/downloads/sdc/"+category); err != nil {
+	if err := writer.WriteField("savepath", "/downloads/sde/"+category); err != nil {
 		return "", err
 	}
 
