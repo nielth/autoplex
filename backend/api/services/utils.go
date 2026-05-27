@@ -226,7 +226,7 @@ func TlDownloadRequest(data models.DownloadData, sequential bool) (string, error
 		return "", fmt.Errorf("unsupported category id %d", data.CategoryID)
 	}
 
-	qbtHash, err := QbtDownload(&torrent_data, category, data.Fid, sequential)
+	qbtHash, err := QbtDownload(&torrent_data, category, data.Fid, sequential, data.Filename)
 
 	if err != nil {
 		return "", err

@@ -136,6 +136,24 @@ export function TorrentList({ data }: { data: TorrentData }) {
         </div>
       ) : null}
       <div className="divider my-2"></div>
+      {(() => {
+        const matched = data.torrentList.filter(
+          (torrent) => torrent.isDownloaded || downloadedFids[torrent.fid]
+        ).length;
+        if (matched === 0) return null;
+        return (
+          <div
+            role="status"
+            className="alert alert-info text-sm py-2 mb-3"
+          >
+            <span>
+              {matched} of {data.torrentList.length} result
+              {data.torrentList.length === 1 ? "" : "s"}{" "}
+              {matched === 1 ? "is" : "are"} already installed
+            </span>
+          </div>
+        );
+      })()}
       {data.torrentList.map((torrent) => {
         const isDownloaded = Boolean(torrent.isDownloaded || downloadedFids[torrent.fid]);
 

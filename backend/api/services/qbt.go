@@ -302,7 +302,7 @@ func qbtResolveHashByTag(cookie string, qbtURL string, tag string) (string, erro
 	return "", fmt.Errorf("unable to resolve qbt hash after add")
 }
 
-func QbtDownload(data *[]byte, category string, fid string, sequential bool) (string, error) {
+func QbtDownload(data *[]byte, category string, fid string, sequential bool, filename string) (string, error) {
 	cookie, qbtURL, err := qbtLoginHandler()
 	if err != nil {
 		fmt.Println(err)
@@ -363,6 +363,12 @@ func QbtDownload(data *[]byte, category string, fid string, sequential bool) (st
 
 	defer res.Body.Close()
 
+	if res.StatusCode == http.StatusConflict {
+		// qBit 5.x returns 409 when the same info-hash is already loaded.
+		// Adopt the existing torrent by matching its name and applying our tag.
+		return qbtAdoptExistingByName(*cookie, qbtURL, filename, tag)
+	}
+
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
 		body, _ := io.ReadAll(res.Body)
 		return "", fmt.Errorf("qbt add failed with status %d: %s", res.StatusCode, string(body))
@@ -374,6 +380,73 @@ func QbtDownload(data *[]byte, category string, fid string, sequential bool) (st
 	}
 
 	return qbtHash, nil
+}
+
+func normalizeQbtName(name string) string {
+	return strings.ToLower(strings.TrimSpace(strings.TrimSuffix(name, ".torrent")))
+}
+
+func qbtAdoptExistingByName(cookie, qbtURL, filename, tag string) (string, error) {
+	target := normalizeQbtName(filename)
+	if target == "" {
+		return "", fmt.Errorf("qbt add returned 409 but no filename provided to match existing torrent")
+	}
+
+	torrentsByHash, err := QbtGetAllTorrentsByHash()
+	if err != nil {
+		return "", fmt.Errorf("qbt add 409 and lookup for existing torrent failed: %w", err)
+	}
+
+	matched := make([]QbtDownloadList, 0)
+	for _, torrent := range torrentsByHash {
+		if normalizeQbtName(torrent.Name) == target {
+			matched = append(matched, torrent)
+		}
+	}
+
+	switch len(matched) {
+	case 0:
+		return "", fmt.Errorf("qbt add returned 409 (already present) but no torrent in qbt matches name %q", filename)
+	case 1:
+		// continue
+	default:
+		return "", fmt.Errorf("qbt add returned 409 and %d torrents match name %q; adoption aborted", len(matched), filename)
+	}
+
+	hash := matched[0].Hash
+	if err := qbtAddTag(cookie, qbtURL, hash, tag); err != nil {
+		return hash, fmt.Errorf("adopted existing qbt torrent %s but tagging failed: %w", hash, err)
+	}
+
+	fmt.Printf("adopted existing qbt torrent name=%q hash=%s tag=%s\n", matched[0].Name, hash, tag)
+	return hash, nil
+}
+
+func qbtAddTag(cookie, qbtURL, hash, tag string) error {
+	formData := url.Values{}
+	formData.Set("hashes", hash)
+	formData.Set("tags", tag)
+
+	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/api/v2/torrents/addTags", qbtURL), strings.NewReader(formData.Encode()))
+	if err != nil {
+		return err
+	}
+	req.Header.Add("cookie", cookie)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	tr := &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}
+	client := &http.Client{Transport: tr}
+	res, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		body, _ := io.ReadAll(res.Body)
+		return fmt.Errorf("qbt addTags failed with status %d: %s", res.StatusCode, string(body))
+	}
+	return nil
 }
 
 func QbtDelete(qbtHash string) error {
