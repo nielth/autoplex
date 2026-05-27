@@ -149,11 +149,82 @@ func MarkSearchResultsWithDownloaded(resp map[string]any) error {
 	return nil
 }
 
-func ListDownloadEvents(username string, isAdmin bool) ([]models.DownloadEventRecord, error) {
+type DownloadListParams struct {
+	Status string
+	Query  string
+	User   string
+	Sort   string
+	Dir    string
+	Limit  int
+	Offset int
+}
+
+type DownloadListResult struct {
+	Downloads      []models.DownloadEventRecord
+	Total          int64
+	AvailableUsers []string
+}
+
+func downloadOrderBy(sort, dir string) string {
+	column := "d.created_at"
+	switch sort {
+	case "filename":
+		column = "COALESCE(NULLIF(d.filename, ''), d.fid)"
+	case "torrentSize":
+		column = "COALESCE(d.torrent_size, 0)"
+	case "username":
+		column = "COALESCE(d.username, '')"
+	case "deletedAt":
+		column = "d.deleted_at"
+	}
+	direction := "DESC"
+	if strings.EqualFold(dir, "asc") {
+		direction = "ASC"
+	}
+	return fmt.Sprintf("ORDER BY %s %s, d.id %s", column, direction, direction)
+}
+
+func ListDownloadEvents(username string, isAdmin bool, params DownloadListParams) (*DownloadListResult, error) {
 	cleanUsername := strings.TrimSpace(username)
 	if cleanUsername == "" {
 		return nil, fmt.Errorf("username is required")
 	}
+
+	limit := params.Limit
+	if limit <= 0 || limit > 500 {
+		limit = 50
+	}
+	offset := params.Offset
+	if offset < 0 {
+		offset = 0
+	}
+
+	where := []string{"d.success = 1"}
+	args := []any{}
+
+	if strings.EqualFold(strings.TrimSpace(params.Status), "deleted") {
+		where = append(where, "d.deleted_at IS NOT NULL")
+	} else {
+		where = append(where, "d.deleted_at IS NULL")
+	}
+
+	if isAdmin {
+		if cleanUserFilter := strings.TrimSpace(params.User); cleanUserFilter != "" {
+			where = append(where, "LOWER(d.username) = ?")
+			args = append(args, strings.ToLower(cleanUserFilter))
+		}
+	} else {
+		where = append(where, "d.username = ?")
+		args = append(args, cleanUsername)
+	}
+
+	if cleanQuery := strings.TrimSpace(params.Query); cleanQuery != "" {
+		pattern := "%" + cleanQuery + "%"
+		where = append(where, "(d.filename LIKE ? OR d.fid LIKE ?)")
+		args = append(args, pattern, pattern)
+	}
+
+	whereSQL := "WHERE " + strings.Join(where, " AND ")
 
 	db, err := dbConn()
 	if err != nil {
@@ -163,9 +234,41 @@ func ListDownloadEvents(username string, isAdmin bool) ([]models.DownloadEventRe
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	rows, err := db.QueryContext(
+	var total int64
+	if err := db.QueryRowContext(
 		ctx,
-		`SELECT
+		"SELECT COUNT(*) FROM download_events d "+whereSQL,
+		args...,
+	).Scan(&total); err != nil {
+		return nil, err
+	}
+
+	availableUsers := make([]string, 0)
+	if isAdmin {
+		userRows, err := db.QueryContext(
+			ctx,
+			`SELECT DISTINCT username
+			FROM download_events
+			WHERE success = 1
+			  AND username IS NOT NULL
+			  AND username <> ''
+			ORDER BY username ASC`,
+		)
+		if err != nil {
+			return nil, err
+		}
+		for userRows.Next() {
+			var name string
+			if err := userRows.Scan(&name); err != nil {
+				userRows.Close()
+				return nil, err
+			}
+			availableUsers = append(availableUsers, name)
+		}
+		userRows.Close()
+	}
+
+	listQuery := `SELECT
 			d.id,
 			d.user_id,
 			COALESCE(d.username, ''),
@@ -193,19 +296,16 @@ func ListDownloadEvents(username string, isAdmin bool) ([]models.DownloadEventRe
 				  AND r.status = 'hit_and_run'
 			) AS has_hit_and_run
 		FROM download_events d
-		WHERE d.success = 1
-		  AND d.deleted_at IS NULL
-		  AND (? OR d.username = ?)
-		ORDER BY d.created_at DESC`,
-		isAdmin,
-		cleanUsername,
-	)
+		` + whereSQL + ` ` + downloadOrderBy(params.Sort, params.Dir) + ` LIMIT ? OFFSET ?`
+
+	listArgs := append(append([]any{}, args...), limit, offset)
+	rows, err := db.QueryContext(ctx, listQuery, listArgs...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	downloads := make([]models.DownloadEventRecord, 0)
+	downloads := make([]models.DownloadEventRecord, 0, limit)
 	for rows.Next() {
 		var (
 			record            models.DownloadEventRecord
@@ -273,7 +373,17 @@ func ListDownloadEvents(username string, isAdmin bool) ([]models.DownloadEventRe
 	}
 
 	if len(downloads) == 0 {
-		return downloads, nil
+		return &DownloadListResult{Downloads: downloads, Total: total, AvailableUsers: availableUsers}, nil
+	}
+
+	// Skip the live qBit enrichment when listing deleted rows — their qBit
+	// torrents are gone, the state column already reflects that.
+	if strings.EqualFold(strings.TrimSpace(params.Status), "deleted") {
+		for i := range downloads {
+			downloads[i].ProgressPercent = 100
+			downloads[i].QbtState = "deleted"
+		}
+		return &DownloadListResult{Downloads: downloads, Total: total, AvailableUsers: availableUsers}, nil
 	}
 
 	torrentsByHash, err := QbtGetAllTorrentsByHash()
@@ -310,7 +420,7 @@ func ListDownloadEvents(username string, isAdmin bool) ([]models.DownloadEventRe
 		}
 	}
 
-	return downloads, nil
+	return &DownloadListResult{Downloads: downloads, Total: total, AvailableUsers: availableUsers}, nil
 }
 
 func DeleteOrRequestDownload(downloadID uint64, username string, isAdmin bool, reason string) (string, error) {

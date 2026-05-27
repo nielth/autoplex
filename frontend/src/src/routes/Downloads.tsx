@@ -1,5 +1,5 @@
 import axios from "axios";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { authProvider } from "../auth";
 import { formatBytes } from "../scripts/formatBytes";
@@ -40,195 +40,230 @@ interface DeleteRequestRecord {
   downloadIsFreeleech?: boolean;
 }
 
+type TabKey = "installed" | "deleted";
+type DownloadSortField =
+  | "createdAt"
+  | "filename"
+  | "username"
+  | "torrentSize"
+  | "deletedAt";
+type DownloadSortDirection = "asc" | "desc";
+
+const PAGE_SIZE = 50;
+
 function formatCountdown(targetISO?: string): string {
-  if (!targetISO) {
-    return "-";
-  }
+  if (!targetISO) return "-";
   const target = Date.parse(targetISO);
-  if (Number.isNaN(target)) {
-    return "-";
-  }
+  if (Number.isNaN(target)) return "-";
   const diffMs = target - Date.now();
-  if (diffMs <= 0) {
-    return "now";
-  }
+  if (diffMs <= 0) return "now";
   const totalMinutes = Math.round(diffMs / 60000);
   const days = Math.floor(totalMinutes / (60 * 24));
   const hours = Math.floor((totalMinutes % (60 * 24)) / 60);
   const minutes = totalMinutes % 60;
-  if (days > 0) {
-    return `${days}d ${hours}h`;
-  }
-  if (hours > 0) {
-    return `${hours}h ${minutes}m`;
-  }
+  if (days > 0) return `${days}d ${hours}h`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
   return `${minutes}m`;
 }
 
 function formatDate(value?: string) {
-  if (!value) {
-    return "-";
-  }
-
+  if (!value) return "-";
   const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return "-";
-  }
-
+  if (Number.isNaN(parsed.getTime())) return "-";
   const year = parsed.getFullYear();
   const month = String(parsed.getMonth() + 1).padStart(2, "0");
   const day = String(parsed.getDate()).padStart(2, "0");
   const hours = String(parsed.getHours()).padStart(2, "0");
   const minutes = String(parsed.getMinutes()).padStart(2, "0");
-
   return `${year}-${month}-${day} ${hours}:${minutes}`;
 }
 
 function normalizeState(state?: string) {
-  if (!state) {
-    return "unknown";
-  }
+  if (!state) return "unknown";
   return state.replace(/_/g, " ");
 }
 
-function toSafeTime(value?: string): number {
-  const parsed = Date.parse(value || "");
-  return Number.isNaN(parsed) ? 0 : parsed;
+interface TabState {
+  rows: DownloadRecord[];
+  total: number;
+  offset: number;
+  loading: boolean;
+  initiated: boolean;
 }
 
-type DownloadSortField = "createdAt" | "filename" | "username" | "torrentSize";
-type DownloadSortDirection = "asc" | "desc";
+const emptyTab: TabState = {
+  rows: [],
+  total: 0,
+  offset: 0,
+  loading: false,
+  initiated: false,
+};
 
 export function Downloads() {
-  const [downloads, setDownloads] = useState<DownloadRecord[]>([]);
+  const [activeTab, setActiveTab] = useState<TabKey>("installed");
+  const [installed, setInstalled] = useState<TabState>(emptyTab);
+  const [deleted, setDeleted] = useState<TabState>(emptyTab);
+  const [availableUsers, setAvailableUsers] = useState<string[]>([]);
+
   const [pendingRequests, setPendingRequests] = useState<DeleteRequestRecord[]>([]);
   const [hitAndRunRequests, setHitAndRunRequests] = useState<DeleteRequestRecord[]>([]);
-  const [historyRequests, setHistoryRequests] = useState<DeleteRequestRecord[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [sideLoading, setSideLoading] = useState<boolean>(true);
+
   const [workingId, setWorkingId] = useState<number | null>(null);
   const [isScanningPlex, setIsScanningPlex] = useState<boolean>(false);
   const [message, setMessage] = useState<string>("");
   const [errorMessage, setErrorMessage] = useState<string>("");
+
   const [searchTerm, setSearchTerm] = useState<string>("");
+  const [debouncedSearch, setDebouncedSearch] = useState<string>("");
   const [selectedUser, setSelectedUser] = useState<string>("all");
   const [sortField, setSortField] = useState<DownloadSortField>("createdAt");
   const [sortDirection, setSortDirection] = useState<DownloadSortDirection>("desc");
+
   const navigate = useNavigate();
   const domain = getApiDomain();
   const isAdmin = authProvider.isAdmin;
 
-  const availableUsers = useMemo(() => {
-    const usersByKey = new Map<string, string>();
-    downloads.forEach((download) => {
-      const label = (download.username || "").trim();
-      if (!label) {
-        return;
-      }
-      const value = label.toLowerCase();
-      if (!usersByKey.has(value)) {
-        usersByKey.set(value, label);
-      }
-    });
-
-    return Array.from(usersByKey.entries())
-      .map(([value, label]) => ({ value, label }))
-      .sort((left, right) =>
-        left.label.localeCompare(right.label, undefined, { sensitivity: "base" })
-      );
-  }, [downloads]);
-  const hasMultipleUsers = availableUsers.length > 1;
-  const canSortByUser = isAdmin || hasMultipleUsers;
-
-  const loadDownloads = async () => {
-    const response = await axios.get(`${domain}/api/downloads`, {
-      withCredentials: true,
-    });
-    setDownloads(response.data.downloads ?? []);
-  };
-
-  const loadPendingRequests = async () => {
-    if (!isAdmin) {
-      setPendingRequests([]);
-      return;
+  const setTabState = (tab: TabKey, updater: (prev: TabState) => TabState) => {
+    if (tab === "installed") {
+      setInstalled(updater);
+    } else {
+      setDeleted(updater);
     }
-
-    const response = await axios.get(`${domain}/api/downloads/delete-requests`, {
-      withCredentials: true,
-    });
-    setPendingRequests(response.data.requests ?? []);
   };
 
-  const loadHistoryRequests = async () => {
-    const response = await axios.get(
-      `${domain}/api/downloads/delete-requests/history`,
-      { withCredentials: true }
-    );
-    setHistoryRequests(response.data.requests ?? []);
-  };
+  const requestSeq = useRef<{ installed: number; deleted: number }>({
+    installed: 0,
+    deleted: 0,
+  });
 
-  const loadHitAndRunRequests = async () => {
-    const response = await axios.get(
-      `${domain}/api/downloads/delete-requests/hit-and-run`,
-      { withCredentials: true }
-    );
-    setHitAndRunRequests(response.data.requests ?? []);
-  };
+  const loadTab = useCallback(
+    async (tab: TabKey, opts: { append: boolean; offset?: number }) => {
+      const offset = opts.offset ?? 0;
+      const seqId = ++requestSeq.current[tab];
+      setTabState(tab, (prev) => ({ ...prev, loading: true, initiated: true }));
 
-  const loadAllData = async () => {
-    setLoading(true);
+      try {
+        const response = await axios.get(`${domain}/api/downloads`, {
+          withCredentials: true,
+          params: {
+            status: tab === "installed" ? "active" : "deleted",
+            q: debouncedSearch || undefined,
+            user:
+              isAdmin && selectedUser !== "all" ? selectedUser : undefined,
+            sort: sortField,
+            dir: sortDirection,
+            limit: PAGE_SIZE,
+            offset,
+          },
+        });
+
+        // Stale-response guard: ignore if a newer request started after us.
+        if (seqId !== requestSeq.current[tab]) return;
+
+        const incoming: DownloadRecord[] = response.data.downloads ?? [];
+        const total: number = response.data.total ?? 0;
+        const users: string[] = response.data.availableUsers ?? [];
+        if (isAdmin && users.length > 0) {
+          setAvailableUsers(users);
+        }
+
+        setTabState(tab, (prev) => ({
+          rows: opts.append ? [...prev.rows, ...incoming] : incoming,
+          total,
+          offset: offset + incoming.length,
+          loading: false,
+          initiated: true,
+        }));
+        setErrorMessage("");
+      } catch (error: any) {
+        if (error.response?.status === 401) {
+          await authProvider.signout();
+          navigate("/login");
+          return;
+        }
+        setErrorMessage(error.response?.data?.error || "Failed to load downloads");
+        setTabState(tab, (prev) => ({ ...prev, loading: false }));
+      }
+    },
+    [domain, debouncedSearch, selectedUser, sortField, sortDirection, isAdmin, navigate]
+  );
+
+  const loadSideRequests = useCallback(async () => {
+    setSideLoading(true);
     try {
-      await Promise.all([
-        loadDownloads(),
-        loadPendingRequests(),
-        loadHitAndRunRequests(),
-        loadHistoryRequests(),
-      ]);
-      setErrorMessage("");
+      const promises: Promise<unknown>[] = [
+        axios
+          .get(`${domain}/api/downloads/delete-requests/hit-and-run`, {
+            withCredentials: true,
+          })
+          .then((r) => setHitAndRunRequests(r.data.requests ?? [])),
+      ];
+      if (isAdmin) {
+        promises.push(
+          axios
+            .get(`${domain}/api/downloads/delete-requests`, {
+              withCredentials: true,
+            })
+            .then((r) => setPendingRequests(r.data.requests ?? []))
+        );
+      } else {
+        setPendingRequests([]);
+      }
+      await Promise.all(promises);
     } catch (error: any) {
       if (error.response?.status === 401) {
         await authProvider.signout();
         navigate("/login");
         return;
       }
-      setErrorMessage(error.response?.data?.error || "Failed to load downloads");
+      setErrorMessage(
+        error.response?.data?.error || "Failed to load delete queue"
+      );
     } finally {
-      setLoading(false);
+      setSideLoading(false);
     }
-  };
+  }, [domain, isAdmin, navigate]);
 
+  // Debounce search input — 300ms.
   useEffect(() => {
-    loadAllData();
-  }, [domain, isAdmin]);
+    const t = window.setTimeout(() => setDebouncedSearch(searchTerm), 300);
+    return () => window.clearTimeout(t);
+  }, [searchTerm]);
 
+  // First mount: load side panels.
   useEffect(() => {
-    if (!canSortByUser && sortField === "username") {
-      setSortField("createdAt");
-    }
-  }, [canSortByUser, sortField]);
+    loadSideRequests();
+  }, [loadSideRequests]);
 
+  // Whenever filters/sort/tab change → reload current tab from offset 0.
+  // We also lazily fetch the other tab on first activation only.
   useEffect(() => {
-    if (selectedUser === "all") {
-      return;
-    }
+    loadTab(activeTab, { append: false, offset: 0 });
+  }, [activeTab, debouncedSearch, selectedUser, sortField, sortDirection, loadTab]);
 
-    const userExists = availableUsers.some((user) => user.value === selectedUser);
-    if (!userExists) {
-      setSelectedUser("all");
-    }
-  }, [availableUsers, selectedUser]);
+  const reloadAll = useCallback(async () => {
+    await Promise.all([
+      loadSideRequests(),
+      loadTab("installed", { append: false, offset: 0 }),
+      // Only refetch the deleted tab if it's been opened — otherwise its
+      // first activation will load it.
+      deleted.initiated
+        ? loadTab("deleted", { append: false, offset: 0 })
+        : Promise.resolve(),
+    ]);
+  }, [loadSideRequests, loadTab, deleted.initiated]);
 
-  const handleDelete = async (download: DownloadRecord) => {
+  const handleDelete = async (download: { id: number }) => {
     setWorkingId(download.id);
     setMessage("");
     setErrorMessage("");
-
     try {
       const response = await axios.post(
         `${domain}/api/downloads/${download.id}/delete`,
         {},
         { withCredentials: true }
       );
-
       const action: string | undefined = response.data?.status;
       if (action === "hit_and_run") {
         setMessage(
@@ -239,20 +274,13 @@ export function Downloads() {
       } else {
         setMessage("Torrent deleted");
       }
-
-      await Promise.all([
-        loadDownloads(),
-        loadPendingRequests(),
-        loadHitAndRunRequests(),
-        loadHistoryRequests(),
-      ]);
+      await reloadAll();
     } catch (error: any) {
       if (error.response?.status === 401) {
         await authProvider.signout();
         navigate("/login");
         return;
       }
-
       setErrorMessage(error.response?.data?.error || "Delete action failed");
     } finally {
       setWorkingId(null);
@@ -263,7 +291,6 @@ export function Downloads() {
     setWorkingId(requestID);
     setMessage("");
     setErrorMessage("");
-
     try {
       await axios.post(
         `${domain}/api/downloads/delete-requests/${requestID}/approve`,
@@ -271,19 +298,13 @@ export function Downloads() {
         { withCredentials: true }
       );
       setMessage("Delete request approved");
-      await Promise.all([
-        loadDownloads(),
-        loadPendingRequests(),
-        loadHitAndRunRequests(),
-        loadHistoryRequests(),
-      ]);
+      await reloadAll();
     } catch (error: any) {
       if (error.response?.status === 401) {
         await authProvider.signout();
         navigate("/login");
         return;
       }
-
       setErrorMessage(error.response?.data?.error || "Failed to approve request");
     } finally {
       setWorkingId(null);
@@ -294,14 +315,12 @@ export function Downloads() {
     setIsScanningPlex(true);
     setMessage("");
     setErrorMessage("");
-
     try {
       const response = await axios.post(
         `${domain}/api/plex/scan/movies-tv`,
         {},
         { withCredentials: true }
       );
-
       const scannedSections = response.data?.sections;
       if (Array.isArray(scannedSections) && scannedSections.length > 0) {
         setMessage(`Plex scan started for: ${scannedSections.join(", ")}`);
@@ -314,91 +333,125 @@ export function Downloads() {
         navigate("/login");
         return;
       }
-
       setErrorMessage(error.response?.data?.error || "Failed to trigger Plex scan");
     } finally {
       setIsScanningPlex(false);
     }
   };
 
-  const visibleDownloads = useMemo(() => {
-    const normalizedSearch = searchTerm.trim().toLowerCase();
-
-    const filtered = downloads.filter((download) => {
-      const username = (download.username || "").trim().toLowerCase();
-      const matchesUser = selectedUser === "all" || username === selectedUser;
-      if (!matchesUser) {
-        return false;
-      }
-
-      if (!normalizedSearch) {
-        return true;
-      }
-
-      const title = (download.filename || "").toLowerCase();
-      const fid = (download.fid || "").toLowerCase();
-
-      if (title.includes(normalizedSearch) || fid.includes(normalizedSearch)) {
-        return true;
-      }
-
-      return false;
-    });
-
-    const sorted = [...filtered].sort((left, right) => {
-      let compare = 0;
-
-      if (sortField === "createdAt") {
-        compare = toSafeTime(left.createdAt) - toSafeTime(right.createdAt);
-      } else if (sortField === "torrentSize") {
-        compare = (left.torrentSize || 0) - (right.torrentSize || 0);
-      } else if (sortField === "filename") {
-        compare = (left.filename || left.fid || "").localeCompare(
-          right.filename || right.fid || "",
-          undefined,
-          { numeric: true, sensitivity: "base" }
-        );
-      } else {
-        compare = (left.username || "").localeCompare(right.username || "", undefined, {
-          numeric: true,
-          sensitivity: "base",
-        });
-      }
-
-      if (compare === 0) {
-        compare = left.id - right.id;
-      }
-
-      return sortDirection === "asc" ? compare : -compare;
-    });
-
-    return sorted;
-  }, [downloads, searchTerm, selectedUser, sortDirection, sortField]);
-
   const handleSortFieldChange = (value: DownloadSortField) => {
     setSortField(value);
-    if (value === "createdAt" || value === "torrentSize") {
+    if (value === "createdAt" || value === "torrentSize" || value === "deletedAt") {
       setSortDirection("desc");
       return;
     }
     setSortDirection("asc");
   };
 
-  if (loading) {
+  const userOptions = useMemo(() => {
+    return availableUsers
+      .filter((u) => u && u.trim())
+      .map((u) => ({ value: u, label: u }))
+      .sort((a, b) =>
+        a.label.localeCompare(b.label, undefined, { sensitivity: "base" })
+      );
+  }, [availableUsers]);
+
+  const canFilterByUser = isAdmin && userOptions.length > 1;
+  const canSortByUser = isAdmin && userOptions.length > 1;
+
+  const tabState = activeTab === "installed" ? installed : deleted;
+  const hasMore = tabState.rows.length < tabState.total;
+
+  const renderDownloadRow = (download: DownloadRecord) => {
+    const progress = Math.max(0, Math.min(100, download.progressPercent || 0));
+    const safeIn = download.safeToDeleteAt
+      ? formatCountdown(download.safeToDeleteAt)
+      : null;
+    const deleteLabel = isAdmin ? "Delete Torrent" : "Request Delete";
+    const actionElement = download.deletedAt ? (
+      <span className="shrink-0 text-xs opacity-70">
+        Deleted by {download.deletedByUsername || "unknown"} at{" "}
+        {formatDate(download.deletedAt)}
+      </span>
+    ) : (
+      <button
+        className="btn btn-error btn-sm shrink-0"
+        disabled={workingId === download.id}
+        onClick={() => handleDelete(download)}
+      >
+        {deleteLabel}
+      </button>
+    );
+
     return (
-      <div className="space-y-3">
-        {[...Array(8).keys()].map((index) => (
-          <div key={index} className="skeleton h-24 w-full"></div>
-        ))}
+      <div
+        key={download.id}
+        className="flex flex-col gap-3 rounded-xl border border-base-300 bg-base-200 p-3 sm:flex-row sm:items-center"
+      >
+        <div className="min-w-0 flex-1">
+          <div className="mb-1 flex flex-wrap items-start justify-between gap-2">
+            <p className="min-w-0 font-semibold break-all">
+              {download.filename || download.fid}
+              {download.isFreeleech ? (
+                <span className="badge badge-warning badge-sm ml-2 align-middle">
+                  FREELEECH
+                </span>
+              ) : null}
+              {safeIn && safeIn !== "now" && !download.deletedAt ? (
+                <span className="badge badge-outline badge-sm ml-2 align-middle">
+                  Safe in {safeIn}
+                </span>
+              ) : null}
+            </p>
+            <div className="flex gap-2">
+              {download.hasHitAndRun && !download.deletedAt ? (
+                <span className="badge badge-warning badge-sm">Hit &amp; Run</span>
+              ) : null}
+              {download.hasPendingDeleteRequest && !download.deletedAt ? (
+                <span className="badge badge-info badge-sm">Delete Pending</span>
+              ) : null}
+              {download.deletedAt ? (
+                <span className="badge badge-neutral badge-sm">Deleted</span>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {!download.deletedAt ? (
+              <div className="flex shrink-0 items-center gap-2">
+                <span className="text-xs tabular-nums opacity-75">
+                  {progress.toFixed(0)}%
+                </span>
+                <progress
+                  className="progress progress-info h-2 w-32"
+                  value={progress}
+                  max={100}
+                />
+              </div>
+            ) : null}
+            <p className="w-full min-w-0 text-xs opacity-70 sm:w-auto">
+              Added: {formatDate(download.createdAt)} - Size:{" "}
+              {formatBytes(download.torrentSize || 0)}
+              {!download.deletedAt
+                ? ` - State: ${normalizeState(download.qbtState)}`
+                : ""}
+              {canSortByUser ? ` - User: ${download.username}` : ""}
+            </p>
+            <div className="ml-auto sm:hidden">{actionElement}</div>
+          </div>
+        </div>
+
+        <div className="hidden sm:block">{actionElement}</div>
       </div>
     );
-  }
+  };
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold">Installed Torrents</h1>
+          <h1 className="text-2xl font-semibold">Torrents</h1>
           <p className="text-sm opacity-70">
             {isAdmin
               ? "All tracked torrents across users"
@@ -417,118 +470,152 @@ export function Downloads() {
       {message ? <div className="alert alert-success">{message}</div> : null}
       {errorMessage ? <div className="alert alert-error">{errorMessage}</div> : null}
 
-      {hitAndRunRequests.length > 0 ? (
-        <div className="space-y-3">
-          <h2 className="text-xl font-semibold">
-            Hit &amp; Run{isAdmin ? "" : " — your torrents"}
-          </h2>
-          <p className="text-xs opacity-70">
-            Torrents queued for deletion that have not finished seeding. They auto-delete
-            once the seeding window passes (168h after completion, +24h grace).
-          </p>
-          {hitAndRunRequests.map((request) => {
-            const safeIn = formatCountdown(request.safeToDeleteAt);
-            const autoIn = formatCountdown(request.autoDeleteAt);
-            return (
-              <div
-                key={`hnr-${request.id}`}
-                className="rounded-xl border border-warning bg-base-200 p-4"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="font-semibold break-all">
-                      {request.downloadFilename ||
-                        request.downloadFid ||
-                        `Download #${request.downloadEventID}`}
-                    </p>
-                    <p className="text-xs opacity-70">
-                      Requested by {request.requestedByUsername} at{" "}
-                      {formatDate(request.createdAt)}
-                      {request.downloadSize
-                        ? ` - Size: ${formatBytes(request.downloadSize)}`
-                        : ""}
-                    </p>
-                    <p className="text-xs opacity-80">
-                      Safe to delete in: <span className="font-mono">{safeIn}</span>
-                      {" · "}
-                      Auto-deletes in: <span className="font-mono">{autoIn}</span>
-                    </p>
-                    {request.reason ? (
-                      <p className="mt-1 text-sm">Reason: {request.reason}</p>
+      {sideLoading ? (
+        <div className="skeleton h-24 w-full"></div>
+      ) : (
+        <>
+          {hitAndRunRequests.length > 0 ? (
+            <div className="space-y-3">
+              <h2 className="text-xl font-semibold">
+                Hit &amp; Run{isAdmin ? "" : " — your torrents"}
+              </h2>
+              <p className="text-xs opacity-70">
+                Torrents queued for deletion that have not finished seeding. They
+                auto-delete once the seeding window passes (168h after completion,
+                +24h grace).
+              </p>
+              {hitAndRunRequests.map((request) => {
+                const safeIn = formatCountdown(request.safeToDeleteAt);
+                const autoIn = formatCountdown(request.autoDeleteAt);
+                return (
+                  <div
+                    key={`hnr-${request.id}`}
+                    className="rounded-xl border border-warning bg-base-200 p-4"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-semibold break-all">
+                          {request.downloadFilename ||
+                            request.downloadFid ||
+                            `Download #${request.downloadEventID}`}
+                        </p>
+                        <p className="text-xs opacity-70">
+                          Requested by {request.requestedByUsername} at{" "}
+                          {formatDate(request.createdAt)}
+                          {request.downloadSize
+                            ? ` - Size: ${formatBytes(request.downloadSize)}`
+                            : ""}
+                        </p>
+                        <p className="text-xs opacity-80">
+                          Safe to delete in:{" "}
+                          <span className="font-mono">{safeIn}</span>
+                          {" · "}
+                          Auto-deletes in:{" "}
+                          <span className="font-mono">{autoIn}</span>
+                        </p>
+                        {request.reason ? (
+                          <p className="mt-1 text-sm">Reason: {request.reason}</p>
+                        ) : null}
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="badge badge-warning badge-sm">
+                          Hit &amp; Run
+                        </span>
+                        {request.downloadIsFreeleech ? (
+                          <span className="badge badge-warning badge-sm">
+                            FREELEECH
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                    {isAdmin ? (
+                      <button
+                        className="btn btn-error btn-sm mt-3"
+                        disabled={workingId === request.downloadEventID}
+                        onClick={() =>
+                          handleDelete({ id: request.downloadEventID })
+                        }
+                      >
+                        Force Delete Now
+                      </button>
                     ) : null}
                   </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="badge badge-warning badge-sm">Hit &amp; Run</span>
+                );
+              })}
+            </div>
+          ) : null}
+
+          {isAdmin && pendingRequests.length > 0 ? (
+            <div className="space-y-3">
+              <h2 className="text-xl font-semibold">Pending Delete Requests</h2>
+              {pendingRequests.map((request) => (
+                <div
+                  key={`pending-${request.id}`}
+                  className="rounded-xl border border-base-300 bg-base-200 p-4"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="font-semibold break-all">
+                        {request.downloadFilename ||
+                          request.downloadFid ||
+                          `Download #${request.downloadEventID}`}
+                      </p>
+                      <p className="text-xs opacity-70">
+                        Request #{request.id} for Download #
+                        {request.downloadEventID}
+                        {request.downloadSize
+                          ? ` - Size: ${formatBytes(request.downloadSize)}`
+                          : ""}
+                      </p>
+                      <p className="text-xs opacity-70">
+                        Requested by {request.requestedByUsername} at{" "}
+                        {formatDate(request.createdAt)}
+                      </p>
+                    </div>
                     {request.downloadIsFreeleech ? (
                       <span className="badge badge-warning badge-sm">FREELEECH</span>
                     ) : null}
                   </div>
-                </div>
-                {isAdmin ? (
+                  {request.reason ? (
+                    <p className="mt-1 text-sm">Reason: {request.reason}</p>
+                  ) : null}
                   <button
-                    className="btn btn-error btn-sm mt-3"
-                    disabled={workingId === request.downloadEventID}
-                    onClick={() =>
-                      handleDelete({
-                        id: request.downloadEventID,
-                      } as DownloadRecord)
-                    }
+                    className="btn btn-success btn-sm mt-3"
+                    disabled={workingId === request.id}
+                    onClick={() => handleApprove(request.id)}
                   >
-                    Force Delete Now
+                    Approve and Delete
                   </button>
-                ) : null}
-              </div>
-            );
-          })}
-        </div>
-      ) : null}
-
-      {isAdmin && pendingRequests.length > 0 ? (
-        <div className="space-y-3">
-          <h2 className="text-xl font-semibold">Pending Delete Requests</h2>
-          {pendingRequests.map((request) => (
-            <div
-              key={`pending-${request.id}`}
-              className="rounded-xl border border-base-300 bg-base-200 p-4"
-            >
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="font-semibold break-all">
-                    {request.downloadFilename || request.downloadFid || `Download #${request.downloadEventID}`}
-                  </p>
-                  <p className="text-xs opacity-70">
-                    Request #{request.id} for Download #{request.downloadEventID}
-                    {request.downloadSize
-                      ? ` - Size: ${formatBytes(request.downloadSize)}`
-                      : ""}
-                  </p>
-                  <p className="text-xs opacity-70">
-                    Requested by {request.requestedByUsername} at {formatDate(request.createdAt)}
-                  </p>
                 </div>
-                {request.downloadIsFreeleech ? (
-                  <span className="badge badge-warning badge-sm">FREELEECH</span>
-                ) : null}
-              </div>
-              {request.reason ? (
-                <p className="mt-1 text-sm">Reason: {request.reason}</p>
-              ) : null}
-              <button
-                className="btn btn-success btn-sm mt-3"
-                disabled={workingId === request.id}
-                onClick={() => handleApprove(request.id)}
-              >
-                Approve and Delete
-              </button>
+              ))}
             </div>
-          ))}
-        </div>
-      ) : null}
+          ) : null}
+        </>
+      )}
+
+      <div role="tablist" className="tabs tabs-bordered">
+        <button
+          role="tab"
+          className={`tab ${activeTab === "installed" ? "tab-active" : ""}`}
+          onClick={() => setActiveTab("installed")}
+        >
+          Installed{installed.initiated ? ` (${installed.total})` : ""}
+        </button>
+        <button
+          role="tab"
+          className={`tab ${activeTab === "deleted" ? "tab-active" : ""}`}
+          onClick={() => setActiveTab("deleted")}
+        >
+          Delete History{deleted.initiated ? ` (${deleted.total})` : ""}
+        </button>
+      </div>
 
       <div className="rounded-xl border border-base-300 bg-base-200 p-4">
         <div className="flex flex-wrap items-end gap-3">
           <label className="form-control w-full sm:max-w-md">
-            <span className="label-text text-xs uppercase tracking-wide opacity-70">Search</span>
+            <span className="label-text text-xs uppercase tracking-wide opacity-70">
+              Search
+            </span>
             <input
               type="text"
               className="input input-bordered input-sm"
@@ -538,7 +625,7 @@ export function Downloads() {
             />
           </label>
 
-          {canSortByUser ? (
+          {canFilterByUser ? (
             <label className="form-control w-full sm:w-56">
               <span className="label-text text-xs uppercase tracking-wide opacity-70">
                 Filter user
@@ -549,7 +636,7 @@ export function Downloads() {
                 onChange={(event) => setSelectedUser(event.target.value)}
               >
                 <option value="all">All users</option>
-                {availableUsers.map((user) => (
+                {userOptions.map((user) => (
                   <option key={user.value} value={user.value}>
                     {user.label}
                   </option>
@@ -559,7 +646,9 @@ export function Downloads() {
           ) : null}
 
           <label className="form-control w-full sm:w-56">
-            <span className="label-text text-xs uppercase tracking-wide opacity-70">Sort by</span>
+            <span className="label-text text-xs uppercase tracking-wide opacity-70">
+              Sort by
+            </span>
             <select
               className="select select-bordered select-sm"
               value={sortField}
@@ -570,165 +659,63 @@ export function Downloads() {
               <option value="createdAt">Added date</option>
               <option value="torrentSize">Size</option>
               <option value="filename">Title</option>
+              {activeTab === "deleted" ? (
+                <option value="deletedAt">Deleted date</option>
+              ) : null}
               {canSortByUser ? <option value="username">User</option> : null}
             </select>
           </label>
 
           <button
             className="btn btn-outline btn-sm"
-            onClick={() => setSortDirection(sortDirection === "asc" ? "desc" : "asc")}
+            onClick={() =>
+              setSortDirection(sortDirection === "asc" ? "desc" : "asc")
+            }
           >
             {sortDirection === "asc" ? "Ascending" : "Descending"}
           </button>
         </div>
 
         <p className="mt-2 text-xs opacity-70">
-          Showing {visibleDownloads.length} of {downloads.length} torrents
+          Showing {tabState.rows.length} of {tabState.total} torrents
         </p>
       </div>
 
-      {downloads.length === 0 ? (
-        <div className="rounded-xl border border-base-300 bg-base-200 p-5 text-sm opacity-80">
-          No tracked torrents found.
+      {tabState.loading && tabState.rows.length === 0 ? (
+        <div className="space-y-3">
+          {[...Array(6).keys()].map((index) => (
+            <div key={index} className="skeleton h-24 w-full"></div>
+          ))}
         </div>
-      ) : visibleDownloads.length === 0 ? (
+      ) : tabState.rows.length === 0 ? (
         <div className="rounded-xl border border-base-300 bg-base-200 p-5 text-sm opacity-80">
-          No torrents match your search.
+          {activeTab === "installed"
+            ? "No installed torrents match your filters."
+            : "No deleted torrents match your filters."}
         </div>
       ) : (
         <div className="space-y-3">
-          {visibleDownloads.map((download) => {
-            const progress = Math.max(0, Math.min(100, download.progressPercent || 0));
-            const safeIn = download.safeToDeleteAt
-              ? formatCountdown(download.safeToDeleteAt)
-              : null;
-            const deleteLabel = isAdmin ? "Delete Torrent" : "Request Delete";
-            const actionElement = download.deletedAt ? (
-              <span className="shrink-0 text-xs opacity-70">
-                Deleted by {download.deletedByUsername || "unknown"} at{" "}
-                {formatDate(download.deletedAt)}
-              </span>
-            ) : (
+          {tabState.rows.map(renderDownloadRow)}
+          {hasMore ? (
+            <div className="flex justify-center pt-2">
               <button
-                className="btn btn-error btn-sm shrink-0"
-                disabled={workingId === download.id}
-                onClick={() => handleDelete(download)}
+                className="btn btn-outline btn-sm"
+                disabled={tabState.loading}
+                onClick={() =>
+                  loadTab(activeTab, {
+                    append: true,
+                    offset: tabState.offset,
+                  })
+                }
               >
-                {deleteLabel}
+                {tabState.loading
+                  ? "Loading..."
+                  : `Load more (${tabState.total - tabState.rows.length} remaining)`}
               </button>
-            );
-
-            return (
-              <div
-                key={download.id}
-                className="flex flex-col gap-3 rounded-xl border border-base-300 bg-base-200 p-3 sm:flex-row sm:items-center"
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="mb-1 flex flex-wrap items-start justify-between gap-2">
-                    <p className="min-w-0 font-semibold break-all">
-                      {download.filename || download.fid}
-                      {download.isFreeleech ? (
-                        <span className="badge badge-warning badge-sm ml-2 align-middle">
-                          FREELEECH
-                        </span>
-                      ) : null}
-                    </p>
-                    <div className="flex gap-2">
-                      {download.hasHitAndRun && !download.deletedAt ? (
-                        <span className="badge badge-warning badge-sm">Hit &amp; Run</span>
-                      ) : null}
-                      {download.hasPendingDeleteRequest && !download.deletedAt ? (
-                        <span className="badge badge-info badge-sm">Delete Pending</span>
-                      ) : null}
-                      {download.deletedAt ? (
-                        <span className="badge badge-neutral badge-sm">Deleted</span>
-                      ) : null}
-                      {safeIn && safeIn !== "now" && !download.deletedAt ? (
-                        <span className="badge badge-outline badge-sm">
-                          Safe in {safeIn}
-                        </span>
-                      ) : null}
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2">
-                    <div className="flex shrink-0 items-center gap-2">
-                      <span className="text-xs tabular-nums opacity-75">
-                        {progress.toFixed(0)}%
-                      </span>
-                      <progress
-                        className="progress progress-info h-2 w-32"
-                        value={progress}
-                        max={100}
-                      />
-                    </div>
-                    <p className="w-full min-w-0 text-xs opacity-70 sm:w-auto">
-                      Added: {formatDate(download.createdAt)} - Size:{" "}
-                      {formatBytes(download.torrentSize || 0)} - State:{" "}
-                      {normalizeState(download.qbtState)}
-                      {canSortByUser ? ` - User: ${download.username}` : ""}
-                    </p>
-                    <div className="ml-auto sm:hidden">{actionElement}</div>
-                  </div>
-                </div>
-
-                <div className="hidden sm:block">{actionElement}</div>
-              </div>
-            );
-          })}
+            </div>
+          ) : null}
         </div>
       )}
-
-      {historyRequests.length > 0 ? (
-        <div className="space-y-3">
-          <h2 className="text-xl font-semibold">Delete History</h2>
-          {historyRequests.map((request) => {
-            const isApproved = request.status === "approved";
-            return (
-              <div
-                key={`history-${request.id}`}
-                className="rounded-xl border border-base-300 bg-base-200 p-3"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="font-semibold break-all">
-                      {request.downloadFilename || request.downloadFid || `Download #${request.downloadEventID}`}
-                    </p>
-                    <p className="text-xs opacity-70">
-                      Request #{request.id} for Download #{request.downloadEventID}
-                      {request.downloadSize
-                        ? ` - Size: ${formatBytes(request.downloadSize)}`
-                        : ""}
-                    </p>
-                    <p className="text-xs opacity-70">
-                      Requested by {request.requestedByUsername} at{" "}
-                      {formatDate(request.createdAt)}
-                      {request.approvedByUsername
-                        ? ` - resolved by ${request.approvedByUsername}${
-                            request.approvedAt ? ` at ${formatDate(request.approvedAt)}` : ""
-                          }`
-                        : ""}
-                    </p>
-                    {request.reason ? (
-                      <p className="mt-1 text-sm opacity-80">Reason: {request.reason}</p>
-                    ) : null}
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    {request.downloadIsFreeleech ? (
-                      <span className="badge badge-warning badge-sm">FREELEECH</span>
-                    ) : null}
-                    <span
-                      className={`badge badge-sm ${isApproved ? "badge-success" : "badge-error"}`}
-                    >
-                      {isApproved ? "Approved" : "Rejected"}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      ) : null}
     </div>
   );
 }

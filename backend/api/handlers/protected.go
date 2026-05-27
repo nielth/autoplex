@@ -92,13 +92,31 @@ func DownloadListHandler(c *gin.Context) {
 	username := c.GetString("username")
 	isAdmin := c.GetBool("is_admin")
 
-	downloads, err := services.ListDownloadEvents(username, isAdmin)
+	params := services.DownloadListParams{
+		Status: c.Query("status"),
+		Query:  c.Query("q"),
+		User:   c.Query("user"),
+		Sort:   c.Query("sort"),
+		Dir:    c.Query("dir"),
+	}
+	if limitValue, err := strconv.Atoi(c.Query("limit")); err == nil {
+		params.Limit = limitValue
+	}
+	if offsetValue, err := strconv.Atoi(c.Query("offset")); err == nil {
+		params.Offset = offsetValue
+	}
+
+	result, err := services.ListDownloadEvents(username, isAdmin, params)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"downloads": downloads})
+	c.JSON(http.StatusOK, gin.H{
+		"downloads":      result.Downloads,
+		"total":          result.Total,
+		"availableUsers": result.AvailableUsers,
+	})
 }
 
 func DownloadDeleteHandler(c *gin.Context) {
