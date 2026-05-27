@@ -363,6 +363,25 @@ export function Downloads() {
   const tabState = activeTab === "installed" ? installed : deleted;
   const hasMore = tabState.rows.length < tabState.total;
 
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!hasMore) return;
+    const node = sentinelRef.current;
+    if (!node) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (!entry?.isIntersecting) return;
+        if (tabState.loading) return;
+        loadTab(activeTab, { append: true, offset: tabState.offset });
+      },
+      { rootMargin: "400px" }
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [hasMore, tabState.loading, tabState.offset, activeTab, loadTab]);
+
   const renderDownloadRow = (download: DownloadRecord) => {
     const progress = Math.max(0, Math.min(100, download.progressPercent || 0));
     const safeIn = download.safeToDeleteAt
@@ -398,23 +417,18 @@ export function Downloads() {
                   FREELEECH
                 </span>
               ) : null}
-              {safeIn && safeIn !== "now" && !download.deletedAt ? (
-                <span className="badge badge-outline badge-sm ml-2 align-middle">
-                  Safe in {safeIn}
-                </span>
-              ) : null}
             </p>
-            <div className="flex gap-2">
-              {download.hasHitAndRun && !download.deletedAt ? (
-                <span className="badge badge-warning badge-sm">Hit &amp; Run</span>
-              ) : null}
-              {download.hasPendingDeleteRequest && !download.deletedAt ? (
-                <span className="badge badge-info badge-sm">Delete Pending</span>
-              ) : null}
-              {download.deletedAt ? (
-                <span className="badge badge-neutral badge-sm">Deleted</span>
-              ) : null}
-            </div>
+            {!download.deletedAt &&
+            (download.hasHitAndRun || download.hasPendingDeleteRequest) ? (
+              <div className="flex gap-2">
+                {download.hasHitAndRun ? (
+                  <span className="badge badge-warning badge-sm">Hit &amp; Run</span>
+                ) : null}
+                {download.hasPendingDeleteRequest ? (
+                  <span className="badge badge-info badge-sm">Delete Pending</span>
+                ) : null}
+              </div>
+            ) : null}
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -428,6 +442,11 @@ export function Downloads() {
                   value={progress}
                   max={100}
                 />
+                {safeIn && safeIn !== "now" ? (
+                  <span className="badge badge-outline badge-sm">
+                    Safe in {safeIn}
+                  </span>
+                ) : null}
               </div>
             ) : null}
             <p className="w-full min-w-0 text-xs opacity-70 sm:w-auto">
@@ -697,21 +716,13 @@ export function Downloads() {
         <div className="space-y-3">
           {tabState.rows.map(renderDownloadRow)}
           {hasMore ? (
-            <div className="flex justify-center pt-2">
-              <button
-                className="btn btn-outline btn-sm"
-                disabled={tabState.loading}
-                onClick={() =>
-                  loadTab(activeTab, {
-                    append: true,
-                    offset: tabState.offset,
-                  })
-                }
-              >
-                {tabState.loading
-                  ? "Loading..."
-                  : `Load more (${tabState.total - tabState.rows.length} remaining)`}
-              </button>
+            <div
+              ref={sentinelRef}
+              className="flex justify-center py-4 text-xs opacity-60"
+            >
+              {tabState.loading
+                ? "Loading more..."
+                : `${tabState.total - tabState.rows.length} more`}
             </div>
           ) : null}
         </div>
