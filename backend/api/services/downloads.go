@@ -18,21 +18,37 @@ var (
 	ErrDeleteRequestNotFound       = errors.New("delete request not found")
 	ErrDeleteRequestNotPending     = errors.New("delete request is not pending")
 	ErrDownloadMissingHash         = errors.New("download is missing qbt hash and cannot be deleted")
+	ErrDownloadNotComplete         = errors.New("torrent has not reached 100% yet; only an admin can delete it now")
 	ErrAdminRequired               = errors.New("admin role is required")
 )
 
 const (
 	DownloadDeleteActionDeleted   = "deleted"
 	DownloadDeleteActionRequested = "delete_requested"
+	DownloadDeleteActionHitAndRun = "hit_and_run"
+
+	seedRequiredDuration    = 168 * time.Hour
+	autoDeleteGraceDuration = 24 * time.Hour
 )
 
-func isActiveDownloadState(state string) bool {
-	clean := strings.ToLower(strings.TrimSpace(state))
-	switch clean {
-	case "downloading", "stalleddl", "forceddl", "metadl", "queueddl", "checkingdl":
-		return true
-	default:
-		return false
+type hitAndRunWindow struct {
+	completionAt time.Time
+	safeAt       time.Time
+	autoDeleteAt time.Time
+	hasWindow    bool
+}
+
+func computeHitAndRunWindow(completionUnix int) hitAndRunWindow {
+	if completionUnix <= 0 {
+		return hitAndRunWindow{}
+	}
+	completionAt := time.Unix(int64(completionUnix), 0).UTC()
+	safeAt := completionAt.Add(seedRequiredDuration)
+	return hitAndRunWindow{
+		completionAt: completionAt,
+		safeAt:       safeAt,
+		autoDeleteAt: safeAt.Add(autoDeleteGraceDuration),
+		hasWindow:    true,
 	}
 }
 
@@ -169,7 +185,13 @@ func ListDownloadEvents(username string, isAdmin bool) ([]models.DownloadEventRe
 				FROM download_delete_requests r
 				WHERE r.download_event_id = d.id
 				  AND r.status = 'pending'
-			) AS has_pending_delete_request
+			) AS has_pending_delete_request,
+			EXISTS(
+				SELECT 1
+				FROM download_delete_requests r
+				WHERE r.download_event_id = d.id
+				  AND r.status = 'hit_and_run'
+			) AS has_hit_and_run
 		FROM download_events d
 		WHERE d.success = 1
 		  AND d.deleted_at IS NULL
@@ -212,6 +234,7 @@ func ListDownloadEvents(username string, isAdmin bool) ([]models.DownloadEventRe
 			&deletedAt,
 			&deletedByUsername,
 			&record.HasPendingDelete,
+			&record.HasHitAndRun,
 		); err != nil {
 			return nil, err
 		}
@@ -267,6 +290,14 @@ func ListDownloadEvents(username string, isAdmin bool) ([]models.DownloadEventRe
 				if downloads[i].TorrentSize == 0 && torrent.Size > 0 {
 					downloads[i].TorrentSize = uint64(torrent.Size)
 				}
+
+				window := computeHitAndRunWindow(torrent.Completion_on)
+				if window.hasWindow {
+					completedAt := window.completionAt.Format(time.RFC3339)
+					safeAt := window.safeAt.Format(time.RFC3339)
+					downloads[i].CompletedAt = &completedAt
+					downloads[i].SafeToDeleteAt = &safeAt
+				}
 				continue
 			}
 
@@ -309,21 +340,19 @@ func DeleteOrRequestDownload(downloadID uint64, username string, isAdmin bool, r
 
 	var (
 		ownerUsername string
-		isFreeleech   bool
 		qbtHash       sql.NullString
 		deletedAt     sql.NullTime
 	)
 
 	err = tx.QueryRowContext(
 		ctx,
-		`SELECT COALESCE(username, ''), is_freeleech, qbt_hash, deleted_at
+		`SELECT COALESCE(username, ''), qbt_hash, deleted_at
 		FROM download_events
 		WHERE id = ? AND success = 1
 		FOR UPDATE`,
 		downloadID,
 	).Scan(
 		&ownerUsername,
-		&isFreeleech,
 		&qbtHash,
 		&deletedAt,
 	)
@@ -342,12 +371,29 @@ func DeleteOrRequestDownload(downloadID uint64, username string, isAdmin bool, r
 		return "", ErrDeleteNotAllowed
 	}
 
-	if isAdmin || isFreeleech {
-		if strings.TrimSpace(qbtHash.String) == "" {
-			return "", ErrDownloadMissingHash
-		}
+	cleanHash := strings.TrimSpace(qbtHash.String)
+	if cleanHash == "" {
+		return "", ErrDownloadMissingHash
+	}
 
-		if err := QbtDelete(qbtHash.String); err != nil {
+	// Always consult qBit to decide hit & run eligibility — even admin deletes
+	// should be audited with the snapshotted timestamps when applicable.
+	torrent, lookupErr := QbtGetTorrentByHash(cleanHash)
+	if lookupErr != nil {
+		return "", lookupErr
+	}
+
+	var window hitAndRunWindow
+	if torrent != nil {
+		window = computeHitAndRunWindow(torrent.Completion_on)
+	}
+
+	now := time.Now().UTC()
+	safeToDelete := window.hasWindow && !now.Before(window.safeAt)
+
+	// Admin or safe-to-delete → straight-through delete.
+	if isAdmin || safeToDelete {
+		if err := QbtDelete(cleanHash); err != nil {
 			return "", err
 		}
 
@@ -374,7 +420,7 @@ func DeleteOrRequestDownload(downloadID uint64, username string, isAdmin bool, r
 				approved_at = NOW(),
 				updated_at = NOW()
 			WHERE download_event_id = ?
-			  AND status = 'pending'`,
+			  AND status IN ('pending', 'hit_and_run')`,
 			userID,
 			cleanUsername,
 			downloadID,
@@ -399,14 +445,18 @@ func DeleteOrRequestDownload(downloadID uint64, username string, isAdmin bool, r
 				request_note,
 				approved_by_user_id,
 				approved_by_username,
-				approved_at
-			) VALUES (?, ?, ?, 'approved', ?, ?, ?, NOW())`,
+				approved_at,
+				safe_to_delete_at,
+				auto_delete_at
+			) VALUES (?, ?, ?, 'approved', ?, ?, ?, NOW(), ?, ?)`,
 				downloadID,
 				userID,
 				cleanUsername,
 				nullableString(reason),
 				userID,
 				cleanUsername,
+				nullableHitAndRunTime(window, "safe"),
+				nullableHitAndRunTime(window, "auto"),
 			); err != nil {
 				return "", err
 			}
@@ -419,21 +469,26 @@ func DeleteOrRequestDownload(downloadID uint64, username string, isAdmin bool, r
 		return DownloadDeleteActionDeleted, nil
 	}
 
-	var hasPending bool
+	// Regular user, not yet safe to delete. Block if the torrent has not finished.
+	if !window.hasWindow {
+		return "", ErrDownloadNotComplete
+	}
+
+	var hasOpen bool
 	if err := tx.QueryRowContext(
 		ctx,
 		`SELECT EXISTS(
 			SELECT 1
 			FROM download_delete_requests
 			WHERE download_event_id = ?
-			  AND status = 'pending'
+			  AND status IN ('pending', 'hit_and_run')
 		)`,
 		downloadID,
-	).Scan(&hasPending); err != nil {
+	).Scan(&hasOpen); err != nil {
 		return "", err
 	}
 
-	if hasPending {
+	if hasOpen {
 		return "", ErrDeleteRequestAlreadyPending
 	}
 
@@ -444,35 +499,39 @@ func DeleteOrRequestDownload(downloadID uint64, username string, isAdmin bool, r
 			requested_by_user_id,
 			requested_by_username,
 			status,
-			request_note
-		) VALUES (?, ?, ?, 'pending', ?)`,
+			request_note,
+			safe_to_delete_at,
+			auto_delete_at
+		) VALUES (?, ?, ?, 'hit_and_run', ?, ?, ?)`,
 		downloadID,
 		userID,
 		cleanUsername,
 		nullableString(reason),
+		window.safeAt,
+		window.autoDeleteAt,
 	); err != nil {
 		return "", err
-	}
-
-	if strings.TrimSpace(qbtHash.String) != "" {
-		torrentsByHash, lookupErr := QbtGetAllTorrentsByHash()
-		if lookupErr != nil {
-			return "", lookupErr
-		}
-
-		hash := strings.ToLower(strings.TrimSpace(qbtHash.String))
-		if torrent, exists := torrentsByHash[hash]; exists && isActiveDownloadState(torrent.State) {
-			if pauseErr := QbtPause(qbtHash.String); pauseErr != nil {
-				return "", pauseErr
-			}
-		}
 	}
 
 	if err := tx.Commit(); err != nil {
 		return "", err
 	}
 
-	return DownloadDeleteActionRequested, nil
+	return DownloadDeleteActionHitAndRun, nil
+}
+
+func nullableHitAndRunTime(window hitAndRunWindow, kind string) any {
+	if !window.hasWindow {
+		return nil
+	}
+	switch kind {
+	case "safe":
+		return window.safeAt
+	case "auto":
+		return window.autoDeleteAt
+	default:
+		return nil
+	}
 }
 
 func ListResolvedDeleteRequests(username string, isAdmin bool, limit int) ([]models.DownloadDeleteRequestRecord, error) {
@@ -502,6 +561,8 @@ func ListResolvedDeleteRequests(username string, isAdmin bool, limit int) ([]mod
 			COALESCE(r.approved_by_username, ''),
 			r.created_at,
 			r.approved_at,
+			r.safe_to_delete_at,
+			r.auto_delete_at,
 			COALESCE(e.filename, ''),
 			COALESCE(e.fid, ''),
 			COALESCE(e.torrent_size, 0),
@@ -524,44 +585,7 @@ func ListResolvedDeleteRequests(username string, isAdmin bool, limit int) ([]mod
 	}
 	defer rows.Close()
 
-	requests := make([]models.DownloadDeleteRequestRecord, 0)
-	for rows.Next() {
-		var (
-			record     models.DownloadDeleteRequestRecord
-			createdAt  time.Time
-			approvedAt sql.NullTime
-		)
-
-		if err := rows.Scan(
-			&record.ID,
-			&record.DownloadEventID,
-			&record.RequestedByUsername,
-			&record.Status,
-			&record.Reason,
-			&record.ApprovedByUsername,
-			&createdAt,
-			&approvedAt,
-			&record.DownloadFilename,
-			&record.DownloadFid,
-			&record.DownloadSize,
-			&record.DownloadIsFreeleech,
-		); err != nil {
-			return nil, err
-		}
-
-		record.CreatedAt = createdAt.UTC().Format(time.RFC3339)
-		if approvedAt.Valid {
-			record.ApprovedAt = approvedAt.Time.UTC().Format(time.RFC3339)
-		}
-
-		requests = append(requests, record)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-
-	return requests, nil
+	return scanDeleteRequestRows(rows)
 }
 
 func ListPendingDeleteRequests(username string, isAdmin bool) ([]models.DownloadDeleteRequestRecord, error) {
@@ -593,6 +617,8 @@ func ListPendingDeleteRequests(username string, isAdmin bool) ([]models.Download
 			COALESCE(r.approved_by_username, ''),
 			r.created_at,
 			r.approved_at,
+			r.safe_to_delete_at,
+			r.auto_delete_at,
 			COALESCE(e.filename, ''),
 			COALESCE(e.fid, ''),
 			COALESCE(e.torrent_size, 0),
@@ -607,12 +633,67 @@ func ListPendingDeleteRequests(username string, isAdmin bool) ([]models.Download
 	}
 	defer rows.Close()
 
+	return scanDeleteRequestRows(rows)
+}
+
+func ListHitAndRunRequests(username string, isAdmin bool) ([]models.DownloadDeleteRequestRecord, error) {
+	cleanUsername := strings.TrimSpace(username)
+	if cleanUsername == "" {
+		return nil, fmt.Errorf("username is required")
+	}
+
+	db, err := dbConn()
+	if err != nil {
+		return nil, err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	query := `SELECT
+			r.id,
+			r.download_event_id,
+			r.requested_by_username,
+			r.status,
+			COALESCE(r.request_note, ''),
+			COALESCE(r.approved_by_username, ''),
+			r.created_at,
+			r.approved_at,
+			r.safe_to_delete_at,
+			r.auto_delete_at,
+			COALESCE(e.filename, ''),
+			COALESCE(e.fid, ''),
+			COALESCE(e.torrent_size, 0),
+			COALESCE(e.is_freeleech, 0)
+		FROM download_delete_requests r
+		LEFT JOIN download_events e ON e.id = r.download_event_id
+		WHERE r.status = 'hit_and_run'`
+
+	var args []any
+	if !isAdmin {
+		query += ` AND r.requested_by_username = ?`
+		args = append(args, cleanUsername)
+	}
+	query += ` ORDER BY COALESCE(r.safe_to_delete_at, r.created_at) ASC`
+
+	rows, err := db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	return scanDeleteRequestRows(rows)
+}
+
+func scanDeleteRequestRows(rows *sql.Rows) ([]models.DownloadDeleteRequestRecord, error) {
 	requests := make([]models.DownloadDeleteRequestRecord, 0)
 	for rows.Next() {
 		var (
-			record     models.DownloadDeleteRequestRecord
-			createdAt  time.Time
-			approvedAt sql.NullTime
+			record         models.DownloadDeleteRequestRecord
+			createdAt      time.Time
+			approvedAt     sql.NullTime
+			safeToDeleteAt sql.NullTime
+			autoDeleteAt   sql.NullTime
 		)
 
 		if err := rows.Scan(
@@ -624,6 +705,8 @@ func ListPendingDeleteRequests(username string, isAdmin bool) ([]models.Download
 			&record.ApprovedByUsername,
 			&createdAt,
 			&approvedAt,
+			&safeToDeleteAt,
+			&autoDeleteAt,
 			&record.DownloadFilename,
 			&record.DownloadFid,
 			&record.DownloadSize,
@@ -635,6 +718,14 @@ func ListPendingDeleteRequests(username string, isAdmin bool) ([]models.Download
 		record.CreatedAt = createdAt.UTC().Format(time.RFC3339)
 		if approvedAt.Valid {
 			record.ApprovedAt = approvedAt.Time.UTC().Format(time.RFC3339)
+		}
+		if safeToDeleteAt.Valid {
+			value := safeToDeleteAt.Time.UTC().Format(time.RFC3339)
+			record.SafeToDeleteAt = &value
+		}
+		if autoDeleteAt.Valid {
+			value := autoDeleteAt.Time.UTC().Format(time.RFC3339)
+			record.AutoDeleteAt = &value
 		}
 
 		requests = append(requests, record)
@@ -708,7 +799,7 @@ func ApproveDeleteRequest(requestID uint64, username string, isAdmin bool) error
 		return err
 	}
 
-	if status != "pending" {
+	if status != "pending" && status != "hit_and_run" {
 		return ErrDeleteRequestNotPending
 	}
 

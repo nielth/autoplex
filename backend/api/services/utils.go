@@ -6,6 +6,7 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -17,6 +18,28 @@ import (
 	"syscall"
 	"time"
 )
+
+var tlHttpClient = buildTlHttpClient()
+
+func buildTlHttpClient() *http.Client {
+	proxyURL := strings.TrimSpace(os.Getenv("TL_PROXY_URL"))
+	if proxyURL == "" {
+		return &http.Client{}
+	}
+
+	parsed, err := url.Parse(proxyURL)
+	if err != nil {
+		log.Printf("invalid TL_PROXY_URL %q, falling back to direct: %v", proxyURL, err)
+		return &http.Client{}
+	}
+
+	log.Printf("routing TL requests through proxy %s", parsed.Redacted())
+	return &http.Client{
+		Transport: &http.Transport{
+			Proxy: http.ProxyURL(parsed),
+		},
+	}
+}
 
 func fetchAndParseXML(url string, result any, wg *sync.WaitGroup, errCh chan<- error) {
 	defer wg.Done()
@@ -85,8 +108,7 @@ func tlGetRequest(url string, ua *string) ([]byte, error) {
 		req.Header.Add("User-Agent", *ua)
 	}
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := tlHttpClient.Do(req)
 	if err != nil {
 		fmt.Printf("Error sending request: %v\n", err)
 		return nil, fmt.Errorf("Error sending request")
@@ -128,8 +150,7 @@ func tlPostFormRequest(rawURL string, values url.Values, ua *string) ([]byte, er
 		req.Header.Add("User-Agent", *ua)
 	}
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := tlHttpClient.Do(req)
 	if err != nil {
 		fmt.Printf("Error sending request: %v\n", err)
 		return nil, fmt.Errorf("Error sending request")
@@ -189,7 +210,7 @@ func TlSearchRequest(search string, page string) (map[string]any, error) {
 	return respJson, nil
 }
 
-func TlDownloadRequest(data models.DownloadData) (string, error) {
+func TlDownloadRequest(data models.DownloadData, sequential bool) (string, error) {
 	url := "https://www.torrentleech.org/download/" + data.Fid + "/" + data.Filename
 	ua := "U_AGENT" // Without this, TL for some reason breaks
 
@@ -205,7 +226,7 @@ func TlDownloadRequest(data models.DownloadData) (string, error) {
 		return "", fmt.Errorf("unsupported category id %d", data.CategoryID)
 	}
 
-	qbtHash, err := QbtDownload(&torrent_data, category, data.Fid)
+	qbtHash, err := QbtDownload(&torrent_data, category, data.Fid, sequential)
 
 	if err != nil {
 		return "", err

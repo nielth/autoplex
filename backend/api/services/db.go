@@ -187,7 +187,7 @@ func migrateAuditSchema(db *sql.DB) error {
 			download_event_id BIGINT UNSIGNED NOT NULL,
 			requested_by_user_id BIGINT UNSIGNED NULL,
 			requested_by_username VARCHAR(255) NOT NULL,
-			status ENUM('pending', 'approved', 'rejected') NOT NULL DEFAULT 'pending',
+			status ENUM('pending', 'approved', 'rejected', 'hit_and_run') NOT NULL DEFAULT 'pending',
 			request_note TEXT NULL,
 			approved_by_user_id BIGINT UNSIGNED NULL,
 			approved_by_username VARCHAR(255) NULL,
@@ -282,6 +282,20 @@ func migrateAuditSchema(db *sql.DB) error {
 	}
 	if err := ensureColumnExists(db, "tv_episode_jobs", "airtime_known", "TINYINT(1) NOT NULL DEFAULT 1 AFTER `airstamp`"); err != nil {
 		return fmt.Errorf("schema migration failed adding tv_episode_jobs.airtime_known: %w", err)
+	}
+	if err := ensureColumnExists(db, "download_delete_requests", "safe_to_delete_at", "DATETIME NULL AFTER `approved_at`"); err != nil {
+		return fmt.Errorf("schema migration failed adding download_delete_requests.safe_to_delete_at: %w", err)
+	}
+	if err := ensureColumnExists(db, "download_delete_requests", "auto_delete_at", "DATETIME NULL AFTER `safe_to_delete_at`"); err != nil {
+		return fmt.Errorf("schema migration failed adding download_delete_requests.auto_delete_at: %w", err)
+	}
+	if _, err := db.Exec(
+		"ALTER TABLE `download_delete_requests` MODIFY COLUMN `status` ENUM('pending', 'approved', 'rejected', 'hit_and_run') NOT NULL DEFAULT 'pending'",
+	); err != nil {
+		return fmt.Errorf("schema migration failed widening download_delete_requests.status enum: %w", err)
+	}
+	if err := ensureIndexExists(db, "download_delete_requests", "idx_download_delete_requests_auto_delete_at", "`auto_delete_at`"); err != nil {
+		return fmt.Errorf("schema migration failed adding index download_delete_requests.idx_download_delete_requests_auto_delete_at: %w", err)
 	}
 
 	return nil

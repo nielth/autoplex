@@ -18,6 +18,9 @@ interface DownloadRecord {
   deletedAt?: string;
   deletedByUsername?: string;
   hasPendingDeleteRequest: boolean;
+  hasHitAndRun: boolean;
+  completedAt?: string;
+  safeToDeleteAt?: string;
 }
 
 interface DeleteRequestRecord {
@@ -29,10 +32,37 @@ interface DeleteRequestRecord {
   approvedByUsername?: string;
   createdAt: string;
   approvedAt?: string;
+  safeToDeleteAt?: string;
+  autoDeleteAt?: string;
   downloadFilename?: string;
   downloadFid?: string;
   downloadSize?: number;
   downloadIsFreeleech?: boolean;
+}
+
+function formatCountdown(targetISO?: string): string {
+  if (!targetISO) {
+    return "-";
+  }
+  const target = Date.parse(targetISO);
+  if (Number.isNaN(target)) {
+    return "-";
+  }
+  const diffMs = target - Date.now();
+  if (diffMs <= 0) {
+    return "now";
+  }
+  const totalMinutes = Math.round(diffMs / 60000);
+  const days = Math.floor(totalMinutes / (60 * 24));
+  const hours = Math.floor((totalMinutes % (60 * 24)) / 60);
+  const minutes = totalMinutes % 60;
+  if (days > 0) {
+    return `${days}d ${hours}h`;
+  }
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`;
+  }
+  return `${minutes}m`;
 }
 
 function formatDate(value?: string) {
@@ -72,6 +102,7 @@ type DownloadSortDirection = "asc" | "desc";
 export function Downloads() {
   const [downloads, setDownloads] = useState<DownloadRecord[]>([]);
   const [pendingRequests, setPendingRequests] = useState<DeleteRequestRecord[]>([]);
+  const [hitAndRunRequests, setHitAndRunRequests] = useState<DeleteRequestRecord[]>([]);
   const [historyRequests, setHistoryRequests] = useState<DeleteRequestRecord[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [workingId, setWorkingId] = useState<number | null>(null);
@@ -135,10 +166,23 @@ export function Downloads() {
     setHistoryRequests(response.data.requests ?? []);
   };
 
+  const loadHitAndRunRequests = async () => {
+    const response = await axios.get(
+      `${domain}/api/downloads/delete-requests/hit-and-run`,
+      { withCredentials: true }
+    );
+    setHitAndRunRequests(response.data.requests ?? []);
+  };
+
   const loadAllData = async () => {
     setLoading(true);
     try {
-      await Promise.all([loadDownloads(), loadPendingRequests(), loadHistoryRequests()]);
+      await Promise.all([
+        loadDownloads(),
+        loadPendingRequests(),
+        loadHitAndRunRequests(),
+        loadHistoryRequests(),
+      ]);
       setErrorMessage("");
     } catch (error: any) {
       if (error.response?.status === 401) {
@@ -185,13 +229,23 @@ export function Downloads() {
         { withCredentials: true }
       );
 
-      if (response.status === 202) {
+      const action: string | undefined = response.data?.status;
+      if (action === "hit_and_run") {
+        setMessage(
+          "Marked as Hit & Run — torrent will auto-delete once seeding requirement is met"
+        );
+      } else if (response.status === 202) {
         setMessage("Delete request submitted");
       } else {
         setMessage("Torrent deleted");
       }
 
-      await Promise.all([loadDownloads(), loadPendingRequests(), loadHistoryRequests()]);
+      await Promise.all([
+        loadDownloads(),
+        loadPendingRequests(),
+        loadHitAndRunRequests(),
+        loadHistoryRequests(),
+      ]);
     } catch (error: any) {
       if (error.response?.status === 401) {
         await authProvider.signout();
@@ -217,7 +271,12 @@ export function Downloads() {
         { withCredentials: true }
       );
       setMessage("Delete request approved");
-      await Promise.all([loadDownloads(), loadPendingRequests(), loadHistoryRequests()]);
+      await Promise.all([
+        loadDownloads(),
+        loadPendingRequests(),
+        loadHitAndRunRequests(),
+        loadHistoryRequests(),
+      ]);
     } catch (error: any) {
       if (error.response?.status === 401) {
         await authProvider.signout();
@@ -358,6 +417,72 @@ export function Downloads() {
       {message ? <div className="alert alert-success">{message}</div> : null}
       {errorMessage ? <div className="alert alert-error">{errorMessage}</div> : null}
 
+      {hitAndRunRequests.length > 0 ? (
+        <div className="space-y-3">
+          <h2 className="text-xl font-semibold">
+            Hit &amp; Run{isAdmin ? "" : " — your torrents"}
+          </h2>
+          <p className="text-xs opacity-70">
+            Torrents queued for deletion that have not finished seeding. They auto-delete
+            once the seeding window passes (168h after completion, +24h grace).
+          </p>
+          {hitAndRunRequests.map((request) => {
+            const safeIn = formatCountdown(request.safeToDeleteAt);
+            const autoIn = formatCountdown(request.autoDeleteAt);
+            return (
+              <div
+                key={`hnr-${request.id}`}
+                className="rounded-xl border border-warning bg-base-200 p-4"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-semibold break-all">
+                      {request.downloadFilename ||
+                        request.downloadFid ||
+                        `Download #${request.downloadEventID}`}
+                    </p>
+                    <p className="text-xs opacity-70">
+                      Requested by {request.requestedByUsername} at{" "}
+                      {formatDate(request.createdAt)}
+                      {request.downloadSize
+                        ? ` - Size: ${formatBytes(request.downloadSize)}`
+                        : ""}
+                    </p>
+                    <p className="text-xs opacity-80">
+                      Safe to delete in: <span className="font-mono">{safeIn}</span>
+                      {" · "}
+                      Auto-deletes in: <span className="font-mono">{autoIn}</span>
+                    </p>
+                    {request.reason ? (
+                      <p className="mt-1 text-sm">Reason: {request.reason}</p>
+                    ) : null}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="badge badge-warning badge-sm">Hit &amp; Run</span>
+                    {request.downloadIsFreeleech ? (
+                      <span className="badge badge-warning badge-sm">FREELEECH</span>
+                    ) : null}
+                  </div>
+                </div>
+                {isAdmin ? (
+                  <button
+                    className="btn btn-error btn-sm mt-3"
+                    disabled={workingId === request.downloadEventID}
+                    onClick={() =>
+                      handleDelete({
+                        id: request.downloadEventID,
+                      } as DownloadRecord)
+                    }
+                  >
+                    Force Delete Now
+                  </button>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
+
       {isAdmin && pendingRequests.length > 0 ? (
         <div className="space-y-3">
           <h2 className="text-xl font-semibold">Pending Delete Requests</h2>
@@ -474,8 +599,10 @@ export function Downloads() {
         <div className="space-y-3">
           {visibleDownloads.map((download) => {
             const progress = Math.max(0, Math.min(100, download.progressPercent || 0));
-            const deleteLabel =
-              isAdmin || download.isFreeleech ? "Delete Torrent" : "Request Delete";
+            const safeIn = download.safeToDeleteAt
+              ? formatCountdown(download.safeToDeleteAt)
+              : null;
+            const deleteLabel = isAdmin ? "Delete Torrent" : "Request Delete";
             const actionElement = download.deletedAt ? (
               <span className="shrink-0 text-xs opacity-70">
                 Deleted by {download.deletedByUsername || "unknown"} at{" "}
@@ -507,11 +634,19 @@ export function Downloads() {
                       ) : null}
                     </p>
                     <div className="flex gap-2">
+                      {download.hasHitAndRun && !download.deletedAt ? (
+                        <span className="badge badge-warning badge-sm">Hit &amp; Run</span>
+                      ) : null}
                       {download.hasPendingDeleteRequest && !download.deletedAt ? (
                         <span className="badge badge-info badge-sm">Delete Pending</span>
                       ) : null}
                       {download.deletedAt ? (
                         <span className="badge badge-neutral badge-sm">Deleted</span>
+                      ) : null}
+                      {safeIn && safeIn !== "now" && !download.deletedAt ? (
+                        <span className="badge badge-outline badge-sm">
+                          Safe in {safeIn}
+                        </span>
                       ) : null}
                     </div>
                   </div>

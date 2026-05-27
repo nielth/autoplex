@@ -46,20 +46,25 @@ type DownloadEventRecord struct {
 	DeletedAt         *string `json:"deletedAt,omitempty"`
 	DeletedByUsername *string `json:"deletedByUsername,omitempty"`
 	HasPendingDelete  bool    `json:"hasPendingDeleteRequest"`
+	HasHitAndRun      bool    `json:"hasHitAndRun"`
+	CompletedAt       *string `json:"completedAt,omitempty"`
+	SafeToDeleteAt    *string `json:"safeToDeleteAt,omitempty"`
 	QbtHash           string  `json:"-"`
 }
 
 type DownloadDeleteRequestRecord struct {
-	ID                  uint64 `json:"id"`
-	DownloadEventID     uint64 `json:"downloadEventID"`
-	RequestedByUsername string `json:"requestedByUsername"`
-	Status              string `json:"status"`
-	Reason              string `json:"reason"`
-	ApprovedByUsername  string `json:"approvedByUsername,omitempty"`
-	CreatedAt           string `json:"createdAt"`
-	ApprovedAt          string `json:"approvedAt,omitempty"`
-	DownloadFilename    string `json:"downloadFilename,omitempty"`
-	DownloadFid         string `json:"downloadFid,omitempty"`
-	DownloadSize        uint64 `json:"downloadSize"`
-	DownloadIsFreeleech bool   `json:"downloadIsFreeleech"`
+	ID                  uint64  `json:"id"`
+	DownloadEventID     uint64  `json:"downloadEventID"`
+	RequestedByUsername string  `json:"requestedByUsername"`
+	Status              string  `json:"status"`
+	Reason              string  `json:"reason"`
+	ApprovedByUsername  string  `json:"approvedByUsername,omitempty"`
+	CreatedAt           string  `json:"createdAt"`
+	ApprovedAt          string  `json:"approvedAt,omitempty"`
+	SafeToDeleteAt      *string `json:"safeToDeleteAt,omitempty"`
+	AutoDeleteAt        *string `json:"autoDeleteAt,omitempty"`
+	DownloadFilename    string  `json:"downloadFilename,omitempty"`
+	DownloadFid         string  `json:"downloadFid,omitempty"`
+	DownloadSize        uint64  `json:"downloadSize"`
+	DownloadIsFreeleech bool    `json:"downloadIsFreeleech"`
 }

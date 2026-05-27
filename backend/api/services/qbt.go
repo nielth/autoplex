@@ -82,16 +82,17 @@ func qbtLoginHandler() (*string, string, error) {
 }
 
 type QbtDownloadList struct {
-	Added_on     int     `json:"added_on"`
-	Amount_left  int     `json:"amount_left"`
-	Hash         string  `json:"hash"`
-	Name         string  `json:"name"`
-	Num_complete int     `json:"num_complete"`
-	Num_leechs   int     `json:"num_leechs"`
-	Num_seeds    int     `json:"num_seeds"`
-	Progress     float64 `json:"progress"`
-	Size         int     `json:"size"`
-	State        string  `json:"state"`
+	Added_on      int     `json:"added_on"`
+	Amount_left   int     `json:"amount_left"`
+	Completion_on int     `json:"completion_on"`
+	Hash          string  `json:"hash"`
+	Name          string  `json:"name"`
+	Num_complete  int     `json:"num_complete"`
+	Num_leechs    int     `json:"num_leechs"`
+	Num_seeds     int     `json:"num_seeds"`
+	Progress      float64 `json:"progress"`
+	Size          int     `json:"size"`
+	State         string  `json:"state"`
 }
 
 func QbtGetDownloadingList() (*[]QbtDownloadList, error) {
@@ -301,7 +302,7 @@ func qbtResolveHashByTag(cookie string, qbtURL string, tag string) (string, erro
 	return "", fmt.Errorf("unable to resolve qbt hash after add")
 }
 
-func QbtDownload(data *[]byte, category string, fid string) (string, error) {
+func QbtDownload(data *[]byte, category string, fid string, sequential bool) (string, error) {
 	cookie, qbtURL, err := qbtLoginHandler()
 	if err != nil {
 		fmt.Println(err)
@@ -327,8 +328,10 @@ func QbtDownload(data *[]byte, category string, fid string) (string, error) {
 		return "", err
 	}
 
-	if err := writer.WriteField("sequentialDownload", "true"); err != nil {
-		return "", err
+	if sequential {
+		if err := writer.WriteField("sequentialDownload", "true"); err != nil {
+			return "", err
+		}
 	}
 
 	if err := writer.WriteField("tags", tag); err != nil {

@@ -499,7 +499,7 @@ func processEpisodeJob(job tvEpisodeJobRow) error {
 			downloadEventID = eventID
 		}
 	} else {
-		qbtHash, downloadErr := TlDownloadRequest(downloadData)
+		qbtHash, downloadErr := TlDownloadRequest(downloadData, false)
 		if downloadErr != nil {
 			return markEpisodeJobRetry(job, fmt.Sprintf("download request failed: %v", downloadErr))
 		}
@@ -1993,7 +1993,7 @@ func installSeasonBoxsetIfPossible(
 		return true, false, nil
 	}
 
-	qbtHash, err := TlDownloadRequest(downloadData)
+	qbtHash, err := TlDownloadRequest(downloadData, false)
 	if err != nil {
 		return true, false, err
 	}

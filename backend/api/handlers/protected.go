@@ -70,7 +70,7 @@ func TlDownloadHandler(c *gin.Context) {
 		return
 	}
 
-	qbtHash, err := services.TlDownloadRequest(data)
+	qbtHash, err := services.TlDownloadRequest(data, true)
 	if err != nil {
 		if logErr := services.LogDownloadEvent(username, data, "", false, err.Error(), c.ClientIP(), c.Request.UserAgent()); logErr != nil {
 			log.Printf("failed to write download event: %v", logErr)
@@ -130,18 +130,34 @@ func DownloadDeleteHandler(c *gin.Context) {
 			c.JSON(http.StatusConflict, gin.H{"error": svcErr.Error()})
 		case errors.Is(svcErr, services.ErrDeleteRequestAlreadyPending):
 			c.JSON(http.StatusConflict, gin.H{"error": svcErr.Error()})
+		case errors.Is(svcErr, services.ErrDownloadNotComplete):
+			c.JSON(http.StatusConflict, gin.H{"error": svcErr.Error()})
 		default:
 			c.JSON(http.StatusInternalServerError, gin.H{"error": svcErr.Error()})
 		}
 		return
 	}
 
-	if action == services.DownloadDeleteActionRequested {
+	switch action {
+	case services.DownloadDeleteActionRequested, services.DownloadDeleteActionHitAndRun:
 		c.JSON(http.StatusAccepted, gin.H{"status": action})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"status": action})
+}
+
+func HitAndRunRequestsHandler(c *gin.Context) {
+	username := c.GetString("username")
+	isAdmin := c.GetBool("is_admin")
+
+	requests, err := services.ListHitAndRunRequests(username, isAdmin)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"requests": requests})
 }
 
 func PendingDeleteRequestsHandler(c *gin.Context) {

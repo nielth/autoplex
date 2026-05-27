@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-const tlRssPollInterval = 3 * time.Minute
+const tlRssPollInterval = 6 * time.Minute
 
 var (
 	tlRssWorkerOnce        sync.Once
@@ -224,7 +224,7 @@ func processTlRssItem(item tlRssItem, subs []tlRssSubscriptionMatch) {
 		Size:       uint64(item.Enclosure.Length),
 	}
 
-	qbtHash, err := TlDownloadRequest(data)
+	qbtHash, err := TlDownloadRequest(data, false)
 	if err != nil {
 		log.Printf("tl rss download failed title=%q fid=%s: %v", title, fid, err)
 		return
