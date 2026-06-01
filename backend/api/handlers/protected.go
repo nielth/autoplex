@@ -148,16 +148,13 @@ func DownloadDeleteHandler(c *gin.Context) {
 			c.JSON(http.StatusConflict, gin.H{"error": svcErr.Error()})
 		case errors.Is(svcErr, services.ErrDeleteRequestAlreadyPending):
 			c.JSON(http.StatusConflict, gin.H{"error": svcErr.Error()})
-		case errors.Is(svcErr, services.ErrDownloadNotComplete):
-			c.JSON(http.StatusConflict, gin.H{"error": svcErr.Error()})
 		default:
 			c.JSON(http.StatusInternalServerError, gin.H{"error": svcErr.Error()})
 		}
 		return
 	}
 
-	switch action {
-	case services.DownloadDeleteActionRequested, services.DownloadDeleteActionHitAndRun:
+	if action == services.DownloadDeleteActionRequested {
 		c.JSON(http.StatusAccepted, gin.H{"status": action})
 		return
 	}

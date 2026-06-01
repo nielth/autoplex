@@ -264,13 +264,8 @@ export function Downloads() {
         {},
         { withCredentials: true }
       );
-      const action: string | undefined = response.data?.status;
-      if (action === "hit_and_run") {
-        setMessage(
-          "Marked as Hit & Run — torrent will auto-delete once seeding requirement is met"
-        );
-      } else if (response.status === 202) {
-        setMessage("Delete request submitted");
+      if (response.status === 202) {
+        setMessage("Delete request submitted — torrent paused if it was still downloading");
       } else {
         setMessage("Torrent deleted");
       }

@@ -18,14 +18,12 @@ var (
 	ErrDeleteRequestNotFound       = errors.New("delete request not found")
 	ErrDeleteRequestNotPending     = errors.New("delete request is not pending")
 	ErrDownloadMissingHash         = errors.New("download is missing qbt hash and cannot be deleted")
-	ErrDownloadNotComplete         = errors.New("torrent has not reached 100% yet; only an admin can delete it now")
 	ErrAdminRequired               = errors.New("admin role is required")
 )
 
 const (
 	DownloadDeleteActionDeleted   = "deleted"
 	DownloadDeleteActionRequested = "delete_requested"
-	DownloadDeleteActionHitAndRun = "hit_and_run"
 
 	seedRequiredDuration    = 168 * time.Hour
 	autoDeleteGraceDuration = 24 * time.Hour
@@ -423,6 +421,15 @@ func ListDownloadEvents(username string, isAdmin bool, params DownloadListParams
 	return &DownloadListResult{Downloads: downloads, Total: total, AvailableUsers: availableUsers}, nil
 }
 
+func isActiveTorrentState(state string) bool {
+	switch strings.ToLower(strings.TrimSpace(state)) {
+	case "downloading", "stalleddl", "forceddl", "metadl", "queueddl", "checkingdl", "allocating":
+		return true
+	default:
+		return false
+	}
+}
+
 func DeleteOrRequestDownload(downloadID uint64, username string, isAdmin bool, reason string) (string, error) {
 	cleanUsername := strings.TrimSpace(username)
 	if cleanUsername == "" {
@@ -450,19 +457,21 @@ func DeleteOrRequestDownload(downloadID uint64, username string, isAdmin bool, r
 
 	var (
 		ownerUsername string
+		isFreeleech   bool
 		qbtHash       sql.NullString
 		deletedAt     sql.NullTime
 	)
 
 	err = tx.QueryRowContext(
 		ctx,
-		`SELECT COALESCE(username, ''), qbt_hash, deleted_at
+		`SELECT COALESCE(username, ''), is_freeleech, qbt_hash, deleted_at
 		FROM download_events
 		WHERE id = ? AND success = 1
 		FOR UPDATE`,
 		downloadID,
 	).Scan(
 		&ownerUsername,
+		&isFreeleech,
 		&qbtHash,
 		&deletedAt,
 	)
@@ -486,8 +495,6 @@ func DeleteOrRequestDownload(downloadID uint64, username string, isAdmin bool, r
 		return "", ErrDownloadMissingHash
 	}
 
-	// Always consult qBit to decide hit & run eligibility — even admin deletes
-	// should be audited with the snapshotted timestamps when applicable.
 	torrent, lookupErr := QbtGetTorrentByHash(cleanHash)
 	if lookupErr != nil {
 		return "", lookupErr
@@ -499,10 +506,14 @@ func DeleteOrRequestDownload(downloadID uint64, username string, isAdmin bool, r
 	}
 
 	now := time.Now().UTC()
-	safeToDelete := window.hasWindow && !now.Before(window.safeAt)
+	pastAutoDeleteWindow := window.hasWindow && !now.Before(window.autoDeleteAt)
 
-	// Admin or safe-to-delete → straight-through delete.
-	if isAdmin || safeToDelete {
+	// Instant-delete eligibility:
+	//   - admin (always), OR
+	//   - regular user on a freeleech torrent that's past the 168+24h window.
+	canInstantDelete := isAdmin || (isFreeleech && pastAutoDeleteWindow)
+
+	if canInstantDelete {
 		if err := QbtDelete(cleanHash); err != nil {
 			return "", err
 		}
@@ -579,9 +590,12 @@ func DeleteOrRequestDownload(downloadID uint64, username string, isAdmin bool, r
 		return DownloadDeleteActionDeleted, nil
 	}
 
-	// Regular user, not yet safe to delete. Block if the torrent has not finished.
-	if !window.hasWindow {
-		return "", ErrDownloadNotComplete
+	// Non-admin path: if still downloading, pause it so we stop accruing
+	// download stats while waiting on admin approval.
+	if torrent != nil && isActiveTorrentState(torrent.State) {
+		if pauseErr := QbtPause(cleanHash); pauseErr != nil {
+			fmt.Printf("failed to pause torrent %s during delete request: %v\n", cleanHash, pauseErr)
+		}
 	}
 
 	var hasOpen bool
@@ -599,7 +613,12 @@ func DeleteOrRequestDownload(downloadID uint64, username string, isAdmin bool, r
 	}
 
 	if hasOpen {
-		return "", ErrDeleteRequestAlreadyPending
+		// Treat duplicate clicks as a no-op success — the request is already
+		// queued. The caller's intent (mark for delete) is satisfied.
+		if err := tx.Commit(); err != nil {
+			return "", err
+		}
+		return DownloadDeleteActionRequested, nil
 	}
 
 	if _, err := tx.ExecContext(
@@ -612,13 +631,13 @@ func DeleteOrRequestDownload(downloadID uint64, username string, isAdmin bool, r
 			request_note,
 			safe_to_delete_at,
 			auto_delete_at
-		) VALUES (?, ?, ?, 'hit_and_run', ?, ?, ?)`,
+		) VALUES (?, ?, ?, 'pending', ?, ?, ?)`,
 		downloadID,
 		userID,
 		cleanUsername,
 		nullableString(reason),
-		window.safeAt,
-		window.autoDeleteAt,
+		nullableHitAndRunTime(window, "safe"),
+		nullableHitAndRunTime(window, "auto"),
 	); err != nil {
 		return "", err
 	}
@@ -627,7 +646,7 @@ func DeleteOrRequestDownload(downloadID uint64, username string, isAdmin bool, r
 		return "", err
 	}
 
-	return DownloadDeleteActionHitAndRun, nil
+	return DownloadDeleteActionRequested, nil
 }
 
 func nullableHitAndRunTime(window hitAndRunWindow, kind string) any {
