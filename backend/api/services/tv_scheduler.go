@@ -473,6 +473,14 @@ func processEpisodeJob(job tvEpisodeJobRow) error {
 
 	selected := SelectBestTorrentByQuality(torrents, job.PreferredQuality)
 	if selected == nil {
+		// No single-episode release found. For all-at-once/binge seasons the
+		// content often exists only as a season pack, so try the boxset before
+		// backing off and retrying.
+		if installed, boxErr := tryInstallSeasonBoxsetForJob(job); boxErr != nil {
+			log.Printf("season boxset fallback failed for job %d (show %d season %d): %v", job.ID, job.TvMazeShowID, job.SeasonNumber.Int64, boxErr)
+		} else if installed {
+			return nil
+		}
 		return markEpisodeJobRetry(job, fmt.Sprintf("no %sp torrent found yet", NormalizeQualityPreference(job.PreferredQuality)))
 	}
 
@@ -516,6 +524,69 @@ func processEpisodeJob(job tvEpisodeJobRow) error {
 	}
 
 	return markEpisodeJobDownloaded(job.ID, downloadEventID)
+}
+
+// tryInstallSeasonBoxsetForJob attempts to satisfy a single-episode auto-install
+// job from a full-season boxset. This covers all-at-once/binge releases that are
+// published only as a season pack and never as individual sXXeYY torrents. It
+// returns true only when this job's own episode ends up downloaded, so the caller
+// knows it can stop retrying.
+func tryInstallSeasonBoxsetForJob(job tvEpisodeJobRow) (bool, error) {
+	if !job.SeasonNumber.Valid || job.SeasonNumber.Int64 <= 0 {
+		return false, nil
+	}
+	seasonNumber := int(job.SeasonNumber.Int64)
+
+	userID, err := ensureUserByUsername(job.Username)
+	if err != nil {
+		return false, err
+	}
+
+	show, err := TvMazeGetShow(job.TvMazeShowID)
+	if err != nil {
+		return false, err
+	}
+
+	episodes, err := TvMazeGetEpisodes(job.TvMazeShowID)
+	if err != nil {
+		return false, err
+	}
+
+	seasonEpisodes := make([]TvMazeEpisode, 0)
+	for _, episode := range episodes {
+		if episode.Season == seasonNumber {
+			seasonEpisodes = append(seasonEpisodes, episode)
+		}
+	}
+	if len(seasonEpisodes) == 0 {
+		return false, nil
+	}
+
+	boxsetTorrents, err := TlSeriesBoxsetSearchByTvMaze(job.TvMazeShowID, job.TvMazeShowID)
+	if err != nil {
+		return false, err
+	}
+
+	matched, _, err := installSeasonBoxsetIfPossible(
+		userID,
+		job.Username,
+		show.ID,
+		show.Name,
+		seasonNumber,
+		job.PreferredQuality,
+		boxsetTorrents,
+		seasonEpisodes,
+	)
+	if err != nil {
+		return false, err
+	}
+	if !matched {
+		return false, nil
+	}
+
+	// installSeasonBoxsetIfPossible marks every installable season episode as
+	// downloaded; only report success once this job's episode is settled.
+	return isEpisodeJobDownloaded(userID, job.TvMazeEpisodeID, job.PreferredQuality)
 }
 
 func markEpisodeJobRetry(job tvEpisodeJobRow, reason string) error {
@@ -1644,6 +1715,10 @@ func queueSingleEpisodeJob(userID uint64, username string, subscriptionID *uint6
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 	defer cancel()
 
+	// Once a job is 'downloaded' it stays downloaded: a re-sync (which fires for
+	// every in-window episode at each sync slot) must not re-arm it back to
+	// 'pending'. Deleting a download — manually or via hit-and-run/freeleech
+	// auto-delete — therefore never triggers an auto-install re-fetch.
 	result, err := db.ExecContext(
 		ctx,
 		`INSERT INTO tv_episode_jobs (
@@ -1675,12 +1750,6 @@ func queueSingleEpisodeJob(userID uint64, username string, subscriptionID *uint6
 			airtime_known = VALUES(airtime_known),
 			next_check_at = CASE
 				WHEN status = 'downloaded'
-					AND EXISTS (
-						SELECT 1
-						FROM download_events d
-						WHERE d.id = downloaded_download_event_id
-						  AND d.deleted_at IS NULL
-					)
 				THEN next_check_at
 				WHEN VALUES(next_check_at) < next_check_at
 				THEN VALUES(next_check_at)
@@ -1690,23 +1759,11 @@ func queueSingleEpisodeJob(userID uint64, username string, subscriptionID *uint6
 			END,
 			status = CASE
 				WHEN status = 'downloaded'
-					AND EXISTS (
-						SELECT 1
-						FROM download_events d
-						WHERE d.id = downloaded_download_event_id
-						  AND d.deleted_at IS NULL
-					)
 				THEN status
 				ELSE 'pending'
 			END,
 			downloaded_download_event_id = CASE
 				WHEN status = 'downloaded'
-					AND EXISTS (
-						SELECT 1
-						FROM download_events d
-						WHERE d.id = downloaded_download_event_id
-						  AND d.deleted_at IS NULL
-					)
 				THEN downloaded_download_event_id
 				ELSE NULL
 			END,

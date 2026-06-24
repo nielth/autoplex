@@ -3,7 +3,9 @@ package services
 import (
 	"api/models"
 	"context"
+	"database/sql"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -205,7 +207,7 @@ func processTlRssItem(item tlRssItem, subs []tlRssSubscriptionMatch) {
 		return
 	}
 
-	hasJob, err := hasActiveEpisodeJob(match.userID, match.tvmazeShowID, season, episode, quality)
+	episodeID, hasJob, err := activeEpisodeJob(match.userID, match.tvmazeShowID, season, episode, quality)
 	if err != nil {
 		log.Printf("tl rss active job check failed show=%d s%02de%02d: %v", match.tvmazeShowID, season, episode, err)
 		return
@@ -215,13 +217,22 @@ func processTlRssItem(item tlRssItem, subs []tlRssSubscriptionMatch) {
 		return
 	}
 
+	// Per-episode guard mirroring the scheduler: if this episode already has a
+	// download (any quality), settle the job instead of grabbing another copy.
+	if eventID, epErr := findLatestDownloadEventIDByEpisode(episodeID, match.username); epErr == nil && eventID != nil {
+		markEpisodeJobsDownloadedForRss(match.userID, match.tvmazeShowID, season, episode, quality, eventID)
+		log.Printf("tl rss skip: show=%q s%02de%02d already downloaded, marked job", match.showName, season, episode)
+		return
+	}
+
 	filename := deriveTlRssFilename(link, title)
 	data := models.DownloadData{
-		Fid:        fid,
-		Filename:   filename,
-		CategoryID: tvDefaultCategoryID,
-		TvMazeID:   fmt.Sprintf("%d", match.tvmazeShowID),
-		Size:       uint64(item.Enclosure.Length),
+		Fid:             fid,
+		Filename:        filename,
+		CategoryID:      tvDefaultCategoryID,
+		TvMazeID:        fmt.Sprintf("%d", match.tvmazeShowID),
+		TvMazeEpisodeID: fmt.Sprintf("%d", episodeID),
+		Size:            uint64(item.Enclosure.Length),
 	}
 
 	qbtHash, err := TlDownloadRequest(data, false)
@@ -312,35 +323,42 @@ func tokensStartWithShow(titleTokens []string, showTokens []string) bool {
 	return true
 }
 
-func hasActiveEpisodeJob(userID uint64, tvmazeShowID int64, season int, episode int, quality string) (bool, error) {
+// activeEpisodeJob returns the tvmaze episode id of an active (pending/searching)
+// auto-install job matching the RSS-parsed season/episode/quality, and whether
+// one exists. The episode id lets RSS-originated downloads be recorded against
+// the episode so cross-worker per-episode dedup works.
+func activeEpisodeJob(userID uint64, tvmazeShowID int64, season int, episode int, quality string) (int64, bool, error) {
 	db, err := dbConn()
 	if err != nil {
-		return false, err
+		return 0, false, err
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	var exists bool
+	var episodeID int64
 	err = db.QueryRowContext(
 		ctx,
-		`SELECT EXISTS(
-			SELECT 1 FROM tv_episode_jobs
+		`SELECT tvmaze_episode_id FROM tv_episode_jobs
 			WHERE user_id = ?
 			  AND tvmaze_show_id = ?
 			  AND season_number = ?
 			  AND episode_number = ?
 			  AND preferred_quality = ?
 			  AND status IN ('pending', 'searching')
-		)`,
+			ORDER BY id ASC
+			LIMIT 1`,
 		userID,
 		tvmazeShowID,
 		season,
 		episode,
 		NormalizeQualityPreference(quality),
-	).Scan(&exists)
-	if err != nil {
-		return false, err
+	).Scan(&episodeID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, false, nil
 	}
-	return exists, nil
+	if err != nil {
+		return 0, false, err
+	}
+	return episodeID, true, nil
 }
