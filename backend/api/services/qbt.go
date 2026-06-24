@@ -2,13 +2,16 @@ package services
 
 import (
 	"bytes"
+	"crypto/sha1"
 	"crypto/tls"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -302,6 +305,86 @@ func qbtResolveHashByTag(cookie string, qbtURL string, tag string) (string, erro
 	return "", fmt.Errorf("unable to resolve qbt hash after add")
 }
 
+// torrentInfoHash returns the lowercase hex SHA1 of the bencoded info dict,
+// which is qBittorrent's torrent id for v1 torrents (all TorrentLeech torrents).
+// It returns "" when the bytes are not a parseable bencoded torrent so callers
+// can fall back to tag resolution.
+func torrentInfoHash(data []byte) string {
+	if len(data) == 0 || data[0] != 'd' {
+		return ""
+	}
+
+	pos := 1
+	for pos < len(data) && data[pos] != 'e' {
+		keyEnd, err := bencodeValueEnd(data, pos)
+		if err != nil {
+			return ""
+		}
+		colon := bytes.IndexByte(data[pos:keyEnd], ':')
+		if colon < 0 {
+			return ""
+		}
+		key := string(data[pos+colon+1 : keyEnd])
+
+		valEnd, err := bencodeValueEnd(data, keyEnd)
+		if err != nil {
+			return ""
+		}
+		if key == "info" {
+			sum := sha1.Sum(data[keyEnd:valEnd])
+			return hex.EncodeToString(sum[:])
+		}
+		pos = valEnd
+	}
+
+	return ""
+}
+
+// bencodeValueEnd returns the index just past the bencoded value starting at pos.
+func bencodeValueEnd(data []byte, pos int) (int, error) {
+	if pos >= len(data) {
+		return 0, fmt.Errorf("unexpected end of bencode")
+	}
+
+	switch c := data[pos]; {
+	case c == 'i': // i<digits>e
+		end := bytes.IndexByte(data[pos:], 'e')
+		if end < 0 {
+			return 0, fmt.Errorf("unterminated bencode integer")
+		}
+		return pos + end + 1, nil
+	case c == 'l', c == 'd': // list or dict: values until 'e'
+		pos++
+		for pos < len(data) && data[pos] != 'e' {
+			next, err := bencodeValueEnd(data, pos)
+			if err != nil {
+				return 0, err
+			}
+			pos = next
+		}
+		if pos >= len(data) {
+			return 0, fmt.Errorf("unterminated bencode container")
+		}
+		return pos + 1, nil
+	case c >= '0' && c <= '9': // <length>:<bytes>
+		colon := bytes.IndexByte(data[pos:], ':')
+		if colon < 0 {
+			return 0, fmt.Errorf("malformed bencode string")
+		}
+		length, err := strconv.Atoi(string(data[pos : pos+colon]))
+		if err != nil || length < 0 {
+			return 0, fmt.Errorf("malformed bencode string length")
+		}
+		end := pos + colon + 1 + length
+		if end > len(data) {
+			return 0, fmt.Errorf("bencode string out of range")
+		}
+		return end, nil
+	default:
+		return 0, fmt.Errorf("invalid bencode token %q", c)
+	}
+}
+
 func QbtDownload(data *[]byte, category string, fid string, sequential bool, filename string) (string, error) {
 	cookie, qbtURL, err := qbtLoginHandler()
 	if err != nil {
@@ -312,6 +395,12 @@ func QbtDownload(data *[]byte, category string, fid string, sequential bool, fil
 	var torrentData bytes.Buffer
 	writer := multipart.NewWriter(&torrentData)
 	tag := qbtTagFromFid(fid)
+
+	// Compute the torrent's info-hash locally so we always know qBittorrent's
+	// torrent id regardless of how fast (or whether) qbt indexes our tag. This
+	// makes the add idempotent: a slow tag lookup or a 409 no longer loses the
+	// torrent, which is what previously left installed torrents unrecorded.
+	infoHash := torrentInfoHash(*data)
 
 	part, err := writer.CreateFormFile("torrents", "torrentfile.torrent")
 	if err != nil {
@@ -365,13 +454,29 @@ func QbtDownload(data *[]byte, category string, fid string, sequential bool, fil
 
 	if res.StatusCode == http.StatusConflict {
 		// qBit 5.x returns 409 when the same info-hash is already loaded.
-		// Adopt the existing torrent by matching its name and applying our tag.
+		// We already know that info-hash, so adopt the existing torrent by hash
+		// and (best-effort) re-apply our tag. Fall back to name matching only
+		// when we could not compute the hash.
+		if infoHash != "" {
+			if tagErr := qbtAddTag(*cookie, qbtURL, infoHash, tag); tagErr != nil {
+				fmt.Printf("adopted existing qbt torrent %s on 409 but tagging failed: %v\n", infoHash, tagErr)
+			}
+			return infoHash, nil
+		}
 		return qbtAdoptExistingByName(*cookie, qbtURL, filename, tag)
 	}
 
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
 		body, _ := io.ReadAll(res.Body)
 		return "", fmt.Errorf("qbt add failed with status %d: %s", res.StatusCode, string(body))
+	}
+
+	// The add succeeded. Prefer the locally-computed info-hash (authoritative for
+	// v1 torrents) so a slow tag lookup can never make the caller treat a
+	// successful add as a failure. Only fall back to tag resolution if we could
+	// not parse the torrent.
+	if infoHash != "" {
+		return infoHash, nil
 	}
 
 	qbtHash, err := qbtResolveHashByTag(*cookie, qbtURL, tag)
