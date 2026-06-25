@@ -468,6 +468,10 @@ func tokenizeTitle(value string) []string {
 		return nil
 	}
 
+	// Drop apostrophes so possessives collapse the way scene releases name them:
+	// "Widow's Bay" -> "widows bay" matches "Widows.Bay...", not "widow s bay".
+	clean = strings.NewReplacer("'", "", "’", "", "`", "").Replace(clean)
+
 	return regexp.MustCompile(`[a-z0-9]+`).FindAllString(clean, -1)
 }
 
