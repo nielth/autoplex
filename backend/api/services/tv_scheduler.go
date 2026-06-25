@@ -2028,6 +2028,16 @@ func installSeasonBoxsetIfPossible(
 		quality,
 	)
 	if selected == nil {
+		// No boxset matched. Log what the search returned so the fallback to
+		// per-episode installs is diagnosable instead of silent.
+		names := make([]string, 0, len(boxsetTorrents))
+		for _, torrent := range boxsetTorrents {
+			names = append(names, torrent.Name)
+		}
+		log.Printf(
+			"no boxset matched show=%q season=%d quality=%s: %d candidates returned %v",
+			showName, seasonNumber, quality, len(boxsetTorrents), names,
+		)
 		return false, false, nil
 	}
 
