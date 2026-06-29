@@ -569,6 +569,20 @@ func seasonTokenMatches(value string, seasonNumber int) bool {
 	return false
 }
 
+// deriveTorrentFilename picks a human-readable name for the download record.
+// Some TL uploads carry a useless placeholder filename ("torrent.torrent") or
+// none at all; fall back to the release name so /downloads shows the real
+// title instead of "torrent.torrent".
+func deriveTorrentFilename(filename string, name string) string {
+	clean := strings.TrimSpace(filename)
+	if clean == "" || strings.EqualFold(clean, "torrent.torrent") {
+		if release := strings.TrimSpace(name); release != "" {
+			return strings.ReplaceAll(release, " ", ".") + ".torrent"
+		}
+	}
+	return clean
+}
+
 func ConvertTlSeriesTorrentToDownloadData(torrent TlSeriesTorrent, tvmazeID int64, tvmazeEpisodeID int64) models.DownloadData {
 	tags := make(map[string]struct{}, len(torrent.Tags))
 	for _, tag := range torrent.Tags {
@@ -579,7 +593,7 @@ func ConvertTlSeriesTorrentToDownloadData(torrent TlSeriesTorrent, tvmazeID int6
 
 	return models.DownloadData{
 		Fid:             strings.TrimSpace(torrent.Fid),
-		Filename:        strings.TrimSpace(torrent.Filename),
+		Filename:        deriveTorrentFilename(torrent.Filename, torrent.Name),
 		CategoryID:      torrent.CategoryID,
 		Size:            torrent.Size,
 		IsFreeleech:     isFreeleech,
