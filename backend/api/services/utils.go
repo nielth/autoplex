@@ -167,7 +167,7 @@ func tlPostFormRequest(rawURL string, values url.Values, ua *string) ([]byte, er
 }
 
 func TlSearchRequest(search string, page string) (map[string]any, error) {
-	url := "https://www.torrentleech.org/torrents/browse/list/categories/37,43,14,12,47,15,29,26,32,27,44,36/query/" + search + "/orderby/seeders/order/desc/page/" + page
+	url := "https://www.torrentleech.org/torrents/browse/list/categories/37,43,14,12,47,15,29,34,26,32,27,44,36/query/" + search + "/orderby/seeders/order/desc/page/" + page
 
 	body, err := tlGetRequest(url, nil)
 

@@ -2,7 +2,7 @@ package services
 
 import "slices"
 
-var movieCategoryIDs = []int{8, 9, 11, 37, 43, 14, 12, 13, 47, 15, 29, 36}
+var movieCategoryIDs = []int{8, 9, 11, 37, 43, 14, 12, 13, 47, 15, 29, 34, 36}
 var tvCategoryIDs = []int{26, 32, 27, 44}
 
 func ResolveQbtCategory(categoryID int) (string, bool) {
