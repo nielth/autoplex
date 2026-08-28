@@ -52,7 +52,8 @@ type tlRssSubscriptionMatch struct {
 	tvmazeShowID int64
 	showName     string
 	showTokens   []string
-	qualities    map[string]struct{}
+	// qualities maps an enabled quality to its wanted dynamic range.
+	qualities map[string]string
 }
 
 func StartTlRssWorker() {
@@ -125,7 +126,7 @@ func loadTlRssSubscriptionIndex() ([]tlRssSubscriptionMatch, error) {
 
 	rows, err := db.QueryContext(
 		ctx,
-		`SELECT s.user_id, u.username, s.tvmaze_show_id, COALESCE(s.show_name, ''), q.preferred_quality
+		`SELECT s.user_id, u.username, s.tvmaze_show_id, COALESCE(s.show_name, ''), q.preferred_quality, q.dynamic_range
 		FROM tv_show_subscriptions s
 		INNER JOIN users u ON u.id = s.user_id
 		INNER JOIN tv_show_auto_install_qualities q
@@ -145,7 +146,8 @@ func loadTlRssSubscriptionIndex() ([]tlRssSubscriptionMatch, error) {
 	for rows.Next() {
 		var r tlRssSubscriptionMatch
 		var quality string
-		if err := rows.Scan(&r.userID, &r.username, &r.tvmazeShowID, &r.showName, &quality); err != nil {
+		var dynamicRange string
+		if err := rows.Scan(&r.userID, &r.username, &r.tvmazeShowID, &r.showName, &quality, &dynamicRange); err != nil {
 			return nil, err
 		}
 
@@ -153,12 +155,13 @@ func loadTlRssSubscriptionIndex() ([]tlRssSubscriptionMatch, error) {
 		existing, ok := indexByKey[key]
 		if !ok {
 			r.showTokens = tokenizeTitle(r.showName)
-			r.qualities = map[string]struct{}{}
+			r.qualities = map[string]string{}
 			indexByKey[key] = &r
 			ordered = append(ordered, &r)
 			existing = &r
 		}
-		existing.qualities[NormalizeQualityPreference(quality)] = struct{}{}
+		normalizedQuality := NormalizeQualityPreference(quality)
+		existing.qualities[normalizedQuality] = EffectiveDynamicRange(normalizedQuality, dynamicRange)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -283,13 +286,31 @@ func matchTlRssItem(title string, subs []tlRssSubscriptionMatch) (*tlRssSubscrip
 		if !tokensStartWithShow(tokens, sub.showTokens) {
 			continue
 		}
-		for normalized := range sub.qualities {
-			if hasQualityToken(title, normalized) {
-				return sub, normalized, season, episode
+		for normalized, dynamicRange := range sub.qualities {
+			if !hasQualityToken(title, normalized) {
+				continue
 			}
+			if !titleMatchesDynamicRange(title, dynamicRange) {
+				continue
+			}
+			return sub, normalized, season, episode
 		}
 	}
 	return nil, "", 0, 0
+}
+
+// titleMatchesDynamicRange gates an RSS item on the wanted dynamic range. The
+// feed is a stream, so the DV-then-HDR fallback cannot be applied here: "dv"
+// takes Dolby Vision only and the scheduler search handles the HDR fallback.
+func titleMatchesDynamicRange(title string, dynamicRange string) bool {
+	switch dynamicRange {
+	case "dv":
+		return HasDolbyVisionToken(title)
+	case "hdr":
+		return HasHdrToken(title) && !HasDolbyVisionToken(title)
+	default:
+		return true
+	}
 }
 
 func extractSingleEpisodeToken(tokens []string) (int, int, bool) {

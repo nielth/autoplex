@@ -13,11 +13,15 @@ import (
 
 type tvInstallRequest struct {
 	Quality string `json:"quality"`
+	// DynamicRange is only honoured at 2160p: "any", "dv" (Dolby Vision with
+	// plain HDR fallback) or "hdr" (HDR without Dolby Vision).
+	DynamicRange string `json:"dynamicRange"`
 }
 
 type tvAutoInstallRequest struct {
-	Enabled bool   `json:"enabled"`
-	Quality string `json:"quality"`
+	Enabled      bool   `json:"enabled"`
+	Quality      string `json:"quality"`
+	DynamicRange string `json:"dynamicRange"`
 }
 
 func TvMazeSearchShowsHandler(c *gin.Context) {
@@ -148,7 +152,7 @@ func TvMazeConfigureAutoInstallHandler(c *gin.Context) {
 		enabled = false
 	}
 
-	subscription, err := services.ConfigureTvShowAutoInstall(username, *show, input.Quality, enabled)
+	subscription, err := services.ConfigureTvShowAutoInstall(username, *show, input.Quality, input.DynamicRange, enabled)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -186,7 +190,7 @@ func TvMazeConfigurePreferredQualityHandler(c *gin.Context) {
 	}
 
 	username := c.GetString("username")
-	subscription, err := services.ConfigureTvShowPreferredQuality(username, *show, input.Quality)
+	subscription, err := services.ConfigureTvShowPreferredQuality(username, *show, input.Quality, input.DynamicRange)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -218,7 +222,7 @@ func TvMazeInstallWholeShowHandler(c *gin.Context) {
 	}
 
 	username := c.GetString("username")
-	result, err := services.QueueWholeShowInstall(username, showID, input.Quality)
+	result, err := services.QueueWholeShowInstall(username, showID, input.Quality, input.DynamicRange)
 	if err != nil {
 		handleTvMazeError(c, err)
 		return
@@ -247,7 +251,7 @@ func TvMazeInstallSeasonHandler(c *gin.Context) {
 	}
 
 	username := c.GetString("username")
-	result, err := services.QueueSeasonInstall(username, showID, seasonNumber, input.Quality)
+	result, err := services.QueueSeasonInstall(username, showID, seasonNumber, input.Quality, input.DynamicRange)
 	if err != nil {
 		handleTvMazeError(c, err)
 		return
@@ -276,7 +280,7 @@ func TvMazeInstallEpisodeHandler(c *gin.Context) {
 	}
 
 	username := c.GetString("username")
-	result, err := services.QueueEpisodeInstall(username, showID, episodeID, input.Quality)
+	result, err := services.QueueEpisodeInstall(username, showID, episodeID, input.Quality, input.DynamicRange)
 	if err != nil {
 		handleTvMazeError(c, err)
 		return
