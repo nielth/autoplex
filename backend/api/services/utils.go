@@ -250,6 +250,13 @@ type TlSeriesTorrent struct {
 
 var validQualityPreferences = []string{"1080", "2160"}
 
+// Dynamic range preferences for 2160p auto-install:
+//
+//	any - take the best 2160p release regardless of dynamic range
+//	dv  - prefer Dolby Vision, fall back to plain HDR when no DV release exists
+//	hdr - only take HDR releases that are not also Dolby Vision
+var validDynamicRangePreferences = []string{"any", "dv", "hdr"}
+
 func NormalizeQualityPreference(value string) string {
 	clean := strings.TrimSpace(strings.ToLower(value))
 	if clean == "2160p" {
@@ -262,6 +269,30 @@ func NormalizeQualityPreference(value string) string {
 		return clean
 	}
 	return "1080"
+}
+
+func NormalizeDynamicRangePreference(value string) string {
+	clean := strings.TrimSpace(strings.ToLower(value))
+	switch clean {
+	case "dovi", "dolbyvision", "dolby vision", "dv":
+		clean = "dv"
+	case "hdr10", "hdr10+", "hdr":
+		clean = "hdr"
+	}
+	if slices.Contains(validDynamicRangePreferences, clean) {
+		return clean
+	}
+	return "any"
+}
+
+// EffectiveDynamicRange only lets the preference through for 2160p; 1080p
+// releases are practically never tagged DV/HDR, so a stale preference there
+// would filter every candidate away.
+func EffectiveDynamicRange(quality string, dynamicRange string) string {
+	if NormalizeQualityPreference(quality) != "2160" {
+		return "any"
+	}
+	return NormalizeDynamicRangePreference(dynamicRange)
 }
 
 func TlSeriesSearchByTvMaze(tvmazeEpisodeID int64, tvmazeID int64) ([]TlSeriesTorrent, error) {
@@ -316,7 +347,7 @@ func TlSeriesBoxsetSearchByTvMaze(tvmazeSeriesID int64, tvmazeID int64) ([]TlSer
 	return torrentList, nil
 }
 
-func SelectBestTorrentByQuality(torrents []TlSeriesTorrent, quality string) *TlSeriesTorrent {
+func SelectBestTorrentByQuality(torrents []TlSeriesTorrent, quality string, dynamicRange string) *TlSeriesTorrent {
 	if len(torrents) == 0 {
 		return nil
 	}
@@ -332,26 +363,10 @@ func SelectBestTorrentByQuality(torrents []TlSeriesTorrent, quality string) *TlS
 		}
 	}
 
-	if len(candidates) == 0 {
-		return nil
-	}
-
-	best := candidates[0]
-	for _, torrent := range candidates[1:] {
-		if torrent.Seeders > best.Seeders {
-			best = torrent
-			continue
-		}
-
-		if torrent.Seeders == best.Seeders && torrent.AddedTimestamp > best.AddedTimestamp {
-			best = torrent
-		}
-	}
-
-	return &best
+	return pickBestByDynamicRange(candidates, EffectiveDynamicRange(preferredQuality, dynamicRange))
 }
 
-func SelectBestBoxsetTorrentByQuality(torrents []TlSeriesTorrent, showName string, seasonNumber int, quality string) *TlSeriesTorrent {
+func SelectBestBoxsetTorrentByQuality(torrents []TlSeriesTorrent, showName string, seasonNumber int, quality string, dynamicRange string) *TlSeriesTorrent {
 	if len(torrents) == 0 {
 		return nil
 	}
@@ -377,6 +392,39 @@ func SelectBestBoxsetTorrentByQuality(torrents []TlSeriesTorrent, showName strin
 		}
 	}
 
+	return pickBestByDynamicRange(candidates, EffectiveDynamicRange(preferredQuality, dynamicRange))
+}
+
+// pickBestByDynamicRange narrows quality-matched candidates to the wanted
+// dynamic range before picking the best one: "hdr" keeps HDR releases that are
+// not also Dolby Vision, "dv" prefers Dolby Vision and falls back to those same
+// plain HDR releases when no DV release exists, and "any" keeps every candidate.
+func pickBestByDynamicRange(candidates []TlSeriesTorrent, dynamicRange string) *TlSeriesTorrent {
+	switch dynamicRange {
+	case "dv":
+		if best := pickBestTorrent(filterTorrents(candidates, torrentHasDolbyVision)); best != nil {
+			return best
+		}
+		return pickBestTorrent(filterTorrents(candidates, torrentHasHdrWithoutDolbyVision))
+	case "hdr":
+		return pickBestTorrent(filterTorrents(candidates, torrentHasHdrWithoutDolbyVision))
+	default:
+		return pickBestTorrent(candidates)
+	}
+}
+
+func filterTorrents(torrents []TlSeriesTorrent, keep func(TlSeriesTorrent) bool) []TlSeriesTorrent {
+	filtered := make([]TlSeriesTorrent, 0, len(torrents))
+	for _, torrent := range torrents {
+		if keep(torrent) {
+			filtered = append(filtered, torrent)
+		}
+	}
+	return filtered
+}
+
+// pickBestTorrent prefers the most seeded release, newest wins a tie.
+func pickBestTorrent(candidates []TlSeriesTorrent) *TlSeriesTorrent {
 	if len(candidates) == 0 {
 		return nil
 	}
@@ -394,6 +442,46 @@ func SelectBestBoxsetTorrentByQuality(torrents []TlSeriesTorrent, showName strin
 	}
 
 	return &best
+}
+
+func torrentHasDolbyVision(torrent TlSeriesTorrent) bool {
+	return HasDolbyVisionToken(torrent.Name) || HasDolbyVisionToken(torrent.Filename)
+}
+
+func torrentHasHdrWithoutDolbyVision(torrent TlSeriesTorrent) bool {
+	if torrentHasDolbyVision(torrent) {
+		return false
+	}
+	return HasHdrToken(torrent.Name) || HasHdrToken(torrent.Filename)
+}
+
+// HasDolbyVisionToken reports whether a release name is tagged Dolby Vision,
+// e.g. "...DDP5.1.Atmos.DV.HDR.H.265-FLUX" or "...DoVi.HDR10...".
+func HasDolbyVisionToken(value string) bool {
+	tokens := tokenizeTitle(value)
+	for index, token := range tokens {
+		switch token {
+		case "dv", "dovi", "dolbyvision":
+			return true
+		case "dolby":
+			if index+1 < len(tokens) && tokens[index+1] == "vision" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// HasHdrToken reports whether a release name is tagged HDR (HDR, HDR10,
+// HDR10+). DV releases usually carry an HDR tag too, so callers wanting plain
+// HDR must rule out Dolby Vision separately.
+func HasHdrToken(value string) bool {
+	for _, token := range tokenizeTitle(value) {
+		if strings.HasPrefix(token, "hdr") {
+			return true
+		}
+	}
+	return false
 }
 
 func boxsetNameMatchesShowSeasonQuality(value string, showName string, seasonNumber int, quality string) bool {

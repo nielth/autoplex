@@ -77,6 +77,7 @@ interface TvEpisodeJobRecord {
 interface TvShowInstallStatus {
   subscription?: TvShowSubscriptionRecord;
   autoInstallQualities?: string[];
+  autoInstallDynamicRanges?: Record<string, string>;
   autoInstallSyncTimes?: string[];
   autoInstallTimezone?: string;
   autoInstallNextSyncAt?: string;
@@ -104,6 +105,17 @@ interface SeasonProgress {
   total: number;
   complete: boolean;
 }
+
+// Dynamic range choices for 2160p: "dv" prefers Dolby Vision and falls back to
+// plain HDR, "hdr" only takes HDR releases that are not Dolby Vision, "any"
+// takes any 2160p release.
+const DYNAMIC_RANGE_OPTIONS = ["any", "dv", "hdr"];
+
+const DYNAMIC_RANGE_LABELS: Record<string, string> = {
+  any: "Any",
+  dv: "DV, else HDR",
+  hdr: "HDR, no DV",
+};
 
 const FALLBACK_POSTER =
   "https://static.tvmaze.com/images/no-img/no-img-portrait-text.png";
@@ -246,6 +258,7 @@ export function SeriesDetails() {
   const [data, setData] = useState<SeriesDetailResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [quality, setQuality] = useState<string>("1080");
+  const [dynamicRange, setDynamicRange] = useState<string>("any");
   const [pendingAutoInstallUpcoming, setPendingAutoInstallUpcoming] = useState<
     boolean | null
   >(null);
@@ -402,6 +415,9 @@ export function SeriesDetails() {
       const preferredQuality =
         payload.installStatus?.subscription?.preferredQuality || "1080";
       setQuality(preferredQuality);
+      setDynamicRange(
+        payload.installStatus?.autoInstallDynamicRanges?.[preferredQuality] || "any"
+      );
       setError("");
     } catch (err: any) {
       if (err.response?.status === 401) {
@@ -461,6 +477,7 @@ export function SeriesDetails() {
         {
           enabled,
           quality,
+          dynamicRange,
         },
         {
           withCredentials: true,
@@ -479,19 +496,45 @@ export function SeriesDetails() {
       return;
     }
 
+    const nextDynamicRange =
+      data?.installStatus?.autoInstallDynamicRanges?.[nextQuality] || "any";
+
     await withAction("quality", async () => {
       await axios.put(
         `${domain}/api/tvmaze/series/${showID}/preferred-quality`,
         {
           quality: nextQuality,
+          dynamicRange: nextDynamicRange,
         },
         {
           withCredentials: true,
         }
       );
       setQuality(nextQuality);
+      setDynamicRange(nextDynamicRange);
+      setMessage(`Preferred quality updated to ${nextQuality}p`);
+    });
+  };
+
+  const configureDynamicRange = async (nextDynamicRange: string) => {
+    if (nextDynamicRange === dynamicRange || workingAction) {
+      return;
+    }
+
+    await withAction("dynamic-range", async () => {
+      await axios.put(
+        `${domain}/api/tvmaze/series/${showID}/preferred-quality`,
+        {
+          quality,
+          dynamicRange: nextDynamicRange,
+        },
+        {
+          withCredentials: true,
+        }
+      );
+      setDynamicRange(nextDynamicRange);
       setMessage(
-        `Preferred quality updated to ${nextQuality}p`
+        `Dynamic range preference updated to ${DYNAMIC_RANGE_LABELS[nextDynamicRange]}`
       );
     });
   };
@@ -524,7 +567,7 @@ export function SeriesDetails() {
     await withAction("install-show", async () => {
       const response = await axios.post<QueueResult>(
         `${domain}/api/tvmaze/series/${showID}/install/show`,
-        { quality },
+        { quality, dynamicRange },
         { withCredentials: true }
       );
 
@@ -540,7 +583,7 @@ export function SeriesDetails() {
     await withAction(`season-${seasonNumber}`, async () => {
       const response = await axios.post<QueueResult>(
         `${domain}/api/tvmaze/series/${showID}/install/season/${seasonNumber}`,
-        { quality },
+        { quality, dynamicRange },
         { withCredentials: true }
       );
 
@@ -556,7 +599,7 @@ export function SeriesDetails() {
     await withAction(`episode-${episodeID}`, async () => {
       const response = await axios.post<QueueResult>(
         `${domain}/api/tvmaze/series/${showID}/install/episode/${episodeID}`,
-        { quality },
+        { quality, dynamicRange },
         { withCredentials: true }
       );
 
@@ -693,6 +736,26 @@ export function SeriesDetails() {
             </div>
           </div>
 
+          {quality === "2160" ? (
+            <div className="flex items-center gap-2">
+              <span className="label-text text-sm">Dynamic Range</span>
+              <div className="join">
+                {DYNAMIC_RANGE_OPTIONS.map((option) => (
+                  <input
+                    key={option}
+                    className="join-item btn"
+                    type="radio"
+                    name="dynamic-range"
+                    aria-label={DYNAMIC_RANGE_LABELS[option]}
+                    checked={dynamicRange === option}
+                    disabled={Boolean(workingAction)}
+                    onChange={() => configureDynamicRange(option)}
+                  />
+                ))}
+              </div>
+            </div>
+          ) : null}
+
           {!isShowEnded ? (
             <label className="label cursor-pointer gap-2 p-0">
               <span className="label-text">Auto-install upcoming episodes</span>
@@ -732,6 +795,17 @@ export function SeriesDetails() {
                     .join(" and ")}
                   .
                 </p>
+                {quality === "2160" ? (
+                  <p>
+                    2160p dynamic range:{" "}
+                    {dynamicRange === "dv"
+                      ? "Dolby Vision, falling back to plain HDR"
+                      : dynamicRange === "hdr"
+                        ? "HDR only, skipping Dolby Vision releases"
+                        : "any release"}
+                    .
+                  </p>
+                ) : null}
                 {autoInstallUpcoming ? (
                   <>
                     <p>
@@ -755,7 +829,11 @@ export function SeriesDetails() {
             </h3>
             <p className="py-3 text-sm opacity-80">
               {pendingAutoInstallUpcoming
-                ? `Upcoming episodes will be auto-installed at ${quality}p quality.`
+                ? `Upcoming episodes will be auto-installed at ${quality}p quality${
+                    quality === "2160" && dynamicRange !== "any"
+                      ? ` (${DYNAMIC_RANGE_LABELS[dynamicRange]})`
+                      : ""
+                  }.`
                 : "Upcoming episodes will no longer be auto-installed."}
             </p>
             <div className="modal-action">

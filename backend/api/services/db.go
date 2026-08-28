@@ -222,6 +222,7 @@ func migrateAuditSchema(db *sql.DB) error {
 				user_id BIGINT UNSIGNED NOT NULL,
 				tvmaze_show_id BIGINT UNSIGNED NOT NULL,
 				preferred_quality ENUM('1080', '2160') NOT NULL DEFAULT '1080',
+				dynamic_range ENUM('any', 'dv', 'hdr') NOT NULL DEFAULT 'any',
 				enabled TINYINT(1) NOT NULL DEFAULT 0,
 				created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 				updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -243,6 +244,7 @@ func migrateAuditSchema(db *sql.DB) error {
 			airstamp DATETIME NULL,
 			airtime_known TINYINT(1) NOT NULL DEFAULT 1,
 			preferred_quality ENUM('1080', '2160') NOT NULL DEFAULT '1080',
+			dynamic_range ENUM('any', 'dv', 'hdr') NOT NULL DEFAULT 'any',
 			status ENUM('pending', 'searching', 'downloaded', 'failed') NOT NULL DEFAULT 'pending',
 			attempt_count INT UNSIGNED NOT NULL DEFAULT 0,
 			next_check_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -283,6 +285,12 @@ func migrateAuditSchema(db *sql.DB) error {
 	if err := ensureColumnExists(db, "tv_episode_jobs", "airtime_known", "TINYINT(1) NOT NULL DEFAULT 1 AFTER `airstamp`"); err != nil {
 		return fmt.Errorf("schema migration failed adding tv_episode_jobs.airtime_known: %w", err)
 	}
+	if err := ensureColumnExists(db, "tv_show_auto_install_qualities", "dynamic_range", "ENUM('any', 'dv', 'hdr') NOT NULL DEFAULT 'any' AFTER `preferred_quality`"); err != nil {
+		return fmt.Errorf("schema migration failed adding tv_show_auto_install_qualities.dynamic_range: %w", err)
+	}
+	if err := ensureColumnExists(db, "tv_episode_jobs", "dynamic_range", "ENUM('any', 'dv', 'hdr') NOT NULL DEFAULT 'any' AFTER `preferred_quality`"); err != nil {
+		return fmt.Errorf("schema migration failed adding tv_episode_jobs.dynamic_range: %w", err)
+	}
 	if err := ensureColumnExists(db, "download_delete_requests", "safe_to_delete_at", "DATETIME NULL AFTER `approved_at`"); err != nil {
 		return fmt.Errorf("schema migration failed adding download_delete_requests.safe_to_delete_at: %w", err)
 	}
@@ -297,14 +305,6 @@ func migrateAuditSchema(db *sql.DB) error {
 	if err := ensureIndexExists(db, "download_delete_requests", "idx_download_delete_requests_auto_delete_at", "`auto_delete_at`"); err != nil {
 		return fmt.Errorf("schema migration failed adding index download_delete_requests.idx_download_delete_requests_auto_delete_at: %w", err)
 	}
-	// Promote any legacy hit_and_run rows to pending so the new admin-approval
-	// flow surfaces them. Idempotent: after first run there are none to update.
-	if _, err := db.Exec(
-		"UPDATE `download_delete_requests` SET status = 'pending', updated_at = NOW() WHERE status = 'hit_and_run'",
-	); err != nil {
-		return fmt.Errorf("schema migration failed promoting hit_and_run requests to pending: %w", err)
-	}
-
 	return nil
 }
 

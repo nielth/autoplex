@@ -24,6 +24,7 @@ var (
 const (
 	DownloadDeleteActionDeleted   = "deleted"
 	DownloadDeleteActionRequested = "delete_requested"
+	DownloadDeleteActionHitAndRun = "hit_and_run_queued"
 
 	seedRequiredDuration    = 168 * time.Hour
 	autoDeleteGraceDuration = 24 * time.Hour
@@ -182,6 +183,38 @@ func downloadOrderBy(sort, dir string) string {
 	return fmt.Sprintf("ORDER BY %s %s, d.id %s", column, direction, direction)
 }
 
+// downloadSearchSeparators are the characters release names use between words;
+// both the query and the filename are flattened to spaces before matching so
+// "silo s03e03" finds "Silo.S03E03.Farewell.2160p...".
+var downloadSearchSeparators = strings.NewReplacer(".", " ", "_", " ", "-", " ", "(", " ", ")", " ", "[", " ", "]", " ")
+
+// normalizedFilenameSQL is the same flattening applied to the stored filename.
+const normalizedFilenameSQL = "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LOWER(d.filename), '.', ' '), '_', ' '), '-', ' '), '(', ' '), ')', ' '), '[', ' '), ']', ' ')"
+
+const maxDownloadSearchTerms = 8
+
+// buildDownloadSearchFilter AND-s one LIKE per search term, so terms may be
+// typed in any order and without the separators used in the release name.
+func buildDownloadSearchFilter(query string) (string, []any) {
+	terms := strings.Fields(downloadSearchSeparators.Replace(strings.ToLower(strings.TrimSpace(query))))
+	if len(terms) == 0 {
+		return "", nil
+	}
+	if len(terms) > maxDownloadSearchTerms {
+		terms = terms[:maxDownloadSearchTerms]
+	}
+
+	conditions := make([]string, 0, len(terms))
+	args := make([]any, 0, len(terms)*2)
+	for _, term := range terms {
+		pattern := "%" + term + "%"
+		conditions = append(conditions, "("+normalizedFilenameSQL+" LIKE ? OR LOWER(d.fid) LIKE ?)")
+		args = append(args, pattern, pattern)
+	}
+
+	return "(" + strings.Join(conditions, " AND ") + ")", args
+}
+
 func ListDownloadEvents(username string, isAdmin bool, params DownloadListParams) (*DownloadListResult, error) {
 	cleanUsername := strings.TrimSpace(username)
 	if cleanUsername == "" {
@@ -216,10 +249,9 @@ func ListDownloadEvents(username string, isAdmin bool, params DownloadListParams
 		args = append(args, cleanUsername)
 	}
 
-	if cleanQuery := strings.TrimSpace(params.Query); cleanQuery != "" {
-		pattern := "%" + cleanQuery + "%"
-		where = append(where, "(d.filename LIKE ? OR d.fid LIKE ?)")
-		args = append(args, pattern, pattern)
+	if searchSQL, searchArgs := buildDownloadSearchFilter(params.Query); searchSQL != "" {
+		where = append(where, searchSQL)
+		args = append(args, searchArgs...)
 	}
 
 	whereSQL := "WHERE " + strings.Join(where, " AND ")
@@ -506,12 +538,15 @@ func DeleteOrRequestDownload(downloadID uint64, username string, isAdmin bool, r
 	}
 
 	now := time.Now().UTC()
+	pastSafeWindow := !window.hasWindow || !now.Before(window.safeAt)
 	pastAutoDeleteWindow := window.hasWindow && !now.Before(window.autoDeleteAt)
 
 	// Instant-delete eligibility:
-	//   - admin (always), OR
+	//   - admin, once the torrent is past its seeding window. A torrent with no
+	//     window at all (never completed, or gone from qBittorrent) carries no
+	//     hit-and-run risk, so that counts as past it, OR
 	//   - regular user on a freeleech torrent that's past the 168+24h window.
-	canInstantDelete := isAdmin || (isFreeleech && pastAutoDeleteWindow)
+	canInstantDelete := (isAdmin && pastSafeWindow) || (isFreeleech && pastAutoDeleteWindow)
 
 	if canInstantDelete {
 		if err := QbtDelete(cleanHash); err != nil {
@@ -590,9 +625,20 @@ func DeleteOrRequestDownload(downloadID uint64, username string, isAdmin bool, r
 		return DownloadDeleteActionDeleted, nil
 	}
 
+	// An admin only lands here when the torrent is still inside its seeding
+	// window: queue it as hit-and-run so it keeps seeding and the worker
+	// deletes it the moment the window passes, instead of needing a second
+	// click. Everyone else's request waits for admin approval as before.
+	requestStatus := "pending"
+	requestAction := DownloadDeleteActionRequested
+	if isAdmin {
+		requestStatus = "hit_and_run"
+		requestAction = DownloadDeleteActionHitAndRun
+	}
+
 	// Non-admin path: if still downloading, pause it so we stop accruing
 	// download stats while waiting on admin approval.
-	if torrent != nil && isActiveTorrentState(torrent.State) {
+	if !isAdmin && torrent != nil && isActiveTorrentState(torrent.State) {
 		if pauseErr := QbtPause(cleanHash); pauseErr != nil {
 			fmt.Printf("failed to pause torrent %s during delete request: %v\n", cleanHash, pauseErr)
 		}
@@ -614,7 +660,30 @@ func DeleteOrRequestDownload(downloadID uint64, username string, isAdmin bool, r
 
 	if hasOpen {
 		// Treat duplicate clicks as a no-op success — the request is already
-		// queued. The caller's intent (mark for delete) is satisfied.
+		// queued. The caller's intent (mark for delete) is satisfied. An admin
+		// clicking delete does upgrade a user's pending request to hit-and-run,
+		// since that is the same "delete it as soon as it is safe" decision.
+		if isAdmin {
+			if _, err := tx.ExecContext(
+				ctx,
+				`UPDATE download_delete_requests
+				SET status = 'hit_and_run',
+					safe_to_delete_at = ?,
+					auto_delete_at = ?,
+					updated_at = NOW()
+				WHERE download_event_id = ?
+				  AND status = 'pending'`,
+				nullableHitAndRunTime(window, "safe"),
+				nullableHitAndRunTime(window, "auto"),
+				downloadID,
+			); err != nil {
+				return "", err
+			}
+			if err := tx.Commit(); err != nil {
+				return "", err
+			}
+			return DownloadDeleteActionHitAndRun, nil
+		}
 		if err := tx.Commit(); err != nil {
 			return "", err
 		}
@@ -631,10 +700,11 @@ func DeleteOrRequestDownload(downloadID uint64, username string, isAdmin bool, r
 			request_note,
 			safe_to_delete_at,
 			auto_delete_at
-		) VALUES (?, ?, ?, 'pending', ?, ?, ?)`,
+		) VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		downloadID,
 		userID,
 		cleanUsername,
+		requestStatus,
 		nullableString(reason),
 		nullableHitAndRunTime(window, "safe"),
 		nullableHitAndRunTime(window, "auto"),
@@ -646,7 +716,7 @@ func DeleteOrRequestDownload(downloadID uint64, username string, isAdmin bool, r
 		return "", err
 	}
 
-	return DownloadDeleteActionRequested, nil
+	return requestAction, nil
 }
 
 func nullableHitAndRunTime(window hitAndRunWindow, kind string) any {

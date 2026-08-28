@@ -154,7 +154,7 @@ func DownloadDeleteHandler(c *gin.Context) {
 		return
 	}
 
-	if action == services.DownloadDeleteActionRequested {
+	if action == services.DownloadDeleteActionRequested || action == services.DownloadDeleteActionHitAndRun {
 		c.JSON(http.StatusAccepted, gin.H{"status": action})
 		return
 	}

@@ -59,15 +59,16 @@ type TvEpisodeJobRecord struct {
 }
 
 type TvShowInstallStatus struct {
-	Subscription          *TvShowSubscriptionRecord `json:"subscription,omitempty"`
-	AutoInstallQualities  []string                  `json:"autoInstallQualities"`
-	AutoInstallSyncTimes  []string                  `json:"autoInstallSyncTimes"`
-	AutoInstallTimezone   string                    `json:"autoInstallTimezone"`
-	AutoInstallNextSyncAt *string                   `json:"autoInstallNextSyncAt,omitempty"`
-	Jobs                  []TvEpisodeJobRecord      `json:"jobs"`
-	PendingCount          int                       `json:"pendingCount"`
-	DownloadedCount       int                       `json:"downloadedCount"`
-	FailedCount           int                       `json:"failedCount"`
+	Subscription             *TvShowSubscriptionRecord `json:"subscription,omitempty"`
+	AutoInstallQualities     []string                  `json:"autoInstallQualities"`
+	AutoInstallDynamicRanges map[string]string         `json:"autoInstallDynamicRanges"`
+	AutoInstallSyncTimes     []string                  `json:"autoInstallSyncTimes"`
+	AutoInstallTimezone      string                    `json:"autoInstallTimezone"`
+	AutoInstallNextSyncAt    *string                   `json:"autoInstallNextSyncAt,omitempty"`
+	Jobs                     []TvEpisodeJobRecord      `json:"jobs"`
+	PendingCount             int                       `json:"pendingCount"`
+	DownloadedCount          int                       `json:"downloadedCount"`
+	FailedCount              int                       `json:"failedCount"`
 }
 
 type TvAutoInstallShowRecord struct {
@@ -99,7 +100,15 @@ type tvEpisodeJobRow struct {
 	Airstamp         sql.NullTime
 	AirtimeKnown     bool
 	PreferredQuality string
+	DynamicRange     string
 	AttemptCount     uint64
+}
+
+// tvAutoInstallQualityRow is one configured auto-install quality for a show,
+// with the dynamic range wanted for it (only meaningful at 2160p).
+type tvAutoInstallQualityRow struct {
+	Quality      string
+	DynamicRange string
 }
 
 type tvAutoInstallSubscriptionRow struct {
@@ -343,7 +352,7 @@ func syncTvShowAutoInstallSubscription(subscription tvAutoInstallSubscriptionRow
 		return fmt.Errorf("show id is required")
 	}
 
-	qualities, err := listEnabledTvShowAutoInstallQualities(cleanUsername, subscription.TvMazeShowID)
+	qualities, err := listEnabledTvShowAutoInstallQualityRows(cleanUsername, subscription.TvMazeShowID)
 	if err != nil {
 		return err
 	}
@@ -362,7 +371,8 @@ func syncTvShowAutoInstallSubscription(subscription tvAutoInstallSubscriptionRow
 			cleanUsername,
 			subscription.SubscriptionID,
 			subscription.TvMazeShowID,
-			quality,
+			quality.Quality,
+			quality.DynamicRange,
 			episodes,
 		); err != nil {
 			return err
@@ -416,6 +426,7 @@ func listDueEpisodeJobs(limit int) ([]tvEpisodeJobRow, error) {
 			j.airstamp,
 			j.airtime_known,
 			j.preferred_quality,
+			j.dynamic_range,
 			j.attempt_count
 			FROM tv_episode_jobs j
 			INNER JOIN users u ON u.id = j.user_id
@@ -451,6 +462,7 @@ func listDueEpisodeJobs(limit int) ([]tvEpisodeJobRow, error) {
 			&row.Airstamp,
 			&row.AirtimeKnown,
 			&row.PreferredQuality,
+			&row.DynamicRange,
 			&row.AttemptCount,
 		); err != nil {
 			return nil, err
@@ -471,7 +483,7 @@ func processEpisodeJob(job tvEpisodeJobRow) error {
 		return markEpisodeJobRetry(job, fmt.Sprintf("torrent search failed: %v", err))
 	}
 
-	selected := SelectBestTorrentByQuality(torrents, job.PreferredQuality)
+	selected := SelectBestTorrentByQuality(torrents, job.PreferredQuality, job.DynamicRange)
 	if selected == nil {
 		// No single-episode release found. For all-at-once/binge seasons the
 		// content often exists only as a season pack, so try the boxset before
@@ -481,7 +493,11 @@ func processEpisodeJob(job tvEpisodeJobRow) error {
 		} else if installed {
 			return nil
 		}
-		return markEpisodeJobRetry(job, fmt.Sprintf("no %sp torrent found yet", NormalizeQualityPreference(job.PreferredQuality)))
+		return markEpisodeJobRetry(job, fmt.Sprintf(
+			"no %sp %s torrent found yet",
+			NormalizeQualityPreference(job.PreferredQuality),
+			EffectiveDynamicRange(job.PreferredQuality, job.DynamicRange),
+		))
 	}
 
 	downloadData := ConvertTlSeriesTorrentToDownloadData(*selected, job.TvMazeShowID, job.TvMazeEpisodeID)
@@ -574,6 +590,7 @@ func tryInstallSeasonBoxsetForJob(job tvEpisodeJobRow) (bool, error) {
 		show.Name,
 		seasonNumber,
 		job.PreferredQuality,
+		job.DynamicRange,
 		boxsetTorrents,
 		seasonEpisodes,
 	)
@@ -806,6 +823,10 @@ func GetTvShowInstallStatus(username string, showID int64) (*TvShowInstallStatus
 	if err != nil {
 		return nil, err
 	}
+	autoInstallDynamicRanges, err := listTvShowAutoInstallDynamicRanges(cleanUsername, showID)
+	if err != nil {
+		return nil, err
+	}
 
 	jobs, err := listTvEpisodeJobsByShow(cleanUsername, showID, 200)
 	if err != nil {
@@ -816,11 +837,12 @@ func GetTvShowInstallStatus(username string, showID int64) (*TvShowInstallStatus
 	}
 
 	status := &TvShowInstallStatus{
-		Subscription:         subscription,
-		AutoInstallQualities: autoInstallQualities,
-		AutoInstallSyncTimes: autoInstallSyncTimes(),
-		AutoInstallTimezone:  tvAutoInstallSyncTimezone,
-		Jobs:                 jobs,
+		Subscription:             subscription,
+		AutoInstallQualities:     autoInstallQualities,
+		AutoInstallDynamicRanges: autoInstallDynamicRanges,
+		AutoInstallSyncTimes:     autoInstallSyncTimes(),
+		AutoInstallTimezone:      tvAutoInstallSyncTimezone,
+		Jobs:                     jobs,
 	}
 	if subscription != nil {
 		var lastSyncedAt *time.Time
@@ -1008,7 +1030,7 @@ func ListTvAutoInstallShows(username string) ([]TvAutoInstallShowRecord, error) 
 	return records, nil
 }
 
-func ConfigureTvShowAutoInstall(username string, show TvMazeShow, preferredQuality string, autoInstallUpcoming bool) (*TvShowSubscriptionRecord, error) {
+func ConfigureTvShowAutoInstall(username string, show TvMazeShow, preferredQuality string, dynamicRange string, autoInstallUpcoming bool) (*TvShowSubscriptionRecord, error) {
 	cleanUsername := strings.TrimSpace(username)
 	if cleanUsername == "" {
 		return nil, fmt.Errorf("username is required")
@@ -1021,6 +1043,7 @@ func ConfigureTvShowAutoInstall(username string, show TvMazeShow, preferredQuali
 	}
 
 	quality := NormalizeQualityPreference(preferredQuality)
+	wantedDynamicRange := EffectiveDynamicRange(quality, dynamicRange)
 	userID, err := ensureUserByUsername(cleanUsername)
 	if err != nil {
 		return nil, err
@@ -1029,7 +1052,7 @@ func ConfigureTvShowAutoInstall(username string, show TvMazeShow, preferredQuali
 	if err != nil {
 		return nil, err
 	}
-	if err := setTvShowAutoInstallQuality(userID, cleanUsername, show.ID, quality, autoInstallUpcoming); err != nil {
+	if err := setTvShowAutoInstallQuality(userID, cleanUsername, show.ID, quality, wantedDynamicRange, autoInstallUpcoming); err != nil {
 		return nil, err
 	}
 
@@ -1052,7 +1075,7 @@ func ConfigureTvShowAutoInstall(username string, show TvMazeShow, preferredQuali
 	return getTvShowSubscriptionByShowID(cleanUsername, show.ID)
 }
 
-func ConfigureTvShowPreferredQuality(username string, show TvMazeShow, preferredQuality string) (*TvShowSubscriptionRecord, error) {
+func ConfigureTvShowPreferredQuality(username string, show TvMazeShow, preferredQuality string, dynamicRange string) (*TvShowSubscriptionRecord, error) {
 	cleanUsername := strings.TrimSpace(username)
 	if cleanUsername == "" {
 		return nil, fmt.Errorf("username is required")
@@ -1076,6 +1099,18 @@ func ConfigureTvShowPreferredQuality(username string, show TvMazeShow, preferred
 	}
 
 	if _, err := upsertTvShowSubscription(userID, cleanUsername, show, quality, autoInstallUpcoming); err != nil {
+		return nil, err
+	}
+	// Remember the dynamic range for this quality even when auto-install is
+	// off, so manual installs and a later toggle reuse the same preference.
+	if err := setTvShowAutoInstallQuality(
+		userID,
+		cleanUsername,
+		show.ID,
+		quality,
+		EffectiveDynamicRange(quality, dynamicRange),
+		autoInstallUpcoming,
+	); err != nil {
 		return nil, err
 	}
 
@@ -1157,7 +1192,7 @@ func upsertTvShowSubscription(userID uint64, username string, show TvMazeShow, q
 	return subscriptionID, nil
 }
 
-func setTvShowAutoInstallQuality(userID uint64, username string, showID int64, quality string, enabled bool) error {
+func setTvShowAutoInstallQuality(userID uint64, username string, showID int64, quality string, dynamicRange string, enabled bool) error {
 	db, err := dbConn()
 	if err != nil {
 		return err
@@ -1173,28 +1208,78 @@ func setTvShowAutoInstallQuality(userID uint64, username string, showID int64, q
 			user_id,
 			tvmaze_show_id,
 			preferred_quality,
+			dynamic_range,
 			enabled,
 			updated_at
-		) VALUES (?, ?, ?, ?, UTC_TIMESTAMP())
+		) VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP())
 		ON DUPLICATE KEY UPDATE
+			dynamic_range = VALUES(dynamic_range),
 			enabled = VALUES(enabled),
 			updated_at = UTC_TIMESTAMP()`,
 		userID,
 		showID,
 		NormalizeQualityPreference(quality),
+		EffectiveDynamicRange(quality, dynamicRange),
 		enabled,
+	)
+	if err != nil {
+		return err
+	}
+
+	return applyDynamicRangeToActiveJobs(userID, showID, quality, dynamicRange)
+}
+
+// applyDynamicRangeToActiveJobs re-points already queued jobs at a changed
+// dynamic range so the next search round uses it instead of waiting for the
+// next auto-install sync slot.
+func applyDynamicRangeToActiveJobs(userID uint64, showID int64, quality string, dynamicRange string) error {
+	db, err := dbConn()
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err = db.ExecContext(
+		ctx,
+		`UPDATE tv_episode_jobs
+		SET dynamic_range = ?,
+			updated_at = UTC_TIMESTAMP()
+		WHERE user_id = ?
+		  AND tvmaze_show_id = ?
+		  AND preferred_quality = ?
+		  AND status IN ('pending', 'searching')`,
+		EffectiveDynamicRange(quality, dynamicRange),
+		userID,
+		showID,
+		NormalizeQualityPreference(quality),
 	)
 
 	return err
 }
 
 func listEnabledTvShowAutoInstallQualities(username string, showID int64) ([]string, error) {
+	rows, err := listEnabledTvShowAutoInstallQualityRows(username, showID)
+	if err != nil {
+		return nil, err
+	}
+
+	qualities := make([]string, 0, len(rows))
+	for _, row := range rows {
+		qualities = append(qualities, row.Quality)
+	}
+
+	return qualities, nil
+}
+
+func listEnabledTvShowAutoInstallQualityRows(username string, showID int64) ([]tvAutoInstallQualityRow, error) {
 	cleanUsername := strings.TrimSpace(username)
 	if cleanUsername == "" {
-		return []string{}, nil
+		return []tvAutoInstallQualityRow{}, nil
 	}
 	if showID <= 0 {
-		return []string{}, nil
+		return []tvAutoInstallQualityRow{}, nil
 	}
 
 	db, err := dbConn()
@@ -1207,7 +1292,7 @@ func listEnabledTvShowAutoInstallQualities(username string, showID int64) ([]str
 
 	rows, err := db.QueryContext(
 		ctx,
-		`SELECT q.preferred_quality
+		`SELECT q.preferred_quality, q.dynamic_range
 		FROM tv_show_auto_install_qualities q
 		INNER JOIN users u ON u.id = q.user_id
 		WHERE u.username = ?
@@ -1222,22 +1307,85 @@ func listEnabledTvShowAutoInstallQualities(username string, showID int64) ([]str
 	}
 	defer rows.Close()
 
-	qualities := make([]string, 0, 2)
+	records := make([]tvAutoInstallQualityRow, 0, 2)
 	for rows.Next() {
 		var quality string
-		if err := rows.Scan(&quality); err != nil {
+		var dynamicRange string
+		if err := rows.Scan(&quality, &dynamicRange); err != nil {
 			return nil, err
 		}
 		normalized := NormalizeQualityPreference(quality)
-		if !containsQuality(qualities, normalized) {
-			qualities = append(qualities, normalized)
+		if containsQuality(qualitiesOf(records), normalized) {
+			continue
 		}
+		records = append(records, tvAutoInstallQualityRow{
+			Quality:      normalized,
+			DynamicRange: EffectiveDynamicRange(normalized, dynamicRange),
+		})
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 
-	return qualities, nil
+	return records, nil
+}
+
+func qualitiesOf(rows []tvAutoInstallQualityRow) []string {
+	qualities := make([]string, 0, len(rows))
+	for _, row := range rows {
+		qualities = append(qualities, row.Quality)
+	}
+	return qualities
+}
+
+// listTvShowAutoInstallDynamicRanges returns the stored dynamic range per
+// quality, including qualities whose auto-install is currently disabled, so the
+// UI can show the last chosen preference.
+func listTvShowAutoInstallDynamicRanges(username string, showID int64) (map[string]string, error) {
+	ranges := map[string]string{}
+
+	cleanUsername := strings.TrimSpace(username)
+	if cleanUsername == "" || showID <= 0 {
+		return ranges, nil
+	}
+
+	db, err := dbConn()
+	if err != nil {
+		return nil, err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	rows, err := db.QueryContext(
+		ctx,
+		`SELECT q.preferred_quality, q.dynamic_range
+		FROM tv_show_auto_install_qualities q
+		INNER JOIN users u ON u.id = q.user_id
+		WHERE u.username = ?
+		  AND q.tvmaze_show_id = ?`,
+		cleanUsername,
+		showID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var quality string
+		var dynamicRange string
+		if err := rows.Scan(&quality, &dynamicRange); err != nil {
+			return nil, err
+		}
+		normalized := NormalizeQualityPreference(quality)
+		ranges[normalized] = EffectiveDynamicRange(normalized, dynamicRange)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return ranges, nil
 }
 
 func isTvShowAutoInstallQualityEnabledByUserID(userID uint64, showID int64, quality string) (bool, error) {
@@ -1286,7 +1434,7 @@ func containsQuality(values []string, target string) bool {
 	return false
 }
 
-func QueueWholeShowInstall(username string, showID int64, preferredQuality string) (*TvInstallQueueResult, error) {
+func QueueWholeShowInstall(username string, showID int64, preferredQuality string, dynamicRange string) (*TvInstallQueueResult, error) {
 	cleanUsername := strings.TrimSpace(username)
 	if cleanUsername == "" {
 		return nil, fmt.Errorf("username is required")
@@ -1302,6 +1450,7 @@ func QueueWholeShowInstall(username string, showID int64, preferredQuality strin
 	}
 
 	quality := NormalizeQualityPreference(preferredQuality)
+	wantedDynamicRange := EffectiveDynamicRange(quality, dynamicRange)
 	userID, err := ensureUserByUsername(cleanUsername)
 	if err != nil {
 		return nil, err
@@ -1310,13 +1459,13 @@ func QueueWholeShowInstall(username string, showID int64, preferredQuality strin
 	show, err := TvMazeGetShow(showID)
 	if err != nil {
 		log.Printf("failed to load show %d for boxset matching, falling back to episode queue: %v", showID, err)
-		return queueEpisodeBatchInstall(cleanUsername, showID, episodes, quality)
+		return queueEpisodeBatchInstall(cleanUsername, showID, episodes, quality, wantedDynamicRange)
 	}
 
 	boxsetTorrents, err := TlSeriesBoxsetSearchByTvMaze(showID, showID)
 	if err != nil {
 		log.Printf("boxset search failed for show %d, falling back to episode queue: %v", showID, err)
-		return queueEpisodeBatchInstall(cleanUsername, showID, episodes, quality)
+		return queueEpisodeBatchInstall(cleanUsername, showID, episodes, quality, wantedDynamicRange)
 	}
 
 	episodesBySeason := make(map[int][]TvMazeEpisode)
@@ -1347,6 +1496,7 @@ func QueueWholeShowInstall(username string, showID int64, preferredQuality strin
 			show.Name,
 			seasonNumber,
 			quality,
+			wantedDynamicRange,
 			boxsetTorrents,
 			seasonEpisodes,
 		)
@@ -1367,7 +1517,7 @@ func QueueWholeShowInstall(username string, showID int64, preferredQuality strin
 	}
 
 	if len(fallbackEpisodes) > 0 {
-		fallbackResult, queueErr := queueEpisodeBatchInstall(cleanUsername, showID, fallbackEpisodes, quality)
+		fallbackResult, queueErr := queueEpisodeBatchInstall(cleanUsername, showID, fallbackEpisodes, quality, wantedDynamicRange)
 		if queueErr != nil {
 			return nil, queueErr
 		}
@@ -1380,7 +1530,7 @@ func QueueWholeShowInstall(username string, showID int64, preferredQuality strin
 	return result, nil
 }
 
-func QueueSeasonInstall(username string, showID int64, seasonNumber int, preferredQuality string) (*TvInstallQueueResult, error) {
+func QueueSeasonInstall(username string, showID int64, seasonNumber int, preferredQuality string, dynamicRange string) (*TvInstallQueueResult, error) {
 	if seasonNumber <= 0 {
 		return nil, fmt.Errorf("season number must be greater than zero")
 	}
@@ -1408,6 +1558,7 @@ func QueueSeasonInstall(username string, showID int64, seasonNumber int, preferr
 	}
 
 	quality := NormalizeQualityPreference(preferredQuality)
+	wantedDynamicRange := EffectiveDynamicRange(quality, dynamicRange)
 	userID, err := ensureUserByUsername(cleanUsername)
 	if err != nil {
 		return nil, err
@@ -1416,13 +1567,13 @@ func QueueSeasonInstall(username string, showID int64, seasonNumber int, preferr
 	show, err := TvMazeGetShow(showID)
 	if err != nil {
 		log.Printf("failed to load show %d for season boxset matching, falling back to episode queue: %v", showID, err)
-		return queueEpisodeBatchInstall(cleanUsername, showID, seasonEpisodes, quality)
+		return queueEpisodeBatchInstall(cleanUsername, showID, seasonEpisodes, quality, wantedDynamicRange)
 	}
 
 	boxsetTorrents, err := TlSeriesBoxsetSearchByTvMaze(showID, showID)
 	if err != nil {
 		log.Printf("boxset search failed for show %d season %d, falling back to episode queue: %v", showID, seasonNumber, err)
-		return queueEpisodeBatchInstall(cleanUsername, showID, seasonEpisodes, quality)
+		return queueEpisodeBatchInstall(cleanUsername, showID, seasonEpisodes, quality, wantedDynamicRange)
 	}
 
 	matched, triggered, installErr := installSeasonBoxsetIfPossible(
@@ -1432,12 +1583,13 @@ func QueueSeasonInstall(username string, showID int64, seasonNumber int, preferr
 		show.Name,
 		seasonNumber,
 		quality,
+		wantedDynamicRange,
 		boxsetTorrents,
 		seasonEpisodes,
 	)
 	if installErr != nil {
 		log.Printf("boxset install failed for show %d season %d, falling back to episode queue: %v", showID, seasonNumber, installErr)
-		return queueEpisodeBatchInstall(cleanUsername, showID, seasonEpisodes, quality)
+		return queueEpisodeBatchInstall(cleanUsername, showID, seasonEpisodes, quality, wantedDynamicRange)
 	}
 	if matched {
 		result := &TvInstallQueueResult{
@@ -1450,10 +1602,10 @@ func QueueSeasonInstall(username string, showID int64, seasonNumber int, preferr
 		return result, nil
 	}
 
-	return queueEpisodeBatchInstall(cleanUsername, showID, seasonEpisodes, quality)
+	return queueEpisodeBatchInstall(cleanUsername, showID, seasonEpisodes, quality, wantedDynamicRange)
 }
 
-func QueueEpisodeInstall(username string, showID int64, episodeID int64, preferredQuality string) (*TvInstallQueueResult, error) {
+func QueueEpisodeInstall(username string, showID int64, episodeID int64, preferredQuality string, dynamicRange string) (*TvInstallQueueResult, error) {
 	if showID <= 0 {
 		return nil, fmt.Errorf("show id is required")
 	}
@@ -1463,7 +1615,7 @@ func QueueEpisodeInstall(username string, showID int64, episodeID int64, preferr
 		return nil, err
 	}
 
-	result, err := queueEpisodeBatchInstall(username, showID, []TvMazeEpisode{*episode}, preferredQuality)
+	result, err := queueEpisodeBatchInstall(username, showID, []TvMazeEpisode{*episode}, preferredQuality, dynamicRange)
 	if err != nil {
 		return nil, err
 	}
@@ -1471,7 +1623,7 @@ func QueueEpisodeInstall(username string, showID int64, episodeID int64, preferr
 	return result, nil
 }
 
-func queueEpisodeBatchInstall(username string, showID int64, episodes []TvMazeEpisode, preferredQuality string) (*TvInstallQueueResult, error) {
+func queueEpisodeBatchInstall(username string, showID int64, episodes []TvMazeEpisode, preferredQuality string, dynamicRange string) (*TvInstallQueueResult, error) {
 	cleanUsername := strings.TrimSpace(username)
 	if cleanUsername == "" {
 		return nil, fmt.Errorf("username is required")
@@ -1481,6 +1633,7 @@ func queueEpisodeBatchInstall(username string, showID int64, episodes []TvMazeEp
 	}
 
 	quality := NormalizeQualityPreference(preferredQuality)
+	wantedDynamicRange := EffectiveDynamicRange(quality, dynamicRange)
 	userID, err := ensureUserByUsername(cleanUsername)
 	if err != nil {
 		return nil, err
@@ -1505,7 +1658,7 @@ func queueEpisodeBatchInstall(username string, showID int64, episodes []TvMazeEp
 			continue
 		}
 
-		if _, queueErr := queueSingleEpisodeJob(userID, cleanUsername, nil, showID, episode, quality, true); queueErr != nil {
+		if _, queueErr := queueSingleEpisodeJob(userID, cleanUsername, nil, showID, episode, quality, wantedDynamicRange, true); queueErr != nil {
 			log.Printf("failed queueing episode %d for show %d: %v", episode.ID, showID, queueErr)
 			result.Skipped++
 			continue
@@ -1526,7 +1679,7 @@ func queueEpisodeBatchInstall(username string, showID int64, episodes []TvMazeEp
 	return result, nil
 }
 
-func queueUpcomingEpisodesForShow(username string, subscriptionID uint64, showID int64, quality string) error {
+func queueUpcomingEpisodesForShow(username string, subscriptionID uint64, showID int64, quality string, dynamicRange string) error {
 	cleanUsername := strings.TrimSpace(username)
 	if cleanUsername == "" {
 		return fmt.Errorf("username is required")
@@ -1551,6 +1704,7 @@ func queueUpcomingEpisodesForShow(username string, subscriptionID uint64, showID
 		subscriptionID,
 		showID,
 		quality,
+		dynamicRange,
 		episodes,
 	); err != nil {
 		return err
@@ -1565,6 +1719,7 @@ func queueUpcomingEpisodesForShowWithEpisodes(
 	subscriptionID uint64,
 	showID int64,
 	quality string,
+	dynamicRange string,
 	episodes []TvMazeEpisode,
 ) error {
 	cleanUsername := strings.TrimSpace(username)
@@ -1583,6 +1738,7 @@ func queueUpcomingEpisodesForShowWithEpisodes(
 
 	now := time.Now().UTC()
 	normalizedQuality := NormalizeQualityPreference(quality)
+	wantedDynamicRange := EffectiveDynamicRange(normalizedQuality, dynamicRange)
 	windowStart := now.Add(-tvAutoInstallQueueLookback)
 	windowEnd := now.Add(tvAutoInstallQueueLookahead)
 	if pruneErr := pruneSubscriptionQueuedEpisodesOutsideWindow(
@@ -1614,7 +1770,7 @@ func queueUpcomingEpisodesForShowWithEpisodes(
 
 		immediate := !airstamp.After(now)
 		subscriptionIDCopy := subscriptionID
-		if _, queueErr := queueSingleEpisodeJob(userID, cleanUsername, &subscriptionIDCopy, showID, episode, normalizedQuality, immediate); queueErr != nil {
+		if _, queueErr := queueSingleEpisodeJob(userID, cleanUsername, &subscriptionIDCopy, showID, episode, normalizedQuality, wantedDynamicRange, immediate); queueErr != nil {
 			log.Printf("failed to queue upcoming episode %d for show %d: %v", episode.ID, showID, queueErr)
 		}
 	}
@@ -1688,7 +1844,7 @@ func markTvShowSubscriptionSynced(subscriptionID uint64) error {
 	return err
 }
 
-func queueSingleEpisodeJob(userID uint64, username string, subscriptionID *uint64, showID int64, episode TvMazeEpisode, quality string, immediate bool) (uint64, error) {
+func queueSingleEpisodeJob(userID uint64, username string, subscriptionID *uint64, showID int64, episode TvMazeEpisode, quality string, dynamicRange string, immediate bool) (uint64, error) {
 	if episode.ID <= 0 {
 		return 0, fmt.Errorf("episode id is required")
 	}
@@ -1732,6 +1888,7 @@ func queueSingleEpisodeJob(userID uint64, username string, subscriptionID *uint6
 			airstamp,
 			airtime_known,
 			preferred_quality,
+			dynamic_range,
 			status,
 			attempt_count,
 			next_check_at,
@@ -1739,11 +1896,12 @@ func queueSingleEpisodeJob(userID uint64, username string, subscriptionID *uint6
 			last_error,
 			downloaded_download_event_id,
 			updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, ?, NULL, NULL, NULL, UTC_TIMESTAMP())
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, ?, NULL, NULL, NULL, UTC_TIMESTAMP())
 		ON DUPLICATE KEY UPDATE
 			id = LAST_INSERT_ID(id),
 			subscription_id = COALESCE(VALUES(subscription_id), subscription_id),
 			episode_name = VALUES(episode_name),
+			dynamic_range = VALUES(dynamic_range),
 			season_number = VALUES(season_number),
 			episode_number = VALUES(episode_number),
 			airstamp = VALUES(airstamp),
@@ -1779,6 +1937,7 @@ func queueSingleEpisodeJob(userID uint64, username string, subscriptionID *uint6
 		airstamp,
 		airtimeKnown,
 		NormalizeQualityPreference(quality),
+		EffectiveDynamicRange(quality, dynamicRange),
 		nextCheck,
 	)
 	_ = username
@@ -2018,14 +2177,17 @@ func installSeasonBoxsetIfPossible(
 	showName string,
 	seasonNumber int,
 	quality string,
+	dynamicRange string,
 	boxsetTorrents []TlSeriesTorrent,
 	seasonEpisodes []TvMazeEpisode,
 ) (bool, bool, error) {
+	wantedDynamicRange := EffectiveDynamicRange(quality, dynamicRange)
 	selected := SelectBestBoxsetTorrentByQuality(
 		boxsetTorrents,
 		showName,
 		seasonNumber,
 		quality,
+		wantedDynamicRange,
 	)
 	if selected == nil {
 		// No boxset matched. Log what the search returned so the fallback to
@@ -2035,8 +2197,8 @@ func installSeasonBoxsetIfPossible(
 			names = append(names, torrent.Name)
 		}
 		log.Printf(
-			"no boxset matched show=%q season=%d quality=%s: %d candidates returned %v",
-			showName, seasonNumber, quality, len(boxsetTorrents), names,
+			"no boxset matched show=%q season=%d quality=%s dynamicRange=%s: %d candidates returned %v",
+			showName, seasonNumber, quality, wantedDynamicRange, len(boxsetTorrents), names,
 		)
 		return false, false, nil
 	}
@@ -2054,7 +2216,7 @@ func installSeasonBoxsetIfPossible(
 	}
 
 	if isDownloaded {
-		if markErr := markEpisodesDownloadedFromBoxset(userID, username, showID, seasonEpisodes, quality, downloadEventID); markErr != nil {
+		if markErr := markEpisodesDownloadedFromBoxset(userID, username, showID, seasonEpisodes, quality, wantedDynamicRange, downloadEventID); markErr != nil {
 			return true, false, markErr
 		}
 		return true, false, nil
@@ -2073,7 +2235,7 @@ func installSeasonBoxsetIfPossible(
 		log.Printf("failed finding boxset download event for fid %s: %v", downloadData.Fid, eventLookupErr)
 	}
 
-	if markErr := markEpisodesDownloadedFromBoxset(userID, username, showID, seasonEpisodes, quality, downloadEventID); markErr != nil {
+	if markErr := markEpisodesDownloadedFromBoxset(userID, username, showID, seasonEpisodes, quality, wantedDynamicRange, downloadEventID); markErr != nil {
 		return true, false, markErr
 	}
 	ScheduleAutoPlexScanForDownload(qbtHash, downloadData.CategoryID)
@@ -2098,6 +2260,7 @@ func markEpisodesDownloadedFromBoxset(
 	showID int64,
 	episodes []TvMazeEpisode,
 	quality string,
+	dynamicRange string,
 	downloadEventID *uint64,
 ) error {
 	if userID == 0 {
@@ -2118,7 +2281,7 @@ func markEpisodesDownloadedFromBoxset(
 			continue
 		}
 
-		jobID, err := queueSingleEpisodeJob(userID, username, nil, showID, episode, quality, true)
+		jobID, err := queueSingleEpisodeJob(userID, username, nil, showID, episode, quality, dynamicRange, true)
 		if err != nil {
 			return err
 		}
