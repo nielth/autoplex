@@ -305,14 +305,6 @@ func migrateAuditSchema(db *sql.DB) error {
 	if err := ensureIndexExists(db, "download_delete_requests", "idx_download_delete_requests_auto_delete_at", "`auto_delete_at`"); err != nil {
 		return fmt.Errorf("schema migration failed adding index download_delete_requests.idx_download_delete_requests_auto_delete_at: %w", err)
 	}
-	// Promote any legacy hit_and_run rows to pending so the new admin-approval
-	// flow surfaces them. Idempotent: after first run there are none to update.
-	if _, err := db.Exec(
-		"UPDATE `download_delete_requests` SET status = 'pending', updated_at = NOW() WHERE status = 'hit_and_run'",
-	); err != nil {
-		return fmt.Errorf("schema migration failed promoting hit_and_run requests to pending: %w", err)
-	}
-
 	return nil
 }
 

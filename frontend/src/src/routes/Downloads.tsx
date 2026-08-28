@@ -66,6 +66,15 @@ function formatCountdown(targetISO?: string): string {
   return `${minutes}m`;
 }
 
+// Safe-to-delete label for a delete request: the tracker's seeding window has
+// either passed, is still running, or was never recorded for that torrent.
+function formatSafeToDelete(targetISO?: string): string {
+  const safeIn = formatCountdown(targetISO);
+  if (safeIn === "-") return "Safe to delete: unknown";
+  if (safeIn === "now") return "Safe to delete: now";
+  return `Safe to delete in: ${safeIn}`;
+}
+
 function formatDate(value?: string) {
   if (!value) return "-";
   const parsed = new Date(value);
@@ -264,7 +273,11 @@ export function Downloads() {
         {},
         { withCredentials: true }
       );
-      if (response.status === 202) {
+      if (response.data?.status === "hit_and_run_queued") {
+        setMessage(
+          "Still seeding — queued for deletion, it auto-deletes once the seeding window passes"
+        );
+      } else if (response.status === 202) {
         setMessage("Delete request submitted — torrent paused if it was still downloading");
       } else {
         setMessage("Torrent deleted");
@@ -382,7 +395,12 @@ export function Downloads() {
     const safeIn = download.safeToDeleteAt
       ? formatCountdown(download.safeToDeleteAt)
       : null;
-    const deleteLabel = isAdmin ? "Delete Torrent" : "Request Delete";
+    const isStillSeeding = Boolean(safeIn) && safeIn !== "now";
+    const deleteLabel = isAdmin
+      ? isStillSeeding
+        ? "Queue Delete"
+        : "Delete Torrent"
+      : "Request Delete";
     const actionElement = download.deletedAt ? (
       <span className="shrink-0 text-xs opacity-70">
         Deleted by {download.deletedByUsername || "unknown"} at{" "}
@@ -545,10 +563,8 @@ export function Downloads() {
                     {isAdmin ? (
                       <button
                         className="btn btn-error btn-sm mt-3"
-                        disabled={workingId === request.downloadEventID}
-                        onClick={() =>
-                          handleDelete({ id: request.downloadEventID })
-                        }
+                        disabled={workingId === request.id}
+                        onClick={() => handleApprove(request.id)}
                       >
                         Force Delete Now
                       </button>
@@ -584,6 +600,9 @@ export function Downloads() {
                       <p className="text-xs opacity-70">
                         Requested by {request.requestedByUsername} at{" "}
                         {formatDate(request.createdAt)}
+                      </p>
+                      <p className="text-xs opacity-80">
+                        {formatSafeToDelete(request.safeToDeleteAt)}
                       </p>
                     </div>
                     {request.downloadIsFreeleech ? (
