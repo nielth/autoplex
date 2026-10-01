@@ -1,4 +1,4 @@
-import { Outlet, useNavigate } from "react-router-dom";
+import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 
 import { Navbar } from "../components/Navbar";
@@ -9,6 +9,9 @@ import { getApiDomain } from "../scripts/getApiDomain";
 export default function Root() {
   const [loading, setLoading] = useState<boolean>(true);
   const navigate = useNavigate();
+  const location = useLocation();
+  // The downloads table uses the full screen width; other pages stay centered.
+  const isWide = location.pathname.startsWith("/downloads");
   const domain = getApiDomain();
 
   useEffect(() => {
@@ -37,7 +40,14 @@ export default function Root() {
       {!loading ? (
         <>
           <Navbar />
-          <div id="detail" className="mx-auto px-4 py-6 sm:px-6 sm:py-8 lg:container">
+          <div
+            id="detail"
+            className={
+              isWide
+                ? "px-4 py-6 sm:px-6 sm:py-8"
+                : "mx-auto px-4 py-6 sm:px-6 sm:py-8 lg:container"
+            }
+          >
             <Outlet />
           </div>
         </>

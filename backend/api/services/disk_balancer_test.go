@@ -60,6 +60,27 @@ func TestPlanDiskBalance(t *testing.T) {
 			expected: []string{"remux->sdd"},
 		},
 		{
+			name: "every heavy torrent is planned in one run, spread across disks",
+			torrents: []balancerTorrent{
+				torrent("newest-remux", "sde", 60, 300, true),
+				torrent("middle-remux", "sde", 60, 200, true),
+				torrent("oldest-remux", "sde", 60, 100, true),
+				torrent("light", "sde", 10, 150, false),
+			},
+			free:     map[string]int64{"sde": 1000 * gb, "sdb": 500 * gb, "sdc": 400 * gb, "sdd": 300 * gb},
+			expected: []string{"newest-remux->sdb", "middle-remux->sdc", "oldest-remux->sdd", "light->sdb"},
+		},
+		{
+			name: "space freed for a pending heavy torrent is not filled by others",
+			torrents: []balancerTorrent{
+				torrent("remux", "sde", 60, 300, true),
+				torrent("new-light", "sde", 30, 200, false),
+				torrent("old-light", "sdb", 70, 1, false),
+			},
+			free:     map[string]int64{"sde": 1000 * gb, "sdb": 10 * gb, "sdc": 5 * gb, "sdd": 5 * gb},
+			expected: []string{"old-light->sde", "remux->sdb (pending)"},
+		},
+		{
 			name: "no eviction when spare disk cannot take it",
 			torrents: []balancerTorrent{
 				torrent("remux", "sde", 60, 100, true),

@@ -24,14 +24,22 @@ type PlanItem = {
   pending: boolean;
 };
 
+type BitrateRow = {
+  name: string;
+  disk: string;
+  size: number;
+  mbps: number;
+  heavy: boolean;
+};
+
 type BalancerStatus = {
-  enabled: boolean;
-  dryRun: boolean;
+  running: boolean;
   checkedAt: string;
   message: string;
   heavyMbps: number;
   disks: BalancerDisk[] | null;
   plan: PlanItem[] | null;
+  topBitrates: BitrateRow[] | null;
 };
 
 type MoveRecord = {
@@ -99,6 +107,7 @@ export function DiskBalancer() {
 
   const plan = status?.plan ?? [];
   const disks = status?.disks ?? [];
+  const topBitrates = status?.topBitrates ?? [];
 
   return (
     <div className="space-y-6">
@@ -118,12 +127,10 @@ export function DiskBalancer() {
         <>
           <div className="rounded-xl bg-base-200 p-4">
             <div className="flex flex-wrap items-center gap-2">
-              {!status.enabled ? (
-                <span className="badge badge-ghost">Disabled</span>
-              ) : status.dryRun ? (
-                <span className="badge badge-warning">Dry run</span>
-              ) : (
+              {status.running ? (
                 <span className="badge badge-success">Active</span>
+              ) : (
+                <span className="badge badge-ghost">Not running</span>
               )}
               <span className="text-sm">{status.message}</span>
             </div>
@@ -189,7 +196,12 @@ export function DiskBalancer() {
                         <td className="whitespace-nowrap font-mono">
                           {item.from} → {item.to}
                           {item.pending ? (
-                            <span className="badge badge-ghost badge-sm ml-2">next</span>
+                            <span
+                              className="badge badge-ghost badge-sm ml-2"
+                              title="Moves on a later run, once room has been made"
+                            >
+                              next
+                            </span>
                           ) : null}
                         </td>
                         <td className="whitespace-nowrap">{formatBytes(item.size)}</td>
@@ -202,6 +214,43 @@ export function DiskBalancer() {
               </div>
             )}
           </div>
+
+          {topBitrates.length > 0 ? (
+            <div className="space-y-3">
+              <h2 className="text-xl font-semibold">Highest bitrates</h2>
+              <p className="text-xs opacity-70">
+                Measured with ffprobe on the biggest video file. Torrents too small
+                to be heavy are guessed from their size.
+              </p>
+              <div className="overflow-x-auto">
+                <table className="table table-sm">
+                  <thead>
+                    <tr>
+                      <th>Torrent</th>
+                      <th>Disk</th>
+                      <th>Size</th>
+                      <th>Bitrate</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {topBitrates.map((row, index) => (
+                      <tr key={`${row.name}-${index}`}>
+                        <td className="break-all">
+                          {row.name}
+                          {row.heavy ? (
+                            <span className="badge badge-warning badge-sm ml-2">heavy</span>
+                          ) : null}
+                        </td>
+                        <td className="font-mono">{row.disk}</td>
+                        <td className="whitespace-nowrap">{formatBytes(row.size)}</td>
+                        <td className="whitespace-nowrap">{formatMbps(row.mbps)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : null}
         </>
       ) : null}
 

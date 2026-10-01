@@ -285,3 +285,18 @@ func DiskBalancerHandler(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"status": services.GetDiskBalancerStatus(), "moves": moves})
 }
+
+func ImportQbtTorrentsHandler(c *gin.Context) {
+	if !c.GetBool("is_admin") {
+		c.JSON(http.StatusForbidden, gin.H{"error": services.ErrAdminRequired.Error()})
+		return
+	}
+
+	imported, err := services.ImportQbtTorrents(c.GetString("username"))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "imported": imported})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"imported": imported})
+}

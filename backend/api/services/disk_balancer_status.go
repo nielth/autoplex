@@ -26,15 +26,24 @@ type DiskBalancerPlanItem struct {
 	Pending bool    `json:"pending"`
 }
 
+type DiskBalancerTorrent struct {
+	Name  string  `json:"name"`
+	Disk  string  `json:"disk"`
+	Size  int64   `json:"size"`
+	Mbps  float64 `json:"mbps"`
+	Heavy bool    `json:"heavy"`
+}
+
 // DiskBalancerStatus is what the last balancer run saw and planned.
 type DiskBalancerStatus struct {
-	Enabled   bool                   `json:"enabled"`
-	DryRun    bool                   `json:"dryRun"`
+	Running   bool                   `json:"running"`
 	CheckedAt time.Time              `json:"checkedAt"`
 	Message   string                 `json:"message"`
 	HeavyMbps float64                `json:"heavyMbps"`
 	Disks     []DiskBalancerDisk     `json:"disks"`
 	Plan      []DiskBalancerPlanItem `json:"plan"`
+	// The highest bitrate torrents, to see how each one was classified.
+	TopBitrates []DiskBalancerTorrent `json:"topBitrates"`
 }
 
 type DiskBalancerMoveRecord struct {

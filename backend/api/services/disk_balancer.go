@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"maps"
 	"os"
 	"os/exec"
 	"path"
@@ -52,8 +53,6 @@ var (
 var diskBalancerSettledStates = []string{"uploading", "stalledUP", "pausedUP", "stoppedUP", "queuedUP", "forcedUP"}
 
 type diskBalancerConfig struct {
-	enabled   bool
-	dryRun    bool
 	spare     string
 	pool      []string
 	minFree   int64
@@ -103,15 +102,17 @@ func splitQbtSavePath(savePath string) (string, string, bool) {
 
 func loadDiskBalancerConfig() diskBalancerConfig {
 	cfg := diskBalancerConfig{
-		enabled:   envBool("DISK_BALANCER_ENABLED"),
-		dryRun:    envBool("DISK_BALANCER_DRY_RUN"),
 		spare:     diskBalancerSpareDisk(),
 		minFree:   int64(envFloat("DISK_BALANCER_MIN_FREE_GB", 20) * 1e9),
 		heavyMbps: envFloat("DISK_BALANCER_HEAVY_MBPS", 40),
 		hotWindow: time.Duration(envFloat("DISK_BALANCER_HOT_DAYS", 90)*24) * time.Hour,
 	}
 
-	for _, disk := range strings.Split(os.Getenv("DISK_BALANCER_POOL_DISKS"), ",") {
+	poolDisks := strings.TrimSpace(os.Getenv("DISK_BALANCER_POOL_DISKS"))
+	if poolDisks == "" {
+		poolDisks = "sdb,sdc,sdd"
+	}
+	for _, disk := range strings.Split(poolDisks, ",") {
 		disk = strings.TrimSpace(disk)
 		if disk != "" && disk != cfg.spare {
 			cfg.pool = append(cfg.pool, disk)
@@ -119,11 +120,6 @@ func loadDiskBalancerConfig() diskBalancerConfig {
 	}
 
 	return cfg
-}
-
-func envBool(key string) bool {
-	value, _ := strconv.ParseBool(strings.TrimSpace(os.Getenv(key)))
-	return value
 }
 
 func envFloat(key string, fallback float64) float64 {
@@ -136,18 +132,14 @@ func envFloat(key string, fallback float64) float64 {
 
 func StartDiskBalancerWorker() {
 	cfg := loadDiskBalancerConfig()
-	if !cfg.enabled {
-		setDiskBalancerStatus(DiskBalancerStatus{Message: "disabled (DISK_BALANCER_ENABLED is not true)"})
-		return
-	}
 	if len(cfg.pool) == 0 {
-		log.Printf("disk balancer: DISK_BALANCER_POOL_DISKS is empty, not starting")
-		setDiskBalancerStatus(DiskBalancerStatus{Message: "disabled (DISK_BALANCER_POOL_DISKS is empty)"})
+		log.Printf("disk balancer: no pool disks besides the spare disk, not starting")
+		setDiskBalancerStatus(DiskBalancerStatus{Message: "not running: no pool disks besides the spare disk"})
 		return
 	}
 
 	diskBalancerOnce.Do(func() {
-		log.Printf("disk balancer: spare=%s pool=%s dryRun=%t", cfg.spare, strings.Join(cfg.pool, ","), cfg.dryRun)
+		log.Printf("disk balancer: spare=%s pool=%s", cfg.spare, strings.Join(cfg.pool, ","))
 		go func() {
 			for {
 				if err := RunDiskBalancer(cfg); err != nil {
@@ -160,7 +152,7 @@ func StartDiskBalancerWorker() {
 }
 
 func RunDiskBalancer(cfg diskBalancerConfig) error {
-	status := DiskBalancerStatus{Enabled: true, DryRun: cfg.dryRun, CheckedAt: time.Now().UTC(), HeavyMbps: cfg.heavyMbps}
+	status := DiskBalancerStatus{Running: true, CheckedAt: time.Now().UTC(), HeavyMbps: cfg.heavyMbps}
 	defer func() { setDiskBalancerStatus(status) }()
 
 	torrentsByHash, err := QbtGetAllTorrentsByHash()
@@ -194,7 +186,7 @@ func RunDiskBalancer(cfg diskBalancerConfig) error {
 		})
 	}
 
-	if diskBalancerScanPending && !cfg.dryRun {
+	if diskBalancerScanPending {
 		if _, err := TriggerMoviesAndShowsScan(); err != nil {
 			log.Printf("disk balancer: plex scan after move failed: %v", err)
 		} else {
@@ -241,6 +233,14 @@ func RunDiskBalancer(cfg diskBalancerConfig) error {
 		status.Disks = append(status.Disks, summary)
 	}
 
+	byMbps := slices.Clone(torrents)
+	sort.Slice(byMbps, func(i, j int) bool { return byMbps[i].Mbps > byMbps[j].Mbps })
+	for _, torrent := range byMbps[:min(len(byMbps), 100)] {
+		status.TopBitrates = append(status.TopBitrates, DiskBalancerTorrent{
+			Name: torrent.Name, Disk: torrent.Disk, Size: torrent.Size, Mbps: torrent.Mbps, Heavy: torrent.Heavy,
+		})
+	}
+
 	moves := planDiskBalance(torrents, free, cfg.spare, cfg.pool, cfg.minFree, hotSince)
 	for _, move := range moves {
 		status.Plan = append(status.Plan, DiskBalancerPlanItem{
@@ -249,22 +249,18 @@ func RunDiskBalancer(cfg diskBalancerConfig) error {
 		})
 	}
 
-	switch {
-	case len(moves) == 0:
-		status.Message = "nothing to move"
-	case cfg.dryRun:
-		status.Message = "dry run, nothing was moved"
-	default:
-		status.Message = "moving"
+	status.Message = "nothing to move"
+	if len(moves) > 0 {
+		status.Message = fmt.Sprintf("asked qBittorrent to move %d torrent(s)", countStartedMoves(moves))
 	}
 
 	for _, move := range moves {
 		location := qbtDiskPath(move.To, move.Torrent.SubPath)
 		log.Printf(
-			"disk balancer: %s %q (%.1f GB) %s -> %s (dryRun=%t pending=%t)",
-			move.Reason, move.Torrent.Name, float64(move.Torrent.Size)/1e9, move.Torrent.Disk, location, cfg.dryRun, move.Pending,
+			"disk balancer: %s %q (%.1f GB) %s -> %s (pending=%t)",
+			move.Reason, move.Torrent.Name, float64(move.Torrent.Size)/1e9, move.Torrent.Disk, location, move.Pending,
 		)
-		if cfg.dryRun || move.Pending {
+		if move.Pending {
 			continue
 		}
 		moveErr := QbtSetLocation(move.Torrent.Hash, location)
@@ -277,6 +273,16 @@ func RunDiskBalancer(cfg diskBalancerConfig) error {
 	}
 
 	return nil
+}
+
+func countStartedMoves(moves []balancerMove) int {
+	count := 0
+	for _, move := range moves {
+		if !move.Pending {
+			count++
+		}
+	}
+	return count
 }
 
 // estimateTorrentMbps returns the bitrate of the biggest video file, read with
@@ -379,34 +385,42 @@ func isVideoFile(name string) bool {
 	return false
 }
 
-// planDiskBalance decides the next moves. It is a pure function so the
-// rebalancing rules can be tested without qbt or real disks.
+// planDiskBalance decides every move it can in one go. It is a pure function
+// so the rebalancing rules can be tested without qbt or real disks. Free space
+// and heavy counts are updated as moves are planned, so later moves see the
+// disks as they will be once the earlier ones are done.
 //
-//  1. The newest heavy torrent on the spare disk goes to the pool disk with the
-//     fewest recent heavy torrents. If that disk is full, it first gets its
-//     oldest light torrents moved to the spare disk; the heavy torrent follows
-//     on a later run once those moves are done.
-//  2. Otherwise, pool disks with room get the newest light torrents from the
-//     spare disk that fit.
+//  1. Heavy torrents on the spare disk, newest first, go to the pool disk with
+//     the fewest recent heavy torrents. If that disk is full, its oldest light
+//     torrents are moved to the spare disk now, and the heavy torrent is
+//     pending: it moves on a later run, once those moves are done.
+//  2. Pool disks with room left get the newest light torrents from the spare
+//     disk that fit.
 func planDiskBalance(torrents []balancerTorrent, free map[string]int64, spare string, pool []string, minFree int64, hotSince int64) []balancerMove {
 	byDisk := map[string][]balancerTorrent{}
 	for _, torrent := range torrents {
 		byDisk[torrent.Disk] = append(byDisk[torrent.Disk], torrent)
 	}
+	free = maps.Clone(free)
 
-	onSpare := byDisk[spare]
+	onSpare := slices.Clone(byDisk[spare])
 	sort.Slice(onSpare, func(i, j int) bool { return onSpare[i].AddedOn > onSpare[j].AddedOn })
 
-	targets := rankPoolDisks(byDisk, free, pool, hotSince)
+	moves := []balancerMove{}
+	moved := map[string]bool{}
 
 	for _, candidate := range onSpare {
 		if !candidate.Heavy {
 			continue
 		}
-		for _, target := range targets {
+		for _, target := range rankPoolDisks(byDisk, free, pool, hotSince) {
 			need := candidate.Size + minFree - free[target]
 			if need <= 0 {
-				return []balancerMove{{Torrent: candidate, To: target, Reason: "spread heavy"}}
+				moves = append(moves, balancerMove{Torrent: candidate, To: target, Reason: "spread heavy"})
+				free[target] -= candidate.Size
+				byDisk[target] = append(byDisk[target], candidate)
+				moved[candidate.Hash] = true
+				break
 			}
 
 			evictions := pickEvictions(byDisk[target], need)
@@ -421,25 +435,28 @@ func planDiskBalance(torrents []balancerTorrent, free map[string]int64, spare st
 				continue
 			}
 
-			moves := make([]balancerMove, 0, len(evictions)+1)
 			for _, torrent := range evictions {
 				moves = append(moves, balancerMove{Torrent: torrent, To: spare, Reason: "make room for " + candidate.Name})
+				moved[torrent.Hash] = true
+				byDisk[target] = slices.DeleteFunc(byDisk[target], func(t balancerTorrent) bool { return t.Hash == torrent.Hash })
 			}
-			return append(moves, balancerMove{Torrent: candidate, To: target, Reason: "spread heavy", Pending: true})
+			moves = append(moves, balancerMove{Torrent: candidate, To: target, Reason: "spread heavy", Pending: true})
+			moved[candidate.Hash] = true
+			free[spare] -= evictBytes
+			free[target] += evictBytes - candidate.Size
+			byDisk[target] = append(byDisk[target], candidate)
+			break
 		}
 	}
 
-	moves := []balancerMove{}
-	used := map[string]bool{}
 	for _, target := range pool {
-		room := free[target] - minFree
 		for _, torrent := range onSpare {
-			if torrent.Heavy || used[torrent.Hash] || torrent.Size > room {
+			if torrent.Heavy || moved[torrent.Hash] || torrent.Size > free[target]-minFree {
 				continue
 			}
 			moves = append(moves, balancerMove{Torrent: torrent, To: target, Reason: "fill"})
-			used[torrent.Hash] = true
-			room -= torrent.Size
+			moved[torrent.Hash] = true
+			free[target] -= torrent.Size
 		}
 	}
 	return moves

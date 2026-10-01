@@ -27,17 +27,17 @@ MYSQL_PASSWORD
 
 ## Disk balancer
 
-New downloads land on the spare disk (`DISK_BALANCER_SPARE_DISK`, default `sde`). When enabled, a worker runs every 10 minutes. It moves high bitrate torrents off the spare disk and spreads them across the pool disks (`DISK_BALANCER_POOL_DISKS`), so the pool disks stay full and the spare disk keeps as much free space as possible.
+New downloads land on the spare disk (`DISK_BALANCER_SPARE_DISK`, default `sde`). A worker runs every 10 minutes. It moves high bitrate torrents off the spare disk and spreads them across the pool disks (`DISK_BALANCER_POOL_DISKS`, default `sdb,sdc,sdd`), so the pool disks stay full and the spare disk keeps as much free space as possible.
 
 - Every move is a qBittorrent `setLocation` (`/downloads/<disk>/<category>`), so torrents keep seeding.
 - A torrent counts as heavy when its biggest video file averages `DISK_BALANCER_HEAVY_MBPS` or more (default 40). The bitrate is read with `ffprobe` (installed in the backend image). If probing fails, it is guessed from the file size, assuming a movie runs 2 hours and an episode 50 minutes.
-- The newest heavy torrent goes to the pool disk with the fewest heavy torrents added in the last `DISK_BALANCER_HOT_DAYS` days. If that disk is full, its oldest light torrents are moved to the spare disk first.
-- When a pool disk has room and no heavy torrent needs placing, the newest light torrents that fit are moved onto it.
+- Each run plans every move it can. Heavy torrents, newest first, go to the pool disk with the fewest heavy torrents added in the last `DISK_BALANCER_HOT_DAYS` days. If that disk is full, its oldest light torrents are moved to the spare disk first, and the heavy torrent follows on a later run.
+- Pool disks with room left get the newest light torrents that fit.
 - Every disk keeps `DISK_BALANCER_MIN_FREE_GB` free (default 20).
 - Nothing moves while qBittorrent is still moving something. Moves also happen while Plex is streaming. Plex libraries are rescanned after moves finish.
-- Admins can see the current plan, disk state and a changelog of every move on the Disk Balancer page (`/disk-balancer`). Moves are stored in the `disk_balancer_moves` table.
+- Admins can see the current plan, disk state, the highest bitrates and a changelog of every move on the Disk Balancer page (`/disk-balancer`). Moves are stored in the `disk_balancer_moves` table.
 
-The backend reads free space from `/<disk>`, so every disk has to be mounted read-only (see `compose.yaml`). Start with `DISK_BALANCER_DRY_RUN=true` and check the `disk balancer:` lines in the backend logs before letting it move anything.
+The backend reads free space and runs ffprobe from `/<disk>`, so every disk's `plex` folder has to be mounted read-only (see `compose.yaml`).
 
 ## Shared MySQL (single DB for dev + prod)
 

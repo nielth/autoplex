@@ -20,6 +20,7 @@ func SetupRouter() *gin.Engine {
 	protected.POST("/download", handlers.TlDownloadHandler)
 	protected.GET("/downloads", handlers.DownloadListHandler)
 	protected.POST("/downloads/:id/delete", handlers.DownloadDeleteHandler)
+	protected.POST("/downloads/import-qbt", handlers.ImportQbtTorrentsHandler)
 	protected.GET("/downloads/delete-requests", handlers.PendingDeleteRequestsHandler)
 	protected.GET("/downloads/delete-requests/history", handlers.DeleteRequestHistoryHandler)
 	protected.GET("/downloads/delete-requests/hit-and-run", handlers.HitAndRunRequestsHandler)
