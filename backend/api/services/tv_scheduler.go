@@ -102,6 +102,9 @@ type tvEpisodeJobRow struct {
 	PreferredQuality string
 	DynamicRange     string
 	AttemptCount     uint64
+	// FromSubscription is true for jobs queued by auto-install, false for
+	// manually requested installs.
+	FromSubscription bool
 }
 
 // tvAutoInstallQualityRow is one configured auto-install quality for a show,
@@ -396,6 +399,11 @@ func ProcessDueTvEpisodeJobs(limit int) error {
 	}
 
 	for _, job := range jobs {
+		// A season pack installed for an earlier job in this batch settles its
+		// sibling episodes too, so skip jobs that are no longer waiting.
+		if active, activeErr := isEpisodeJobActive(job.ID); activeErr == nil && !active {
+			continue
+		}
 		if err := processEpisodeJob(job); err != nil {
 			log.Printf("failed processing tv episode job %d: %v", job.ID, err)
 		}
@@ -427,7 +435,8 @@ func listDueEpisodeJobs(limit int) ([]tvEpisodeJobRow, error) {
 			j.airtime_known,
 			j.preferred_quality,
 			j.dynamic_range,
-			j.attempt_count
+			j.attempt_count,
+			j.subscription_id IS NOT NULL
 			FROM tv_episode_jobs j
 			INNER JOIN users u ON u.id = j.user_id
 			LEFT JOIN tv_show_subscriptions s
@@ -464,6 +473,7 @@ func listDueEpisodeJobs(limit int) ([]tvEpisodeJobRow, error) {
 			&row.PreferredQuality,
 			&row.DynamicRange,
 			&row.AttemptCount,
+			&row.FromSubscription,
 		); err != nil {
 			return nil, err
 		}
@@ -478,6 +488,19 @@ func listDueEpisodeJobs(limit int) ([]tvEpisodeJobRow, error) {
 }
 
 func processEpisodeJob(job tvEpisodeJobRow) error {
+	seasonEpisodes, err := seasonEpisodesForShow(job.TvMazeShowID, int(job.SeasonNumber.Int64))
+	if err != nil {
+		log.Printf("failed loading season episodes for job %d (show %d season %d): %v", job.ID, job.TvMazeShowID, job.SeasonNumber.Int64, err)
+	}
+
+	// Auto-install takes a season released all at once as one season pack
+	// instead of episode by episode, so look for the boxset before any single
+	// episode. A manually requested episode stays a single-episode install.
+	packFirst := job.FromSubscription && isFullSeasonDrop(seasonEpisodes)
+	if packFirst && seasonBoxsetSettlesJob(job, seasonEpisodes) {
+		return nil
+	}
+
 	torrents, err := TlSeriesSearchByTvMaze(job.TvMazeEpisodeID, job.TvMazeShowID)
 	if err != nil {
 		return markEpisodeJobRetry(job, fmt.Sprintf("torrent search failed: %v", err))
@@ -485,12 +508,9 @@ func processEpisodeJob(job tvEpisodeJobRow) error {
 
 	selected := SelectBestTorrentByQuality(torrents, job.PreferredQuality, job.DynamicRange)
 	if selected == nil {
-		// No single-episode release found. For all-at-once/binge seasons the
-		// content often exists only as a season pack, so try the boxset before
-		// backing off and retrying.
-		if installed, boxErr := tryInstallSeasonBoxsetForJob(job); boxErr != nil {
-			log.Printf("season boxset fallback failed for job %d (show %d season %d): %v", job.ID, job.TvMazeShowID, job.SeasonNumber.Int64, boxErr)
-		} else if installed {
+		// No single-episode release found. The episode may exist only inside a
+		// season pack, so try the boxset before backing off and retrying.
+		if !packFirst && seasonBoxsetSettlesJob(job, seasonEpisodes) {
 			return nil
 		}
 		return markEpisodeJobRetry(job, fmt.Sprintf(
@@ -542,16 +562,72 @@ func processEpisodeJob(job tvEpisodeJobRow) error {
 	return markEpisodeJobDownloaded(job.ID, downloadEventID)
 }
 
+// seasonEpisodesForShow loads the TVMaze episodes of one season of a show.
+func seasonEpisodesForShow(showID int64, seasonNumber int) ([]TvMazeEpisode, error) {
+	if seasonNumber <= 0 {
+		return nil, nil
+	}
+
+	episodes, err := TvMazeGetEpisodes(showID)
+	if err != nil {
+		return nil, err
+	}
+
+	seasonEpisodes := make([]TvMazeEpisode, 0)
+	for _, episode := range episodes {
+		if episode.Season == seasonNumber {
+			seasonEpisodes = append(seasonEpisodes, episode)
+		}
+	}
+
+	return seasonEpisodes, nil
+}
+
+// isFullSeasonDrop reports whether a season is released all at once (a binge
+// drop): it has several episodes and they all share one air date.
+func isFullSeasonDrop(seasonEpisodes []TvMazeEpisode) bool {
+	if len(seasonEpisodes) < 2 {
+		return false
+	}
+
+	airdate := strings.TrimSpace(seasonEpisodes[0].Airdate)
+	if airdate == "" {
+		return false
+	}
+	for _, episode := range seasonEpisodes[1:] {
+		if strings.TrimSpace(episode.Airdate) != airdate {
+			return false
+		}
+	}
+
+	return true
+}
+
+// seasonBoxsetSettlesJob tries the season boxset for a job and reports whether
+// that settled the job. A failed attempt is only logged, so the job carries on
+// with its single-episode search.
+func seasonBoxsetSettlesJob(job tvEpisodeJobRow, seasonEpisodes []TvMazeEpisode) bool {
+	installed, err := tryInstallSeasonBoxsetForJob(job, seasonEpisodes)
+	if err != nil {
+		log.Printf("season boxset install failed for job %d (show %d season %d): %v", job.ID, job.TvMazeShowID, job.SeasonNumber.Int64, err)
+		return false
+	}
+	return installed
+}
+
 // tryInstallSeasonBoxsetForJob attempts to satisfy a single-episode auto-install
-// job from a full-season boxset. This covers all-at-once/binge releases that are
-// published only as a season pack and never as individual sXXeYY torrents. It
-// returns true only when this job's own episode ends up downloaded, so the caller
-// knows it can stop retrying.
-func tryInstallSeasonBoxsetForJob(job tvEpisodeJobRow) (bool, error) {
+// job from a full-season boxset. This covers all-at-once/binge releases, which
+// are wanted as one season pack and are sometimes never published as individual
+// sXXeYY torrents. It returns true only when this job's own episode ends up
+// downloaded, so the caller knows it can stop retrying.
+func tryInstallSeasonBoxsetForJob(job tvEpisodeJobRow, seasonEpisodes []TvMazeEpisode) (bool, error) {
 	if !job.SeasonNumber.Valid || job.SeasonNumber.Int64 <= 0 {
 		return false, nil
 	}
 	seasonNumber := int(job.SeasonNumber.Int64)
+	if len(seasonEpisodes) == 0 {
+		return false, nil
+	}
 
 	userID, err := ensureUserByUsername(job.Username)
 	if err != nil {
@@ -561,21 +637,6 @@ func tryInstallSeasonBoxsetForJob(job tvEpisodeJobRow) (bool, error) {
 	show, err := TvMazeGetShow(job.TvMazeShowID)
 	if err != nil {
 		return false, err
-	}
-
-	episodes, err := TvMazeGetEpisodes(job.TvMazeShowID)
-	if err != nil {
-		return false, err
-	}
-
-	seasonEpisodes := make([]TvMazeEpisode, 0)
-	for _, episode := range episodes {
-		if episode.Season == seasonNumber {
-			seasonEpisodes = append(seasonEpisodes, episode)
-		}
-	}
-	if len(seasonEpisodes) == 0 {
-		return false, nil
 	}
 
 	boxsetTorrents, err := TlSeriesBoxsetSearchByTvMaze(job.TvMazeShowID, job.TvMazeShowID)
@@ -601,9 +662,36 @@ func tryInstallSeasonBoxsetForJob(job tvEpisodeJobRow) (bool, error) {
 		return false, nil
 	}
 
-	// installSeasonBoxsetIfPossible marks every installable season episode as
-	// downloaded; only report success once this job's episode is settled.
+	// installSeasonBoxsetIfPossible marks the season episodes covered by the
+	// pack as downloaded; only report success once this job's episode is settled.
 	return isEpisodeJobDownloaded(userID, job.TvMazeEpisodeID, job.PreferredQuality)
+}
+
+func isEpisodeJobActive(jobID uint64) (bool, error) {
+	db, err := dbConn()
+	if err != nil {
+		return false, err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var active bool
+	err = db.QueryRowContext(
+		ctx,
+		`SELECT EXISTS(
+			SELECT 1
+			FROM tv_episode_jobs
+			WHERE id = ?
+			  AND status IN ('pending', 'searching')
+		)`,
+		jobID,
+	).Scan(&active)
+	if err != nil {
+		return false, err
+	}
+
+	return active, nil
 }
 
 func markEpisodeJobRetry(job tvEpisodeJobRow, reason string) error {
@@ -2182,7 +2270,11 @@ func installSeasonBoxsetIfPossible(
 	seasonEpisodes []TvMazeEpisode,
 ) (bool, bool, error) {
 	wantedDynamicRange := EffectiveDynamicRange(quality, dynamicRange)
-	selected := SelectBestBoxsetTorrentByQuality(
+	selectBoxset := SelectBestBoxsetTorrentByQuality
+	if isFullSeasonDrop(seasonEpisodes) {
+		selectBoxset = SelectBestSeasonPackTorrent
+	}
+	selected := selectBoxset(
 		boxsetTorrents,
 		showName,
 		seasonNumber,
@@ -2268,8 +2360,11 @@ func markEpisodesDownloadedFromBoxset(
 	}
 
 	now := time.Now().UTC()
+	// A pack of a season released all at once holds every episode, even while
+	// TVMaze's placeholder air time for them still lies ahead.
+	fullSeasonDrop := isFullSeasonDrop(episodes)
 	for _, episode := range episodes {
-		if !isInstallableEpisode(episode, now) {
+		if !fullSeasonDrop && !isInstallableEpisode(episode, now) {
 			continue
 		}
 

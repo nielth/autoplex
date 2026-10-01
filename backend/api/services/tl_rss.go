@@ -210,7 +210,7 @@ func processTlRssItem(item tlRssItem, subs []tlRssSubscriptionMatch) {
 		return
 	}
 
-	episodeID, hasJob, err := activeEpisodeJob(match.userID, match.tvmazeShowID, season, episode, quality)
+	episodeID, fromSubscription, hasJob, err := activeEpisodeJob(match.userID, match.tvmazeShowID, season, episode, quality)
 	if err != nil {
 		log.Printf("tl rss active job check failed show=%d s%02de%02d: %v", match.tvmazeShowID, season, episode, err)
 		return
@@ -218,6 +218,20 @@ func processTlRssItem(item tlRssItem, subs []tlRssSubscriptionMatch) {
 	if !hasJob {
 		log.Printf("tl rss skip: show=%q s%02de%02d not in active auto-install window", match.showName, season, episode)
 		return
+	}
+
+	// Auto-install takes a season released all at once as one season pack, so a
+	// single episode showing up only prompts a look for that pack.
+	if fromSubscription {
+		seasonEpisodes, err := seasonEpisodesForShow(match.tvmazeShowID, season)
+		if err != nil {
+			log.Printf("tl rss season lookup failed show=%d season=%d, leaving s%02de%02d to the scheduler: %v", match.tvmazeShowID, season, season, episode, err)
+			return
+		}
+		if isFullSeasonDrop(seasonEpisodes) {
+			installTlRssSeasonPack(match, season, episodeID, quality, seasonEpisodes)
+			return
+		}
 	}
 
 	// Per-episode guard mirroring the scheduler: if this episode already has a
@@ -251,6 +265,34 @@ func processTlRssItem(item tlRssItem, subs []tlRssSubscriptionMatch) {
 	eventID, _ := findLatestDownloadEventIDByFid(fid, match.username)
 	markEpisodeJobsDownloadedForRss(match.userID, match.tvmazeShowID, season, episode, quality, eventID)
 	log.Printf("tl rss dispatched download show=%q fid=%s quality=%s title=%q", match.showName, fid, quality, title)
+}
+
+// installTlRssSeasonPack installs the season pack for a season released all at
+// once instead of the single episode seen in the feed. With no pack on the
+// tracker yet the episode is skipped and the scheduler picks the season up at
+// its next check.
+func installTlRssSeasonPack(match *tlRssSubscriptionMatch, season int, episodeID int64, quality string, seasonEpisodes []TvMazeEpisode) {
+	// Shares the scheduler's lock so both workers never grab the same pack at once.
+	tvEpisodeWorkerMu.Lock()
+	defer tvEpisodeWorkerMu.Unlock()
+
+	installed, err := tryInstallSeasonBoxsetForJob(tvEpisodeJobRow{
+		Username:         match.username,
+		TvMazeShowID:     match.tvmazeShowID,
+		TvMazeEpisodeID:  episodeID,
+		SeasonNumber:     sql.NullInt64{Int64: int64(season), Valid: true},
+		PreferredQuality: quality,
+		DynamicRange:     match.qualities[quality],
+	}, seasonEpisodes)
+	if err != nil {
+		log.Printf("tl rss season pack install failed show=%q season=%d quality=%s: %v", match.showName, season, quality, err)
+		return
+	}
+	if !installed {
+		log.Printf("tl rss skip: show=%q season=%d is a full-season drop with no %sp season pack yet", match.showName, season, quality)
+		return
+	}
+	log.Printf("tl rss installed season pack show=%q season=%d quality=%s", match.showName, season, quality)
 }
 
 func extractTlFidFromLink(link string) string {
@@ -345,22 +387,25 @@ func tokensStartWithShow(titleTokens []string, showTokens []string) bool {
 }
 
 // activeEpisodeJob returns the tvmaze episode id of an active (pending/searching)
-// auto-install job matching the RSS-parsed season/episode/quality, and whether
-// one exists. The episode id lets RSS-originated downloads be recorded against
-// the episode so cross-worker per-episode dedup works.
-func activeEpisodeJob(userID uint64, tvmazeShowID int64, season int, episode int, quality string) (int64, bool, error) {
+// auto-install job matching the RSS-parsed season/episode/quality, whether that
+// job was queued by an auto-install subscription (rather than requested
+// manually), and whether a job exists at all. The episode id lets
+// RSS-originated downloads be recorded against the episode so cross-worker
+// per-episode dedup works.
+func activeEpisodeJob(userID uint64, tvmazeShowID int64, season int, episode int, quality string) (int64, bool, bool, error) {
 	db, err := dbConn()
 	if err != nil {
-		return 0, false, err
+		return 0, false, false, err
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	var episodeID int64
+	var fromSubscription bool
 	err = db.QueryRowContext(
 		ctx,
-		`SELECT tvmaze_episode_id FROM tv_episode_jobs
+		`SELECT tvmaze_episode_id, subscription_id IS NOT NULL FROM tv_episode_jobs
 			WHERE user_id = ?
 			  AND tvmaze_show_id = ?
 			  AND season_number = ?
@@ -374,12 +419,12 @@ func activeEpisodeJob(userID uint64, tvmazeShowID int64, season int, episode int
 		season,
 		episode,
 		NormalizeQualityPreference(quality),
-	).Scan(&episodeID)
+	).Scan(&episodeID, &fromSubscription)
 	if errors.Is(err, sql.ErrNoRows) {
-		return 0, false, nil
+		return 0, false, false, nil
 	}
 	if err != nil {
-		return 0, false, err
+		return 0, false, false, err
 	}
-	return episodeID, true, nil
+	return episodeID, fromSubscription, true, nil
 }
