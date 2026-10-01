@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { DiskUsage } from "./DiskUsage";
+import { authProvider } from "../auth";
 
 function formatUtcNow(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -131,6 +132,17 @@ export function Navbar() {
                     Downloads
                   </Link>
                 </li>
+                {authProvider.isAdmin ? (
+                  <li className="w-full max-w-sm">
+                    <Link
+                      to="/disk-balancer"
+                      className="justify-center text-3xl font-semibold"
+                      onClick={closeMobileMenu}
+                    >
+                      Disk Balancer
+                    </Link>
+                  </li>
+                ) : null}
               </ul>
             </div>
           ) : null}
@@ -145,6 +157,11 @@ export function Navbar() {
               <li>
                 <Link to="/downloads">Downloads</Link>
               </li>
+              {authProvider.isAdmin ? (
+                <li>
+                  <Link to="/disk-balancer">Disk Balancer</Link>
+                </li>
+              ) : null}
             </ul>
           </div>
         </div>

@@ -40,7 +40,8 @@ New downloads land on the spare disk (`DISK_BALANCER_SPARE_DISK`, default `sde`)
 - The newest heavy torrent goes to the pool disk with the fewest heavy torrents added in the last `DISK_BALANCER_HOT_DAYS` days. If that disk is full, its oldest light torrents are moved to the spare disk first.
 - When a pool disk has room and no heavy torrent needs placing, the newest light torrents that fit are moved onto it.
 - Every disk keeps `DISK_BALANCER_MIN_FREE_GB` free (default 20).
-- Nothing moves while Plex is streaming or while qBittorrent is still moving something. Plex libraries are rescanned after moves finish.
+- Nothing moves while qBittorrent is still moving something. Moves also happen while Plex is streaming. Plex libraries are rescanned after moves finish.
+- Admins can see the current plan, disk state and a changelog of every move on the Disk Balancer page (`/disk-balancer`). Moves are stored in the `disk_balancer_moves` table.
 
 The backend reads free space from `/<disk>`, so every disk has to be mounted read-only (see `compose.yaml`). Start with `DISK_BALANCER_DRY_RUN=true` and check the `disk balancer:` lines in the backend logs before letting it move anything.
 

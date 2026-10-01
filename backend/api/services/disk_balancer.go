@@ -67,6 +67,7 @@ type balancerTorrent struct {
 	SubPath string // save path below the disk, e.g. "movies"
 	Size    int64
 	AddedOn int64
+	Mbps    float64
 	Heavy   bool
 }
 
@@ -74,6 +75,8 @@ type balancerMove struct {
 	Torrent balancerTorrent
 	To      string
 	Reason  string
+	// Pending moves are shown in the plan but wait for the moves before them.
+	Pending bool
 }
 
 func diskBalancerSpareDisk() string {
@@ -133,10 +136,12 @@ func envFloat(key string, fallback float64) float64 {
 func StartDiskBalancerWorker() {
 	cfg := loadDiskBalancerConfig()
 	if !cfg.enabled {
+		setDiskBalancerStatus(DiskBalancerStatus{Message: "disabled (DISK_BALANCER_ENABLED is not true)"})
 		return
 	}
 	if len(cfg.pool) == 0 {
 		log.Printf("disk balancer: DISK_BALANCER_POOL_DISKS is empty, not starting")
+		setDiskBalancerStatus(DiskBalancerStatus{Message: "disabled (DISK_BALANCER_POOL_DISKS is empty)"})
 		return
 	}
 
@@ -154,8 +159,12 @@ func StartDiskBalancerWorker() {
 }
 
 func RunDiskBalancer(cfg diskBalancerConfig) error {
+	status := DiskBalancerStatus{Enabled: true, DryRun: cfg.dryRun, CheckedAt: time.Now().UTC(), HeavyMbps: cfg.heavyMbps}
+	defer func() { setDiskBalancerStatus(status) }()
+
 	torrentsByHash, err := QbtGetAllTorrentsByHash()
 	if err != nil {
+		status.Message = "could not read torrents from qBittorrent: " + err.Error()
 		return err
 	}
 
@@ -164,7 +173,7 @@ func RunDiskBalancer(cfg diskBalancerConfig) error {
 	for _, torrent := range torrentsByHash {
 		// One move at a time: free space is only meaningful once qbt is done.
 		if torrent.State == "moving" {
-			log.Printf("disk balancer: %q is still moving, waiting", torrent.Name)
+			status.Message = fmt.Sprintf("waiting for %q to finish moving", torrent.Name)
 			return nil
 		}
 		if torrent.Progress < 1 || !slices.Contains(diskBalancerSettledStates, torrent.State) {
@@ -192,22 +201,16 @@ func RunDiskBalancer(cfg diskBalancerConfig) error {
 		}
 	}
 
-	sessions, err := PlexActiveSessionCount()
-	if err != nil {
-		return fmt.Errorf("could not read plex sessions, skipping: %w", err)
-	}
-	if sessions > 0 {
-		log.Printf("disk balancer: %d plex stream(s) active, not moving anything", sessions)
-		return nil
-	}
-
 	free := make(map[string]int64, len(disks))
+	total := make(map[string]int64, len(disks))
 	for _, disk := range disks {
 		var stat syscall.Statfs_t
 		if err := syscall.Statfs("/"+disk, &stat); err != nil {
+			status.Message = fmt.Sprintf("could not read free space of /%s (is it mounted?)", disk)
 			return fmt.Errorf("could not read free space of /%s (is it mounted?): %w", disk, err)
 		}
 		free[disk] = int64(stat.Bavail) * int64(stat.Bsize)
+		total[disk] = int64(stat.Blocks) * int64(stat.Bsize)
 	}
 
 	for i := range torrents {
@@ -216,23 +219,58 @@ func RunDiskBalancer(cfg diskBalancerConfig) error {
 			log.Printf("disk balancer: could not estimate bitrate of %q: %v", torrents[i].Name, err)
 			continue
 		}
+		torrents[i].Mbps = mbps
 		torrents[i].Heavy = mbps >= cfg.heavyMbps
 	}
 
 	hotSince := time.Now().Add(-cfg.hotWindow).Unix()
+	for _, disk := range disks {
+		summary := DiskBalancerDisk{Name: disk, Role: "pool", Free: free[disk], Total: total[disk]}
+		if disk == cfg.spare {
+			summary.Role = "spare"
+		}
+		for _, torrent := range torrents {
+			if torrent.Disk == disk && torrent.Heavy {
+				summary.HeavyCount++
+				if torrent.AddedOn >= hotSince {
+					summary.RecentHeavyCount++
+				}
+			}
+		}
+		status.Disks = append(status.Disks, summary)
+	}
+
 	moves := planDiskBalance(torrents, free, cfg.spare, cfg.pool, cfg.minFree, hotSince)
+	for _, move := range moves {
+		status.Plan = append(status.Plan, DiskBalancerPlanItem{
+			Name: move.Torrent.Name, From: move.Torrent.Disk, To: move.To, Size: move.Torrent.Size,
+			Mbps: move.Torrent.Mbps, Reason: move.Reason, Pending: move.Pending,
+		})
+	}
+
+	switch {
+	case len(moves) == 0:
+		status.Message = "nothing to move"
+	case cfg.dryRun:
+		status.Message = "dry run, nothing was moved"
+	default:
+		status.Message = "moving"
+	}
 
 	for _, move := range moves {
 		location := qbtDiskPath(move.To, move.Torrent.SubPath)
 		log.Printf(
-			"disk balancer: %s %q (%.1f GB) %s -> %s (dryRun=%t)",
-			move.Reason, move.Torrent.Name, float64(move.Torrent.Size)/1e9, move.Torrent.Disk, location, cfg.dryRun,
+			"disk balancer: %s %q (%.1f GB) %s -> %s (dryRun=%t pending=%t)",
+			move.Reason, move.Torrent.Name, float64(move.Torrent.Size)/1e9, move.Torrent.Disk, location, cfg.dryRun, move.Pending,
 		)
-		if cfg.dryRun {
+		if cfg.dryRun || move.Pending {
 			continue
 		}
-		if err := QbtSetLocation(move.Torrent.Hash, location); err != nil {
-			return fmt.Errorf("move of %q failed: %w", move.Torrent.Name, err)
+		moveErr := QbtSetLocation(move.Torrent.Hash, location)
+		recordDiskBalancerMove(move, moveErr)
+		if moveErr != nil {
+			status.Message = fmt.Sprintf("move of %q failed: %v", move.Torrent.Name, moveErr)
+			return fmt.Errorf("move of %q failed: %w", move.Torrent.Name, moveErr)
 		}
 		diskBalancerScanPending = true
 	}
@@ -375,11 +413,11 @@ func planDiskBalance(torrents []balancerTorrent, free map[string]int64, spare st
 				continue
 			}
 
-			moves := make([]balancerMove, 0, len(evictions))
+			moves := make([]balancerMove, 0, len(evictions)+1)
 			for _, torrent := range evictions {
 				moves = append(moves, balancerMove{Torrent: torrent, To: spare, Reason: "make room for " + candidate.Name})
 			}
-			return moves
+			return append(moves, balancerMove{Torrent: candidate, To: target, Reason: "spread heavy", Pending: true})
 		}
 	}
 

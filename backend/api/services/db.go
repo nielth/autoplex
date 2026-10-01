@@ -232,6 +232,21 @@ func migrateAuditSchema(db *sql.DB) error {
 				KEY idx_tv_show_auto_install_qualities_enabled (enabled),
 				CONSTRAINT fk_tv_show_auto_install_qualities_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+		`CREATE TABLE IF NOT EXISTS disk_balancer_moves (
+			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+			torrent_hash VARCHAR(128) NOT NULL,
+			torrent_name VARCHAR(512) NOT NULL,
+			from_disk VARCHAR(64) NOT NULL,
+			to_disk VARCHAR(64) NOT NULL,
+			size_bytes BIGINT UNSIGNED NOT NULL,
+			mbps DOUBLE NOT NULL,
+			reason VARCHAR(1024) NOT NULL,
+			success TINYINT(1) NOT NULL,
+			error_message TEXT NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY (id),
+			KEY idx_disk_balancer_moves_created_at (created_at)
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 		`CREATE TABLE IF NOT EXISTS tv_episode_jobs (
 				id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
 				subscription_id BIGINT UNSIGNED NULL,

@@ -270,3 +270,18 @@ func SystemOverview(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 
 }
+
+func DiskBalancerHandler(c *gin.Context) {
+	if !c.GetBool("is_admin") {
+		c.JSON(http.StatusForbidden, gin.H{"error": services.ErrAdminRequired.Error()})
+		return
+	}
+
+	moves, err := services.ListDiskBalancerMoves(200)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": services.GetDiskBalancerStatus(), "moves": moves})
+}

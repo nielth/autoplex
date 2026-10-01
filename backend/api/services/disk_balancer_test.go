@@ -7,7 +7,11 @@ const gb = int64(1e9)
 func describeMoves(moves []balancerMove) []string {
 	described := make([]string, 0, len(moves))
 	for _, move := range moves {
-		described = append(described, move.Torrent.Name+"->"+move.To)
+		description := move.Torrent.Name + "->" + move.To
+		if move.Pending {
+			description += " (pending)"
+		}
+		described = append(described, description)
 	}
 	return described
 }
@@ -42,7 +46,7 @@ func TestPlanDiskBalance(t *testing.T) {
 				torrent("new-light", "sdb", 50, 50, false),
 			},
 			free:     map[string]int64{"sde": 1000 * gb, "sdb": 10 * gb, "sdc": 5 * gb, "sdd": 5 * gb},
-			expected: []string{"older-light->sde", "old-light->sde"},
+			expected: []string{"older-light->sde", "old-light->sde", "remux->sdb (pending)"},
 		},
 		{
 			name: "newest heavy avoids disks that recently got heavy torrents",
