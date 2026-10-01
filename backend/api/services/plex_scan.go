@@ -150,3 +150,50 @@ func plexRefreshLibrarySection(plexURL string, plexToken string, sectionKey stri
 
 	return nil
 }
+
+type plexSessionsResponse struct {
+	Size int `xml:"size,attr"`
+}
+
+// PlexActiveSessionCount returns how many streams Plex is currently serving.
+func PlexActiveSessionCount() (int, error) {
+	plexURL, err := requiredEnv("PLEX_URL")
+	if err != nil {
+		return 0, err
+	}
+	plexToken, err := requiredEnv("PLEX_TOKEN")
+	if err != nil {
+		return 0, err
+	}
+
+	sessionsURL := fmt.Sprintf("%s/status/sessions?X-Plex-Token=%s", strings.TrimRight(plexURL, "/"), url.QueryEscape(plexToken))
+
+	req, err := http.NewRequest(http.MethodGet, sessionsURL, nil)
+	if err != nil {
+		return 0, err
+	}
+
+	client := &http.Client{Timeout: 15 * time.Second}
+	res, err := client.Do(req)
+	if err != nil {
+		return 0, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		body, _ := io.ReadAll(res.Body)
+		return 0, fmt.Errorf("plex sessions request failed with status %d: %s", res.StatusCode, string(body))
+	}
+
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return 0, err
+	}
+
+	var parsed plexSessionsResponse
+	if err := xml.Unmarshal(body, &parsed); err != nil {
+		return 0, fmt.Errorf("failed to parse plex sessions response: %w", err)
+	}
+
+	return parsed.Size, nil
+}

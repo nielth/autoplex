@@ -19,6 +19,7 @@ func main() {
 
 	services.StartTvEpisodeAutoInstallWorker()
 	services.StartHitAndRunWorker()
+	services.StartDiskBalancerWorker()
 
 	r := router.SetupRouter()
 	r.Run("0.0.0.0:8080")

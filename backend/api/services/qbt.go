@@ -94,6 +94,7 @@ type QbtDownloadList struct {
 	Num_leechs    int     `json:"num_leechs"`
 	Num_seeds     int     `json:"num_seeds"`
 	Progress      float64 `json:"progress"`
+	SavePath      string  `json:"save_path"`
 	Size          int     `json:"size"`
 	State         string  `json:"state"`
 }
@@ -413,7 +414,7 @@ func QbtDownload(data *[]byte, category string, fid string, sequential bool, fil
 		return "", err
 	}
 
-	if err := writer.WriteField("savepath", "/downloads/sde/"+category); err != nil {
+	if err := writer.WriteField("savepath", qbtDiskPath(diskBalancerSpareDisk(), category)); err != nil {
 		return "", err
 	}
 
@@ -626,6 +627,94 @@ func QbtPause(qbtHash string) error {
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
 		body, _ := io.ReadAll(res.Body)
 		return fmt.Errorf("qbt stop failed with status %d: %s", res.StatusCode, string(body))
+	}
+
+	return nil
+}
+
+type QbtTorrentFile struct {
+	Name string `json:"name"`
+	Size int64  `json:"size"`
+}
+
+func QbtGetTorrentFiles(qbtHash string) ([]QbtTorrentFile, error) {
+	cookie, qbtURL, err := qbtLoginHandler()
+	if err != nil {
+		return nil, err
+	}
+
+	params := url.Values{}
+	params.Set("hash", strings.TrimSpace(qbtHash))
+
+	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/api/v2/torrents/files?%s", qbtURL, params.Encode()), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("cookie", *cookie)
+
+	tr := &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}
+	client := &http.Client{Transport: tr}
+	res, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		body, _ := io.ReadAll(res.Body)
+		return nil, fmt.Errorf("qbt torrent files failed with status %d: %s", res.StatusCode, string(body))
+	}
+
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var files []QbtTorrentFile
+	if err := json.Unmarshal(body, &files); err != nil {
+		return nil, err
+	}
+
+	return files, nil
+}
+
+// QbtSetLocation asks qBittorrent to move a torrent's files to a new save path.
+// qBittorrent copies the data itself and keeps seeding from the new location.
+func QbtSetLocation(qbtHash string, location string) error {
+	cleanHash := strings.TrimSpace(qbtHash)
+	if cleanHash == "" {
+		return fmt.Errorf("qbt hash is required")
+	}
+
+	cookie, qbtURL, err := qbtLoginHandler()
+	if err != nil {
+		return err
+	}
+
+	formData := url.Values{}
+	formData.Set("hashes", cleanHash)
+	formData.Set("location", location)
+
+	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/api/v2/torrents/setLocation", qbtURL), strings.NewReader(formData.Encode()))
+	if err != nil {
+		return err
+	}
+
+	req.Header.Add("cookie", *cookie)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	tr := &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}
+	client := &http.Client{Transport: tr}
+	res, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		body, _ := io.ReadAll(res.Body)
+		return fmt.Errorf("qbt setLocation failed with status %d: %s", res.StatusCode, string(body))
 	}
 
 	return nil

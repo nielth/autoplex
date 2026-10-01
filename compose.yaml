@@ -29,6 +29,9 @@ services:
     env_file:
       - .env.production
     volumes:
+      - /mnt/sdb/:/sdb:ro
+      - /mnt/sdc/:/sdc:ro
+      - /mnt/sdd/:/sdd:ro
       - /mnt/sde/:/sde:ro
     expose: 
       - 8080

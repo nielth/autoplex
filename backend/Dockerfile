@@ -8,6 +8,9 @@ RUN CGO_ENABLED=0 GOOS=linux go build -mod=mod -o /api
 
 FROM alpine AS final
 
+# ffprobe is used by the disk balancer to read video bitrates
+RUN apk add --no-cache ffmpeg
+
 WORKDIR /
 
 COPY --from=build-stage /api /api
