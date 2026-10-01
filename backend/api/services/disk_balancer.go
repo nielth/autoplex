@@ -163,11 +163,11 @@ func RunDiskBalancer(cfg diskBalancerConfig) error {
 
 	disks := append([]string{cfg.spare}, cfg.pool...)
 	torrents := make([]balancerTorrent, 0, len(torrentsByHash))
+	movingName := ""
 	for _, torrent := range torrentsByHash {
-		// One move at a time: free space is only meaningful once qbt is done.
 		if torrent.State == "moving" {
-			status.Message = fmt.Sprintf("waiting for %q to finish moving", torrent.Name)
-			return nil
+			movingName = torrent.Name
+			continue
 		}
 		if torrent.Progress < 1 || !slices.Contains(diskBalancerSettledStates, torrent.State) {
 			continue
@@ -186,7 +186,7 @@ func RunDiskBalancer(cfg diskBalancerConfig) error {
 		})
 	}
 
-	if diskBalancerScanPending {
+	if diskBalancerScanPending && movingName == "" {
 		if _, err := TriggerMoviesAndShowsScan(); err != nil {
 			log.Printf("disk balancer: plex scan after move failed: %v", err)
 		} else {
@@ -239,6 +239,14 @@ func RunDiskBalancer(cfg diskBalancerConfig) error {
 		status.TopBitrates = append(status.TopBitrates, DiskBalancerTorrent{
 			Name: torrent.Name, Disk: torrent.Disk, Size: torrent.Size, Mbps: torrent.Mbps, Heavy: torrent.Heavy,
 		})
+	}
+
+	// Plan only once qbt is done moving: until then free space is in flux.
+	// Disks and bitrates above are still shown, along with the last plan.
+	if movingName != "" {
+		status.Message = fmt.Sprintf("waiting for %q to finish moving", movingName)
+		status.Plan = GetDiskBalancerStatus().Plan
+		return nil
 	}
 
 	moves := planDiskBalance(torrents, free, cfg.spare, cfg.pool, cfg.minFree, hotSince)
