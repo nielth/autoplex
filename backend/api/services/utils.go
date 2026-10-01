@@ -395,6 +395,22 @@ func SelectBestBoxsetTorrentByQuality(torrents []TlSeriesTorrent, showName strin
 	return pickBestByDynamicRange(candidates, EffectiveDynamicRange(preferredQuality, dynamicRange))
 }
 
+// SelectBestSeasonPackTorrent picks the boxset for a season released all at
+// once. Such a season is wanted as one pack, so when no pack has the wanted
+// dynamic range it settles for a pack without a DV/HDR tag instead of leaving
+// the season to be pieced together from single episodes. Dolby Vision packs
+// are still never taken for "hdr".
+func SelectBestSeasonPackTorrent(torrents []TlSeriesTorrent, showName string, seasonNumber int, quality string, dynamicRange string) *TlSeriesTorrent {
+	if selected := SelectBestBoxsetTorrentByQuality(torrents, showName, seasonNumber, quality, dynamicRange); selected != nil {
+		return selected
+	}
+
+	withoutDolbyVision := filterTorrents(torrents, func(torrent TlSeriesTorrent) bool {
+		return !torrentHasDolbyVision(torrent)
+	})
+	return SelectBestBoxsetTorrentByQuality(withoutDolbyVision, showName, seasonNumber, quality, "any")
+}
+
 // pickBestByDynamicRange narrows quality-matched candidates to the wanted
 // dynamic range before picking the best one: "hdr" keeps HDR releases that are
 // not also Dolby Vision, "dv" prefers Dolby Vision and falls back to those same
