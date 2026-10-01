@@ -65,6 +65,31 @@ function formatMbps(mbps: number): string {
   return mbps > 0 ? `${mbps.toFixed(1)} Mbps` : "-";
 }
 
+// One torrent as a compact card, used instead of the tables on small screens.
+function CompactRow({
+  name,
+  badges,
+  details,
+}: {
+  name: string;
+  badges?: React.ReactNode;
+  details: React.ReactNode[];
+}) {
+  return (
+    <div className="rounded-lg border border-base-300 bg-base-200 p-3">
+      <p className="break-all text-sm font-medium">
+        {name}
+        {badges}
+      </p>
+      <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs opacity-70">
+        {details.map((detail, index) => (
+          <span key={index}>{detail}</span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function DiskBalancer() {
   const navigate = useNavigate();
   const domain = getApiDomain();
@@ -143,12 +168,12 @@ export function DiskBalancer() {
           {disks.length > 0 ? (
             <div className="space-y-3">
               <h2 className="text-xl font-semibold">Disks</h2>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
                 {disks.map((disk) => {
                   const usedPercent =
                     disk.total > 0 ? ((disk.total - disk.free) / disk.total) * 100 : 0;
                   return (
-                    <div key={disk.name} className="rounded-xl bg-base-200 p-4">
+                    <div key={disk.name} className="rounded-xl bg-base-200 p-3 sm:p-4">
                       <div className="flex items-center justify-between">
                         <span className="font-mono font-semibold">{disk.name}</span>
                         <span className="badge badge-sm">
@@ -178,7 +203,29 @@ export function DiskBalancer() {
             {plan.length === 0 ? (
               <p className="text-sm opacity-70">Nothing planned.</p>
             ) : (
-              <div className="overflow-x-auto">
+              <>
+              <div className="space-y-2 lg:hidden">
+                {plan.map((item, index) => (
+                  <CompactRow
+                    key={`${item.name}-${index}`}
+                    name={item.name}
+                    badges={
+                      item.pending ? (
+                        <span className="badge badge-ghost badge-xs ml-2">next</span>
+                      ) : null
+                    }
+                    details={[
+                      <span className="font-mono">
+                        {item.from} → {item.to}
+                      </span>,
+                      formatBytes(item.size),
+                      formatMbps(item.mbps),
+                      <span className="break-all">{item.reason}</span>,
+                    ]}
+                  />
+                ))}
+              </div>
+              <div className="hidden overflow-x-auto lg:block">
                 <table className="table table-sm">
                   <thead>
                     <tr>
@@ -192,7 +239,7 @@ export function DiskBalancer() {
                   <tbody>
                     {plan.map((item, index) => (
                       <tr key={`${item.name}-${index}`}>
-                        <td className="break-all">{item.name}</td>
+                        <td className="min-w-64 break-all">{item.name}</td>
                         <td className="whitespace-nowrap font-mono">
                           {item.from} → {item.to}
                           {item.pending ? (
@@ -212,6 +259,7 @@ export function DiskBalancer() {
                   </tbody>
                 </table>
               </div>
+              </>
             )}
           </div>
 
@@ -222,7 +270,25 @@ export function DiskBalancer() {
                 Measured with ffprobe on the biggest video file. Torrents too small
                 to be heavy are guessed from their size.
               </p>
-              <div className="overflow-x-auto">
+              <div className="space-y-2 lg:hidden">
+                {topBitrates.map((row, index) => (
+                  <CompactRow
+                    key={`${row.name}-${index}`}
+                    name={row.name}
+                    badges={
+                      row.heavy ? (
+                        <span className="badge badge-warning badge-xs ml-2">heavy</span>
+                      ) : null
+                    }
+                    details={[
+                      <span className="font-mono">{row.disk}</span>,
+                      formatBytes(row.size),
+                      formatMbps(row.mbps),
+                    ]}
+                  />
+                ))}
+              </div>
+              <div className="hidden overflow-x-auto lg:block">
                 <table className="table table-sm">
                   <thead>
                     <tr>
@@ -235,7 +301,7 @@ export function DiskBalancer() {
                   <tbody>
                     {topBitrates.map((row, index) => (
                       <tr key={`${row.name}-${index}`}>
-                        <td className="break-all">
+                        <td className="min-w-64 break-all">
                           {row.name}
                           {row.heavy ? (
                             <span className="badge badge-warning badge-sm ml-2">heavy</span>
@@ -259,7 +325,32 @@ export function DiskBalancer() {
         {moves.length === 0 ? (
           <p className="text-sm opacity-70">No moves yet.</p>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <div className="space-y-2 lg:hidden">
+            {moves.map((move) => (
+              <CompactRow
+                key={move.id}
+                name={move.torrentName}
+                badges={
+                  !move.success ? (
+                    <span className="badge badge-error badge-xs ml-2" title={move.errorMessage}>
+                      failed
+                    </span>
+                  ) : null
+                }
+                details={[
+                  formatDate(move.createdAt),
+                  <span className="font-mono">
+                    {move.fromDisk} → {move.toDisk}
+                  </span>,
+                  formatBytes(move.size),
+                  formatMbps(move.mbps),
+                  ...(move.success ? [] : [<span className="text-error">{move.errorMessage}</span>]),
+                ]}
+              />
+            ))}
+          </div>
+          <div className="hidden overflow-x-auto lg:block">
             <table className="table table-sm">
               <thead>
                 <tr>
@@ -275,7 +366,7 @@ export function DiskBalancer() {
                 {moves.map((move) => (
                   <tr key={move.id}>
                     <td className="whitespace-nowrap text-xs">{formatDate(move.createdAt)}</td>
-                    <td className="break-all">
+                    <td className="min-w-64 break-all">
                       {move.torrentName}
                       {!move.success ? (
                         <p className="text-xs text-error">Failed: {move.errorMessage}</p>
@@ -292,6 +383,7 @@ export function DiskBalancer() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
     </div>
