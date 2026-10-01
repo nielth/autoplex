@@ -94,9 +94,12 @@ type QbtDownloadList struct {
 	Num_leechs    int     `json:"num_leechs"`
 	Num_seeds     int     `json:"num_seeds"`
 	Progress      float64 `json:"progress"`
+	Ratio         float64 `json:"ratio"`
 	SavePath      string  `json:"save_path"`
 	Size          int     `json:"size"`
 	State         string  `json:"state"`
+	Uploaded      int64   `json:"uploaded"`
+	Upspeed       int64   `json:"upspeed"`
 }
 
 func QbtGetDownloadingList() (*[]QbtDownloadList, error) {

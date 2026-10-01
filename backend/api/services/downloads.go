@@ -427,6 +427,12 @@ func ListDownloadEvents(username string, isAdmin bool, params DownloadListParams
 			if torrent, exists := torrentsByHash[hash]; exists {
 				downloads[i].QbtState = strings.TrimSpace(torrent.State)
 				downloads[i].ProgressPercent = torrent.Progress * 100
+				downloads[i].Uploaded = torrent.Uploaded
+				downloads[i].UpSpeed = torrent.Upspeed
+				downloads[i].Ratio = torrent.Ratio
+				downloads[i].Seeds = torrent.Num_seeds
+				downloads[i].SeedsInSwarm = torrent.Num_complete
+				downloads[i].SavePath = torrent.SavePath
 				if downloads[i].TorrentSize == 0 && torrent.Size > 0 {
 					downloads[i].TorrentSize = uint64(torrent.Size)
 				}

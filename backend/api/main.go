@@ -13,6 +13,10 @@ func main() {
 		log.Printf("No .env file loaded, using process environment: %v", err)
 	}
 
+	if err := services.InitJWTKeys(); err != nil {
+		log.Fatalf("Failed to set up JWT keys: %v", err)
+	}
+
 	if err := services.InitMySQL(); err != nil {
 		log.Fatalf("Failed to initialize mysql: %v", err)
 	}

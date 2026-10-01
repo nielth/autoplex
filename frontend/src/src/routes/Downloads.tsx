@@ -14,6 +14,12 @@ interface DownloadRecord {
   isFreeleech: boolean;
   qbtState?: string;
   progressPercent: number;
+  uploaded: number;
+  upSpeed: number;
+  ratio: number;
+  seeds: number;
+  seedsInSwarm: number;
+  savePath?: string;
   createdAt: string;
   deletedAt?: string;
   deletedByUsername?: string;
@@ -57,14 +63,20 @@ type ColumnKey =
   | "size"
   | "progress"
   | "state"
-  | "seeding"
   | "completed"
+  | "uploaded"
+  | "upSpeed"
+  | "ratio"
+  | "seeds"
+  | "savePath"
   | "deleted"
   | "deletedBy";
 
 interface ColumnDef {
   key: ColumnKey;
   label: string;
+  // Fixed width in px, so columns never shift when sorting or data changes.
+  width: number;
   sort?: DownloadSortField;
   adminOnly?: boolean;
   tab?: TabKey;
@@ -72,21 +84,28 @@ interface ColumnDef {
 
 // Name and the delete button are always shown; these can be toggled.
 const COLUMNS: ColumnDef[] = [
-  { key: "user", label: "User", sort: "username", adminOnly: true },
-  { key: "added", label: "Added", sort: "createdAt" },
-  { key: "size", label: "Size", sort: "torrentSize" },
-  { key: "progress", label: "Progress", tab: "installed" },
-  { key: "state", label: "State", tab: "installed" },
-  { key: "seeding", label: "Safe to delete in", tab: "installed" },
-  { key: "completed", label: "Completed", tab: "installed" },
-  { key: "deleted", label: "Deleted", sort: "deletedAt", tab: "deleted" },
-  { key: "deletedBy", label: "Deleted by", tab: "deleted" },
+  { key: "user", label: "User", width: 110, sort: "username", adminOnly: true },
+  { key: "added", label: "Added", width: 165, sort: "createdAt" },
+  { key: "size", label: "Size", width: 100, sort: "torrentSize" },
+  { key: "progress", label: "Progress", width: 140, tab: "installed" },
+  { key: "state", label: "State", width: 120, tab: "installed" },
+  { key: "uploaded", label: "Uploaded", width: 100, tab: "installed" },
+  { key: "upSpeed", label: "Up speed", width: 100, tab: "installed" },
+  { key: "ratio", label: "Ratio", width: 70, tab: "installed" },
+  { key: "seeds", label: "Seeds", width: 90, tab: "installed" },
+  { key: "completed", label: "Completed", width: 165, tab: "installed" },
+  { key: "savePath", label: "Save path", width: 220, tab: "installed" },
+  { key: "deleted", label: "Deleted", width: 165, sort: "deletedAt", tab: "deleted" },
+  { key: "deletedBy", label: "Deleted by", width: 120, tab: "deleted" },
 ];
+
+const NAME_MIN_WIDTH = 360;
+const ACTION_WIDTH = 135;
 
 const HIDDEN_COLUMNS_KEY = "downloads.hiddenColumns";
 
 function loadHiddenColumns(): Partial<Record<ColumnKey, boolean>> {
-  const fallback = { completed: true };
+  const fallback = { completed: true, ratio: true };
   try {
     const stored = localStorage.getItem(HIDDEN_COLUMNS_KEY);
     return stored ? JSON.parse(stored) : fallback;
@@ -122,9 +141,37 @@ function formatDate(value?: string) {
   return `${year}-${month}-${day} ${hours}:${minutes}`;
 }
 
+// qBittorrent's API states, labelled the way qBittorrent's own web UI shows
+// them. "missing" and "deleted" come from autoplex itself.
+const STATE_LABELS: Record<string, string> = {
+  downloading: "Downloading",
+  forcedDL: "[F] Downloading",
+  metaDL: "Downloading metadata",
+  forcedMetaDL: "[F] Downloading metadata",
+  stalledDL: "Stalled",
+  queuedDL: "Queued",
+  pausedDL: "Paused",
+  stoppedDL: "Stopped",
+  uploading: "Seeding",
+  stalledUP: "Seeding",
+  forcedUP: "[F] Seeding",
+  queuedUP: "Queued",
+  pausedUP: "Completed",
+  stoppedUP: "Completed",
+  checkingDL: "Checking",
+  checkingUP: "Checking",
+  checkingResumeData: "Checking resume data",
+  allocating: "Allocating",
+  moving: "Moving",
+  missingFiles: "Missing files",
+  error: "Errored",
+  missing: "Not in qBittorrent",
+  deleted: "Deleted",
+};
+
 function normalizeState(state?: string) {
-  if (!state) return "unknown";
-  return state.replace(/_/g, " ");
+  if (!state) return "Unknown";
+  return STATE_LABELS[state] ?? state;
 }
 
 interface TabState {
@@ -487,7 +534,7 @@ export function Downloads() {
 
   const renderSortHeader = (label: string, field?: DownloadSortField) => {
     if (!field) return label;
-    const arrow = sortField === field ? (sortDirection === "asc" ? " ▲" : " ▼") : "";
+    const isSorted = sortField === field;
     return (
       <button
         type="button"
@@ -495,7 +542,9 @@ export function Downloads() {
         onClick={() => handleHeaderSort(field)}
       >
         {label}
-        {arrow}
+        <span className={`ml-1 inline-block w-3 ${isSorted ? "" : "invisible"}`}>
+          {isSorted && sortDirection === "asc" ? "▲" : "▼"}
+        </span>
       </button>
     );
   };
@@ -518,17 +567,44 @@ export function Downloads() {
         );
       case "state":
         return normalizeState(download.qbtState);
-      case "seeding": {
-        const safeIn = formatCountdown(download.safeToDeleteAt);
-        return safeIn === "now" ? "done" : safeIn;
-      }
       case "completed":
         return formatDate(download.completedAt);
+      case "uploaded":
+        return formatBytes(download.uploaded || 0);
+      case "upSpeed":
+        return download.upSpeed > 0 ? `${formatBytes(download.upSpeed)}/s` : "-";
+      case "ratio":
+        return download.ratio >= 0 ? download.ratio.toFixed(2) : "-";
+      case "seeds":
+        return `${download.seeds ?? 0} (${download.seedsInSwarm ?? 0})`;
+      case "savePath":
+        return download.savePath || "-";
       case "deleted":
         return formatDate(download.deletedAt);
       case "deletedBy":
         return download.deletedByUsername || "-";
     }
+  };
+
+  // Shown while the tracker's seeding window is still running. With showSafe
+  // a "SAFE" badge is shown once it has passed (used in the compact list).
+  const renderSeedingBadge = (download: DownloadRecord, showSafe = false) => {
+    if (download.deletedAt || !download.safeToDeleteAt) return null;
+    const safeIn = formatCountdown(download.safeToDeleteAt);
+    if (safeIn === "-") return null;
+    if (safeIn === "now") {
+      return showSafe ? (
+        <span className="badge badge-success badge-outline badge-xs ml-2">SAFE</span>
+      ) : null;
+    }
+    return (
+      <span
+        className="badge badge-info badge-outline badge-xs ml-2"
+        title={`Must keep seeding: safe to delete in ${safeIn}`}
+      >
+        SEEDING {safeIn}
+      </span>
+    );
   };
 
   const renderAction = (download: DownloadRecord) => {
@@ -538,7 +614,7 @@ export function Downloads() {
     const deleteLabel = isAdmin ? (isStillSeeding ? "Queue delete" : "Delete") : "Request delete";
     return (
       <button
-        className="btn btn-error btn-xs"
+        className="btn btn-error btn-xs whitespace-nowrap"
         disabled={workingId === download.id}
         onClick={() => handleDelete(download)}
       >
@@ -714,7 +790,7 @@ export function Downloads() {
           </select>
         ) : null}
 
-        <div className="dropdown dropdown-end ml-auto">
+        <div className="dropdown dropdown-end ml-auto hidden lg:block">
           <div tabIndex={0} role="button" className="btn btn-outline btn-sm">
             Columns
           </div>
@@ -756,13 +832,68 @@ export function Downloads() {
             : "No deleted torrents match your filters."}
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-base-300">
-          <table className="table table-sm table-pin-rows">
+        <>
+        {/* Compact list for phones and small screens */}
+        <div className="space-y-2 lg:hidden">
+          {tabState.rows.map((download) => {
+            const progress = Math.max(0, Math.min(100, download.progressPercent || 0));
+            return (
+              <div key={download.id} className="rounded-lg border border-base-300 bg-base-200 p-3">
+                <p className="break-all text-sm font-medium">
+                  {download.filename || download.fid}
+                  {download.isFreeleech ? (
+                    <span className="badge badge-warning badge-xs ml-2">FREELEECH</span>
+                  ) : null}
+                  {renderSeedingBadge(download, true)}
+                  {!download.deletedAt && download.hasHitAndRun ? (
+                    <span className="badge badge-warning badge-xs ml-2">Hit &amp; Run</span>
+                  ) : null}
+                  {!download.deletedAt && download.hasPendingDeleteRequest ? (
+                    <span className="badge badge-info badge-xs ml-2">Delete pending</span>
+                  ) : null}
+                </p>
+                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                  <span className="opacity-70">{download.username}</span>
+                  <span className="tabular-nums opacity-70">
+                    {formatBytes(download.torrentSize || 0)}
+                  </span>
+                  {download.deletedAt ? (
+                    <span className="opacity-70">Deleted {formatDate(download.deletedAt)}</span>
+                  ) : (
+                    <span className="flex items-center gap-1">
+                      <progress className="progress progress-info h-2 w-16" value={progress} max={100} />
+                      <span className="tabular-nums opacity-70">{progress.toFixed(0)}%</span>
+                    </span>
+                  )}
+                  <span className="ml-auto">{renderAction(download)}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="hidden overflow-x-auto rounded-xl border border-base-300 lg:block">
+          <table
+            className="table table-sm table-pin-rows table-fixed"
+            style={{
+              minWidth:
+                NAME_MIN_WIDTH +
+                visibleColumns.reduce((sum, column) => sum + column.width, 0) +
+                (activeTab === "installed" ? ACTION_WIDTH : 0),
+            }}
+          >
+            <colgroup>
+              <col />
+              {visibleColumns.map((column) => (
+                <col key={column.key} style={{ width: column.width }} />
+              ))}
+              {activeTab === "installed" ? <col style={{ width: ACTION_WIDTH }} /> : null}
+            </colgroup>
             <thead>
               <tr className="bg-base-200">
                 <th>{renderSortHeader("Name", "filename")}</th>
                 {visibleColumns.map((column) => (
-                  <th key={column.key} className="whitespace-nowrap">
+                  <th key={column.key} className="truncate">
                     {renderSortHeader(column.label, column.sort)}
                   </th>
                 ))}
@@ -772,11 +903,12 @@ export function Downloads() {
             <tbody>
               {tabState.rows.map((download) => (
                 <tr key={download.id} className="hover">
-                  <td className="min-w-64 break-all">
+                  <td className="break-all">
                     {download.filename || download.fid}
                     {download.isFreeleech ? (
                       <span className="badge badge-warning badge-xs ml-2">FREELEECH</span>
                     ) : null}
+                    {renderSeedingBadge(download)}
                     {!download.deletedAt && download.hasHitAndRun ? (
                       <span className="badge badge-warning badge-xs ml-2">Hit &amp; Run</span>
                     ) : null}
@@ -785,7 +917,11 @@ export function Downloads() {
                     ) : null}
                   </td>
                   {visibleColumns.map((column) => (
-                    <td key={column.key} className="whitespace-nowrap">
+                    <td
+                      key={column.key}
+                      className="truncate tabular-nums"
+                      title={column.key === "savePath" ? download.savePath : undefined}
+                    >
                       {renderCell(column.key, download)}
                     </td>
                   ))}
@@ -794,14 +930,15 @@ export function Downloads() {
               ))}
             </tbody>
           </table>
-          {hasMore ? (
-            <div ref={sentinelRef} className="flex justify-center py-4 text-xs opacity-60">
-              {tabState.loading
-                ? "Loading more..."
-                : `${tabState.total - tabState.rows.length} more`}
-            </div>
-          ) : null}
         </div>
+        {hasMore ? (
+          <div ref={sentinelRef} className="flex justify-center py-4 text-xs opacity-60">
+            {tabState.loading
+              ? "Loading more..."
+              : `${tabState.total - tabState.rows.length} more`}
+          </div>
+        ) : null}
+        </>
       )}
     </div>
   );

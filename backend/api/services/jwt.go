@@ -3,8 +3,12 @@ package services
 import (
 	"crypto/ed25519"
 	"crypto/rand"
+	"crypto/sha256"
 	"errors"
 	"fmt"
+	"log"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -15,32 +19,26 @@ var (
 	publicKey  ed25519.PublicKey
 )
 
-// func init() {
-// 	// Example hardcoded private key seed (32 bytes for Ed25519 seed)
-// 	privateKeySeedHex := "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
-// 	privateKeySeed, err := hex.DecodeString(privateKeySeedHex)
-// 	if err != nil {
-// 		log.Fatalf("Error decoding private key seed: %v", err)
-// 	}
-//
-// 	// Ensure the length is 32 bytes for the seed
-// 	if len(privateKeySeed) != ed25519.SeedSize {
-// 		log.Fatalf("Invalid private key seed length: got %d, expected %d", len(privateKeySeed), ed25519.SeedSize)
-// 	}
-//
-// 	// Generate the private key from the seed
-// 	privateKey = ed25519.NewKeyFromSeed(privateKeySeed)
-// 	publicKey = privateKey.Public().(ed25519.PublicKey)
-// }
+// InitJWTKeys sets the Ed25519 signing key. With JWT_SECRET set, the key is
+// derived from it, so logins survive restarts and redeploys. Without it a
+// random key is used and everyone is logged out on every restart. It must run
+// after the .env file is loaded.
+func InitJWTKeys() error {
+	if secret := strings.TrimSpace(os.Getenv("JWT_SECRET")); secret != "" {
+		seed := sha256.Sum256([]byte(secret))
+		privateKey = ed25519.NewKeyFromSeed(seed[:])
+		publicKey = privateKey.Public().(ed25519.PublicKey)
+		return nil
+	}
 
-func init() {
-	// Generate Ed25519 key pair dynamically
+	log.Printf("JWT_SECRET is not set, using a random key: logins will not survive a restart")
 	pub, priv, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
-		panic("Error generating Ed25519 key pair: " + err.Error())
+		return fmt.Errorf("error generating Ed25519 key pair: %w", err)
 	}
 	privateKey = priv
 	publicKey = pub
+	return nil
 }
 
 func CreateToken(username string) (string, error) {

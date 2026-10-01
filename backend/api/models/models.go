@@ -42,6 +42,12 @@ type DownloadEventRecord struct {
 	IsFreeleech       bool    `json:"isFreeleech"`
 	QbtState          string  `json:"qbtState,omitempty"`
 	ProgressPercent   float64 `json:"progressPercent"`
+	Uploaded          int64   `json:"uploaded"`
+	UpSpeed           int64   `json:"upSpeed"`
+	Ratio             float64 `json:"ratio"`
+	Seeds             int     `json:"seeds"`
+	SeedsInSwarm      int     `json:"seedsInSwarm"`
+	SavePath          string  `json:"savePath,omitempty"`
 	CreatedAt         string  `json:"createdAt"`
 	DeletedAt         *string `json:"deletedAt,omitempty"`
 	DeletedByUsername *string `json:"deletedByUsername,omitempty"`
