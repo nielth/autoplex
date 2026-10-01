@@ -1,6 +1,7 @@
 package services
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -339,11 +340,18 @@ func ffprobeMbps(filePath string) (float64, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
-	out, err := exec.CommandContext(
-		ctx, "ffprobe", "-v", "error", "-show_entries", "format=duration,bit_rate,size", "-of", "json", filePath,
-	).Output()
-	if err != nil {
+	if _, err := os.Stat(filePath); err != nil {
 		return 0, err
+	}
+
+	var stderr bytes.Buffer
+	cmd := exec.CommandContext(
+		ctx, "ffprobe", "-v", "error", "-show_entries", "format=duration,bit_rate,size", "-of", "json", filePath,
+	)
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
+	if err != nil {
+		return 0, fmt.Errorf("%w: %s", err, strings.TrimSpace(stderr.String()))
 	}
 
 	var probe ffprobeOutput

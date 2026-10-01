@@ -1,19 +1,19 @@
-FROM golang:1.23 AS build-stage
+FROM golang:1.23-bookworm AS build
 WORKDIR /app
 
-COPY ./api/ ./
+COPY api/go.mod api/go.sum ./
 RUN go mod download
+COPY api/ ./
+RUN CGO_ENABLED=0 GOOS=linux go build -o /api
 
-RUN CGO_ENABLED=0 GOOS=linux go build -mod=mod -o /api
+FROM debian:bookworm-slim
 
-FROM alpine AS final
+# ca-certificates for Plex, TorrentLeech and TVmaze over HTTPS,
+# ffmpeg for ffprobe, which the disk balancer uses to read video bitrates
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
 
-# ffprobe is used by the disk balancer to read video bitrates
-RUN apk add --no-cache ffmpeg
+COPY --from=build /api /api
 
-WORKDIR /
-
-COPY --from=build-stage /api /api
-
-# ENTRYPOINT ["tail", "-f", "/dev/null"]
+EXPOSE 8080
 ENTRYPOINT ["/api"]

@@ -25,12 +25,6 @@ MYSQL_USER
 MYSQL_PASSWORD
 ```
 
-Used frontend/nginx var (production compose):
-
-```text
-NGINX_HOST
-```
-
 ## Disk balancer
 
 New downloads land on the spare disk (`DISK_BALANCER_SPARE_DISK`, default `sde`). When enabled, a worker runs every 10 minutes. It moves high bitrate torrents off the spare disk and spreads them across the pool disks (`DISK_BALANCER_POOL_DISKS`), so the pool disks stay full and the spare disk keeps as much free space as possible.

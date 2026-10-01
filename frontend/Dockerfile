@@ -1,12 +1,10 @@
-FROM oven/bun:latest AS builder
+FROM oven/bun:1 AS build
 WORKDIR /app
-COPY ./src .
+COPY src/package.json src/bun.lockb ./
+RUN bun install --frozen-lockfile
+COPY src/ .
+RUN bun run build
 
-RUN bun install 
-RUN bun vite build
-
-FROM nginx:alpine
-RUN rm -f /etc/nginx/conf.d/default.conf
-COPY --from=builder /app/dist /var/www/myapp
-COPY ./nginx/conf /etc/nginx/templates
-# ENTRYPOINT ["tail", "-f", "/dev/null"]
+FROM caddy:2-alpine
+COPY Caddyfile /etc/caddy/Caddyfile
+COPY --from=build /app/dist /srv

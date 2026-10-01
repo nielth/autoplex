@@ -1,0 +1,17 @@
+:80 {
+	# The backend is reached by container name on the shared network.
+	handle /api/* {
+		reverse_proxy autoplex-backend:8080
+	}
+
+	handle {
+		header {
+			X-Frame-Options "SAMEORIGIN"
+			X-Content-Type-Options "nosniff"
+			Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' fonts.googleapis.com; img-src 'self' data: https://static.tvmaze.com; font-src fonts.gstatic.com;"
+		}
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}

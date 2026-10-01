@@ -1,3 +1,7 @@
+# Works with plain `docker compose up -d --build` and as a Komodo stack.
+# Images are built from this repo, nothing is pulled from a registry.
+# The site is reached through an existing Caddy on the external `public-caddy`
+# network: point it at http://autoplex-frontend:80.
 services:
   mysql:
     image: mysql:8.4
@@ -24,15 +28,17 @@ services:
       start_period: 20s
 
   backend:
-    image: registry.nielth.com/admin/autoplex-backend
+    build: ./backend
     container_name: autoplex-backend
     env_file:
       - .env.production
     volumes:
-      - /mnt/sdb/:/sdb:ro
-      - /mnt/sdc/:/sdc:ro
-      - /mnt/sdd/:/sdd:ro
-      - /mnt/sde/:/sde:ro
+      # Same folders qBittorrent sees as /downloads/<disk>. Read-only: used for
+      # free space and for ffprobe to read video bitrates.
+      - /mnt/sdb/plex:/sdb:ro
+      - /mnt/sdc/plex:/sdc:ro
+      - /mnt/sdd/plex:/sdd:ro
+      - /mnt/sde/plex:/sde:ro
     expose: 
       - 8080
     networks:
@@ -42,8 +48,9 @@ services:
       mysql:
         condition: service_healthy
 
+  # Serves the app and proxies /api to the backend (see frontend/Caddyfile).
   frontend:
-    image: registry.nielth.com/admin/autoplex-frontend
+    build: ./frontend
     networks:
       - public-caddy
     depends_on:
